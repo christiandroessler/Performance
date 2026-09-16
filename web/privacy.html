@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Datenschutz – Performance App</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <h1>Datenschutzhinweis</h1>
+  <p>
+    Performance App ist eine private, nicht-kommerzielle Trainingsanwendung fuer
+    eine geschlossene Gruppe von bis zu 10 Personen (Einladung durch den
+    Administrator, keine Selbstregistrierung).
+  </p>
+
+  <h2>Welche Daten werden verarbeitet?</h2>
+  <p>
+    Deine Google-Identitaet (E-Mail-Adresse, Name) zur Anmeldung, sowie deine
+    eigenen Strava-Aktivitaetsdaten (Leistung, Herzfrequenz, Kadenz, Zeit,
+    Geschwindigkeit), die du selbst durch das Verbinden deines Strava-Kontos
+    freigibst.
+  </p>
+
+  <h2>Wo werden die Daten gespeichert?</h2>
+  <p>
+    Deine Trainingsdaten liegen <strong>ausschliesslich</strong> in einem
+    versteckten App-Ordner in deinem <strong>eigenen</strong> Google Drive
+    (Scope <code>drive.appdata</code>, nur fuer diese App sichtbar, nicht im
+    normalen Drive-Dateibrowser) sowie im lokalen Zwischenspeicher deines
+    Browsers. Der Anwendungsserver (Cloudflare Worker) speichert
+    <strong>keine</strong> Trainingsdaten - nur deinen Verbindungsstatus und
+    ein verschluesseltes Strava-Zugriffstoken, damit er Anfragen an Strava in
+    deinem Namen stellen kann.
+  </p>
+
+  <h2>Wer hat Zugriff?</h2>
+  <p>
+    Nur du selbst. Der Administrator der Gruppe sieht in seiner Verwaltungsansicht
+    ausschliesslich den Verbindungsstatus der Mitglieder (eingeladen /
+    verbunden), niemals Trainingsdaten oder Kennzahlen anderer Mitglieder.
+  </p>
+
+  <h2>Weitergabe an Dritte</h2>
+  <p>
+    Es findet keine Weitergabe an Dritte statt. Die Ablage im eigenen
+    Google-Drive-App-Ordner erfolgt nur mit deiner ausdruecklichen Einwilligung
+    im Rahmen der Einrichtung.
+  </p>
+
+  <h2>Loeschung</h2>
+  <p>
+    Du kannst jederzeit ueber die Funktion "Meine Daten loeschen" deinen
+    gesamten App-Ordner in deinem Google Drive loeschen und die
+    Strava-Verbindung trennen. Beim Entfernen aus der Gruppe durch den
+    Administrator wird der Strava-Zugriff automatisch widerrufen und das
+    gespeicherte Zugriffstoken geloescht.
+  </p>
+
+  <h2>Kontakt</h2>
+  <p>Bei Fragen wende dich an den Administrator dieser App-Instanz.</p>
+</body>
+</html>
