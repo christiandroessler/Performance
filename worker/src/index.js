@@ -128,7 +128,7 @@ async function handleStravaCallback(url, env) {
   const state = url.searchParams.get('state');
   const error = url.searchParams.get('error');
 
-  const redirectBase = env.FRONTEND_ORIGIN + '/onboarding';
+  const redirectBase = env.FRONTEND_ORIGIN + '/'; // Single-Page-App ohne echte Routen - immer zurueck zur Startseite
   if (error) {
     return Response.redirect(`${redirectBase}?strava=error&reason=${encodeURIComponent(error)}`, 302);
   }
