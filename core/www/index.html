@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<title>Rechenkern – Sichtkontrolle (M1)</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 960px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+  h1 { font-size: 1.3rem; }
+  #drop { border: 2px dashed #888; border-radius: 8px; padding: 2rem; text-align: center; color: #555; margin: 1rem 0; }
+  #drop.over { background: #eef; border-color: #55a; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.85rem; }
+  th, td { border: 1px solid #ccc; padding: 0.3rem 0.5rem; text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  .medal-gold { color: #a67c00; font-weight: bold; }
+  .medal-silver { color: #7a7a7a; font-weight: bold; }
+  .medal-bronze { color: #a0522d; font-weight: bold; }
+  .warn { color: #b00; }
+  .muted { color: #777; font-size: 0.85rem; }
+  pre { background: #f5f5f5; padding: 0.5rem; overflow: auto; font-size: 0.8rem; }
+</style>
+</head>
+<body>
+<h1>Rechenkern – lokale Sichtkontrolle (M1)</h1>
+<p class="muted">
+  Original-Aktivitaetsdateien aus dem Strava-Datenexport (.fit, .gpx, .tcx) hier
+  ablegen oder auswaehlen. Rein lokal im Browser, keine Uebertragung. Nur fuer
+  die visuelle Pruefung waehrend der Entwicklung (FA-SYNC-06), keine Produktiv-UI.
+</p>
+
+<div id="drop">Dateien hier ablegen oder klicken<br /><input id="file-input" type="file" multiple accept=".fit,.gpx,.tcx" /></div>
+
+<div id="status" class="muted"></div>
+<div id="result"></div>
+
+<script type="module">
+  import {
+    prepareActivity,
+    computeSignatureHistory,
+    mergeSettings,
+    importers,
+  } from '../src/index.js';
+
+  const drop = document.getElementById('drop');
+  const input = document.getElementById('file-input');
+  const status = document.getElementById('status');
+  const result = document.getElementById('result');
+
+  ['dragover', 'dragenter'].forEach((ev) =>
+    drop.addEventListener(ev, (e) => {
+      e.preventDefault();
+      drop.classList.add('over');
+    })
+  );
+  ['dragleave', 'drop'].forEach((ev) =>
+    drop.addEventListener(ev, (e) => {
+      e.preventDefault();
+      drop.classList.remove('over');
+    })
+  );
+  drop.addEventListener('drop', (e) => handleFiles(e.dataTransfer.files));
+  input.addEventListener('change', (e) => handleFiles(e.target.files));
+
+  async function handleFiles(fileList) {
+    const files = Array.from(fileList);
+    if (files.length === 0) return;
+    status.textContent = `Lese ${files.length} Datei(en) ...`;
+    result.innerHTML = '';
+
+    const settings = mergeSettings();
+    const raw = [];
+    for (const file of files) {
+      try {
+        const lower = file.name.toLowerCase();
+        const parsed = lower.endsWith('.fit')
+          ? importers.parseFit(await file.arrayBuffer())
+          : importers.parseActivityFile(file.name, await file.text());
+        if (!parsed.startTime || parsed.points.length === 0) {
+          console.warn(`${file.name}: keine Zeitstempel/Punkte gefunden, uebersprungen`);
+          continue;
+        }
+        raw.push({ id: file.name, date: parsed.startTime.slice(0, 10), startTime: parsed.startTime, points: parsed.points });
+      } catch (err) {
+        console.error(`Fehler beim Parsen von ${file.name}:`, err);
+      }
+    }
+
+    if (raw.length === 0) {
+      status.innerHTML = '<span class="warn">Keine gueltigen Aktivitaeten gefunden.</span>';
+      return;
+    }
+
+    status.textContent = `Aufbereitung von ${raw.length} Aktivitaet(en) ...`;
+    const prepared = raw.map((r) => prepareActivity(r, settings));
+
+    status.textContent = 'Berechne Signaturverlauf ...';
+    const history = computeSignatureHistory(prepared, { settings });
+
+    status.textContent = `${raw.length} Aktivitaet(en) verarbeitet.`;
+    render(history);
+  }
+
+  function render(history) {
+    if (history.needsMoreData) {
+      result.innerHTML = `<p class="warn">Keine Startsignatur: ${history.initial.reason}</p>`;
+      return;
+    }
+
+    let html = `<h2>Signaturverlauf</h2><table><tr><th>Datum</th><th>TP (W)</th><th>HIE (kJ)</th><th>PP (W)</th><th>Quelle</th></tr>`;
+    for (const h of history.history) {
+      html += `<tr><td>${h.date}</td><td>${Math.round(h.cp)}</td><td>${Math.round(h.wPrimeJ / 100) / 10}</td><td>${Math.round(h.pMax)}</td><td>${h.source}${h.breakthroughId ? ' (' + h.breakthroughId + ')' : ''}</td></tr>`;
+    }
+    html += `</table>`;
+
+    if (history.breakthroughs.length) {
+      html += `<h2>Breakthroughs</h2><table><tr><th>Aktivitaet</th><th>Datum</th><th>Medaille</th><th>Verworfen</th></tr>`;
+      for (const b of history.breakthroughs) {
+        const medalClass = b.medal ? `medal-${b.medal}` : '';
+        html += `<tr><td>${b.activityId}</td><td>${b.date}</td><td class="${medalClass}">${b.medal ?? '–'}</td><td>${b.discarded ? 'ja' : 'nein'}</td></tr>`;
+      }
+      html += `</table>`;
+    }
+
+    html += `<h2>Aktivitaeten</h2><table><tr><th>Datum</th><th>ID</th><th>NP (W)</th><th>IF</th><th>TSS</th><th>Strain (L/H/P)</th><th>Breakthrough</th></tr>`;
+    for (const a of history.activityResults) {
+      if (!a.hasSignature) {
+        html += `<tr><td>${a.date}</td><td>${a.id}</td><td colspan="5" class="muted">Teil der Startfenster-Regression</td></tr>`;
+        continue;
+      }
+      html += `<tr><td>${a.date}</td><td>${a.id}</td><td>${a.np}</td><td>${a.if ?? '–'}</td><td>${a.tss}</td><td>${a.strain.low}/${a.strain.high}/${a.strain.peak}</td><td>${a.breakthrough ? '✓' : ''}</td></tr>`;
+    }
+    html += `</table>`;
+
+    html += `<h2>Rohdaten</h2><pre>${escapeHtml(JSON.stringify(history, replacer, 2)).slice(0, 20000)}</pre>`;
+    result.innerHTML = html;
+  }
+
+  function replacer(key, value) {
+    if (value instanceof Set) return [...value];
+    if (ArrayBuffer.isView(value)) return `[${value.constructor.name}, length ${value.length}]`;
+    if (key === 'stream') return undefined;
+    return value;
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  }
+</script>
+</body>
+</html>

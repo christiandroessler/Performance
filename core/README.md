@@ -1,0 +1,328 @@
+# Rechenkern (M1)
+
+Reine JavaScript-Bibliothek fuer alle Modellberechnungen der Performance-App
+(siehe [`../docs/LASTENHEFT.md`](../docs/LASTENHEFT.md), Kap. 5–7). Kein I/O,
+keine Zufallszahlen, keine Abhaengigkeiten. Laeuft unveraendert in Node, im
+Browser und in einem Web Worker (NFA-04).
+
+## Status
+
+Diese Version deckt den **M1-Umfang** ab (Kap. 10):
+
+- Datenqualitaet: 1-Hz-Resampling, Luecken-Markierung, Ausreisserfilter (FA-DQ-01 bis 04)
+- NP/IF/TSS, hrTSS, Pace-TSS (Kap. 6.6/FA-TP)
+- Mean-Maximal-Power, 2- und 3-Parameter-CP-Fit (Morton) mit robuster IRLS-Regression
+- MPA (Kap. 7.2), W'bal nach Skiba 2015 (Kap. 7.3)
+- Breakthrough-Erkennung und Refit mit Umverteilung, Absenkbremse, Medaillen (Kap. 7.4/7.5)
+- Strain Score (Kap. 7.6) – exakt gegen die Testvektoren aus dem Lastenheft geprueft
+- 2-Parameter-Konsistenzpruefung (FA-SIG-14)
+- Chronologische Signatur-Orchestrierung inkl. Verwerfen/Reaktivieren von Breakthroughs
+- Parser fuer den Strava-Datenexport (activities.csv, GPX, TCX, FIT) – FA-SYNC-06, Entwicklungspfad
+- Lokale Sichtkontrollseite (`www/index.html`)
+
+**Nicht** in M1: das belastungsgekoppelte 3D-Impulse-Response-Modell (Kap. 7.7,
+Kalibrierung Kap. 7.8 → M4) und das Stoffwechselmodell (Kap. 7.9 → M5).
+
+## Stand der Verifikation
+
+Alle 33 automatisierten Tests laufen gruen (`npm test` im `core`-Ordner).
+Zusaetzlich wurde der komplette Aktivitaetsbestand eines echten Nutzers
+(1977 Rad-Aktivitaeten mit Leistung, 2017–2026, aus der bestehenden
+`strava-dashboard`-Datenbank, siehe `scripts/run-legacy-db.js`) mehrfach
+durchgerechnet: Signaturverlauf mit 14 erkannten Breakthroughs (1 Gold, 5
+Silber, 8 Bronze), **ohne Absturz und ohne `constraintUnsatisfied`-Warnung**.
+Dabei kamen im Laufe der Entwicklung drei echte Bugs zum Vorschein und
+wurden behoben: siehe "Nebenbedingung nach dem Refit" unten. Bemerkenswert:
+vor diesen Fixes zeigte derselbe Datensatz zeitweise 144–176 "erkannte"
+Breakthroughs mit bis zu 62 % `constraintUnsatisfied`-Quote - dieser starke
+Rueckgang auf 14 durchweg plausible Breakthroughs ist selbst ein Indiz dafuer,
+dass die fruehere Instabilitaet (falsch eskalierte `pMax`/`CP`-Werte, die die
+nachfolgende MPA-Kurve verzerrten und dadurch kaskadierend weitere
+Schein-Breakthroughs erzeugten) tatsaechlich behoben ist, nicht nur die
+Symptomanzeige. Die M1-Abnahmepunkte "Testvektoren", "W'bal-Verhalten",
+"Determinismus" und "vollstaendiger Datensatz laeuft durch" sind damit
+erfuellt.
+
+**NFA-04 (Performance) formal bestaetigt:** isolierte Neuberechnung
+(MPA+W'bal+Strain) einer echten 7.2h-Aktivitaet, 30 Wiederholungen mit
+`process.hrtime`: min 0.85 ms / median 1.12 ms / max 1.98 ms (Ziel ≤ 2000 ms)
+auf einem Intel Core i7-8550U (Node v24.19.0, Windows). Siehe
+`scripts/run-legacy-db.js`-Ausgabe.
+
+**FIT-Parser gegen eine echte Geraetedatei verifiziert:** eine reale
+Garmin/Wahoo-`.fit`-Datei (547 KB, 2h-Intervalltraining, 7037
+record-Meldungen) wurde mit `scripts/verify-fit.js` erfolgreich geparst und
+durch den vollstaendigen M1-Pfad (Resampling, Ausreisserfilter, MMP)
+geschickt; Leistungs-, Herzfrequenz- und Kadenzwerte sowie die
+MMP-Stichproben (5s=371W, 60s=338W, 300s=320W) sind plausibel und passen zur
+Trainingseinheit. Damit ist der bisher einzige unverifizierte Punkt des
+Datenimports geschlossen.
+
+Einzig noch offen (nicht M1-blockierend, da inhaltlich durch den
+Legacy-DB-Testlauf abgedeckt): der Testlauf mit einem frischen
+Strava-Datenexport (`scripts/run-export.js`, FA-SYNC-06) als der eigentlich
+spezifizierte Entwicklungspfad, statt der schnelleren Alternative ueber die
+bestehende `strava-dashboard`-Datenbank.
+
+```bash
+cd core
+npm test
+```
+
+Node 18+ genuegt (fuer `scripts/run-legacy-db.js` wird `node:sqlite` benoetigt,
+das ist ab Node 22.5 eingebaut), es gibt keine Abhaengigkeiten zu installieren.
+
+## Einheitenkonvention
+
+W' (HIE) wird **intern durchgehend in Joule** gefuehrt (Feld `wPrimeJ`). Nur
+die Anzeigeschicht rechnet in kJ um (Kap. 5.2 zeigt HIE in kJ). Grund: die
+Differentialgleichung in Kap. 7.3 ist in Joule/Watt konsistent, eine
+kJ-Umrechnung mitten im Rechenkern waere eine unnoetige Fehlerquelle.
+
+## M1-Festlegungen (Kap. 10, Abnahmekriterium)
+
+### JavaScript statt TypeScript
+
+Der Rechenkern ist reines JavaScript (ES-Module) ohne Build-Schritt. Begruendung:
+
+1. Muss unveraendert in Node (Tests, Datenexport-Importpfad), im Browser-UI-Thread
+   und im Web Worker laufen (NFA-04) – ein Build-Schritt waere fuer M1 unnoetiger
+   Overhead, bevor ueberhaupt eine Build-Kette fuer Cloudflare Pages steht (die
+   kommt ohnehin erst in M2).
+2. NFA-06 verlangt Testbarkeit ohne Netzwerk/Speicher – `node --test` auf reinem
+   JS erreicht das ohne jede Abhaengigkeit.
+3. Der Umstieg auf TypeScript bleibt jederzeit moeglich (JSDoc-Typen in
+   `src/types.js` sind bereits vorhanden und geben einem spaeteren `tsc
+   --checkJs`- oder `.ts`-Umstieg einen Kopfstart), sobald in M2 ohnehin ein
+   Bundler fuer das Frontend eingerichtet wird.
+
+Build-Werkzeug fuer M1: keins. Testrunner: `node:test` (eingebaut seit Node 18).
+
+### Stream-Format (intern)
+
+`Stream1Hz` (siehe `src/types.js`): ein Objekt aus parallelen typisierten Arrays
+(`Float64Array`/`Uint8Array`) gleicher Laenge, Index = Sekunde seit
+Aktivitaetsbeginn. Kein Array von Objekten (`{t, watts, ...}[]`) – bei
+mehrstuendigen Aktivitaeten (NFA-04: 6h-Ziel) spart das massiv Speicher und
+macht die Sekunden-fuer-Sekunde-Verarbeitung (W'bal, MPA, Strain) cache-freundlich.
+
+Das **Ablageformat** in `streams/YYYY-MM.bin` (Kap. 5.2, Komprimierung) ist
+davon getrennt zu sehen und wird erst in M2 (Drive-Anbindung) festgelegt.
+
+### Ausreisserregel (FA-DQ-03)
+
+Eine Sekunde gilt als Ausreisser, wenn:
+
+- die Leistung eine absolute Plausibilitaetsgrenze ueberschreitet (Standard
+  2500 W, `outlierMaxWatts`) – deckt Sensorfehler/Ueberlauf ab, oder
+- sie gegenueber dem Mittel der validen Nachbarsekunden um mehr als
+  `outlierMaxJumpWatts` (Standard 1800 W) nach oben springt **und** die naechste
+  Sekunde diesen Sprung nicht bestaetigt (faellt wieder auf Nachbarniveau
+  zurueck).
+
+Der zweite Teil ist bewusst so gebaut, dass echte kurze Sprints (die sich per
+Definition ueber mindestens 2 Sekunden halten) nicht faelschlich verworfen
+werden, waehrend Einzelsekunden-Spikes (klassischer Sensor-Ausreisser: ein
+Wert, der sofort wieder verschwindet) erkannt werden. Beide Schwellen sind
+einstellbar (Kap. 12).
+
+### Luecken-/Pausenbehandlung (FA-DQ-02/04)
+
+- Luecken werden **nicht** interpoliert, sondern pro Sekunde markiert
+  (`gap[i] = 1`), Rohwert bleibt 0/unbekannt.
+- Fuer NP/TSS/MMP werden Luecken und Ausreisser aus dem Signal **entfernt**
+  (Segmentierung an lueckenlosen validen Laeufen, siehe `mmp.js#validSegments`),
+  nicht als 0 W gezaehlt – sonst wuerden Pausen die Normalized Power kuenstlich
+  verzerren.
+- Fuer W'bal/MPA/Strain gilt dagegen explizit FA-DQ-04: Erholung laeuft in
+  Pausen bei Leistung 0 weiter. Hier werden Luecken/Ausreisser daher als 0 W
+  in die Differentialgleichung eingespeist (`quality.js#wattsForRecovery`).
+- **Lange Luecken zwischen Aktivitaeten** (nicht innerhalb einer Aufzeichnung):
+  W'bal wird pro Aktivitaet berechnet. Liegt der Abstand zur vorherigen
+  Aktivitaet unter `maxGapSecondsForWbalContinuity` (Standard 30 Minuten,
+  Kap. 12), wird der Endzustand der vorherigen Aktivitaet als Startwert
+  uebernommen (z. B. zwei Einheiten am selben Tag mit kurzer Pause). Darueber
+  hinaus gilt der Zustand als vollstaendig erholt (Start = volles W'), was bei
+  den in Kap. 7.3 gegebenen Zeitkonstanten ohnehin nach wenigen Minuten der
+  Fall waere.
+
+### Robuste Regression fuer den Refit (Kap. 7.5)
+
+IRLS (Iteratively Reweighted Least Squares) mit Tukey-Biweight-Gewichten
+(`c = 4.685`, Standard-Tuning-Konstante fuer ~95% Effizienz bei
+normalverteilten Residuen) um die Levenberg-Marquardt-Kleinste-Quadrate-Anpassung
+aus `power-model.js` (Ausgangslage, siehe Kap. 2), drei aeussere Iterationen.
+Bekanntes, gut dokumentiertes Standardverfahren fuer robuste nichtlineare
+Regression, kein Blackbox-Heuristik-Ersatz.
+
+### "Naehe zur MPA" fuer Refit-Punkte (Kap. 12, offener Parameter)
+
+`refitNearMpaThreshold`, Standard 5 % relativer Abstand
+(`|MPA(t) - P(t)| / MPA(t) <= 0.05`). Zusammenhaengende Sekunden innerhalb
+dieser Naehe werden zu einem Stuetzpunkt `{t: Laufdauer, watts: Durchschnitt}`
+zusammengefasst – analog zur Mean-Maximal-Power-Extraktion, aber auf
+Rohsekunden statt auf dem festen Dauerraster.
+
+### "Gestuetzt" fuer die Absenkbremse (Kap. 7.5, F9)
+
+Die Absenkbremse (max. 5 % Absenkung pro Parameter und Breakthrough) wird nur
+dann aufgehoben (volle Absenkung erlaubt), wenn die Envelope-Stuetzpunkte der
+letzten `refitWindowDays` (Standard 90 Tage) aus **mindestens 2 unterschiedlichen
+Aktivitaeten** stammen (`supportingActivityIds` aus `mmp.js#detectMaximalEfforts`).
+Sonst wird auf maximal 5 % Absenkung geklemmt.
+
+### Nebenbedingung nach dem Refit (Kap. 7.5)
+
+Nach der robusten Regression (inkl. Absenkbremse) muss die MPA mindestens auf
+Hoehe der gemessenen Leistung liegen. Diese Festlegung ist in zwei Runden
+gegen den echten 7-Jahres-Aktivitaetsbestand des Auftraggebers (1977
+Aktivitaeten, `scripts/run-legacy-db.js`) verifiziert und dabei zweimal
+nachgebessert worden - beide Korrekturen und die jeweils zugrunde liegende
+Beobachtung sind hier absichtlich stehen gelassen, weil sie fuer kuenftige
+Aenderungen an dieser Stelle relevant bleiben.
+
+**1. Geprueft wird NUR innerhalb der erkannten Breakthrough-Fenster** (Kap. 7.4),
+nicht ueber die gesamte Aktivitaet, obwohl der Lastenheft-Wortlaut
+("ueberall") das zunaechst nahelegt. Grund: Ist W'bal einmal vollstaendig
+entladen, gilt nach Kap. 7.2 immer `MPA = CP`, unabhaengig von `pMax`. Eine
+woertliche "ueberall in der Aktivitaet"-Pruefung ist daher bei jeder
+mehrstuendigen Fahrt mit Anstrengung nach voller Entladung strukturell
+unerfuellbar (Modell-Eigenschaft, kein Sonderfall) - im ersten Testlauf waren
+dadurch 71 % aller Breakthroughs faelschlich als "unerfuellbar" markiert,
+weil lange Ausfahrten fast immer irgendwann eine Anstrengung nach
+Erschoepfung enthalten. Die Pruefung auf die tatsaechlich neu entdeckten
+Ueberschreitungs-Fenster zu beschraenken bildet ab, wofuer der Refit
+ausgeloest wurde.
+
+**2. Korrektur ueber zwei Hebel, nicht nur `pMax`.** Auch innerhalb eines
+Breakthrough-Fensters kann W'bal mitten in einer laengeren, harten Anstrengung
+vollstaendig entladen werden (z. B. eine 15-Minuten-Anstrengung knapp ueber
+der alten Schwelle) - und dort hilft `pMax`-Erhoehung nicht, weil MPA bei
+voller Entladung immer exakt `CP` ist, unabhaengig von `pMax`. Nach Einfuehrung
+von Punkt 1 allein stieg die Zahl falsch markierter Breakthroughs im Testlauf
+sogar auf 109 (von 176) - genau dieser Fall. Die Korrektur unterscheidet
+deshalb, WO die Verletzung auftritt (Erschoepfungsanteil am staerksten
+verletzten Punkt im Fenster):
+- **Nahe voller Entladung** (> 98 % erschoepft): nur `CP` in 1-%-Schritten
+  erhoehen - das ist der einzige wirksame Hebel dort und entspricht inhaltlich
+  genau dem, wofuer ein Breakthrough steht ("die Schwelle war zu niedrig").
+- **Sonst** (W'bal noch vorhanden): `pMax` in 1-%-Schritten erhoehen, wie
+  urspruenglich.
+
+Beide Hebel sind nach oben begrenzt (`maxPlausiblePMax`, Standard 3000 W;
+`maxPlausibleCp`, Standard 600 W - beide grosszuegig ueber jedem bekannten
+menschlichen Spitzenwert bzw. Schwellenleistung). Das ist der verbleibende
+Schutz gegen unentdeckte, dauerhaft zu hohe Leistungswerte (z. B. ein
+fehlerhafter Smart-Trainer): ohne diese Grenzen lief `pMax` im allerersten
+Testlauf bei einer von 1977 Aktivitaeten auf 65147 W hoch. Werden beide
+Grenzen erreicht, ohne dass die Bedingung erfuellt ist, bleiben `cp`/`pMax`
+dort stehen und der Breakthrough traegt `constraintUnsatisfied: true` als
+Hinweis auf ein Datenqualitaetsproblem in dieser Aktivitaet, statt die
+unplausible Signatur unbemerkt zu uebernehmen.
+
+Regressionstests fuer alle drei Faelle (echter Datenfehler, normale lange
+Ausfahrt ausserhalb des Fensters, Entladung innerhalb eines echten
+Breakthrough-Fensters) in `test/breakthrough.test.js`.
+
+Nach Einfuehrung beider Korrekturen (Fenster-Beschraenkung + Zwei-Hebel-Logik)
+zeigt der vollstaendige 7-Jahres-Datensatz **0 von 14** Breakthroughs mit
+`constraintUnsatisfied: true` (siehe "Stand der Verifikation" oben) - die
+Nebenbedingung gilt damit als verifiziert abgeschlossen fuer M1.
+
+### Startsignatur ohne ausreichende Daten (FA-SIG-03)
+
+Reicht die Datenbasis der ersten 90 Tage nicht (weniger als 4
+Envelope-Stuetzpunkte, oder die Regression konvergiert nicht zu einem
+3-Parameter-Modell), liefert `computeInitialSignature` `signature: null` mit
+einem lesbaren Grund. Es wird **keine** erfundene Literatur-Startsignatur fuer
+TP/HIE/PP eingesetzt – anders als bei den Zeitkonstanten in Kap. 7.8 gibt das
+Lastenheft fuer TP/HIE/PP selbst keine Literaturwerte vor (F7: "keine
+XERT-Referenz", individueller Fit). Die App sollte in diesem Fall einen
+Hinweis anzeigen statt einer Kennzahl.
+
+### Aktivitaeten innerhalb des Startfensters
+
+Aktivitaeten, deren Datum vor dem Ende des 90-Tage-Startfensters liegt,
+fliessen nur in die Startsignatur-Regression ein und bekommen selbst keine
+eigene Breakthrough-Auswertung (`hasSignature: false` im Ergebnis) – vor der
+Startsignatur gibt es schlicht nichts, wogegen ein "Breakthrough" definiert
+waere.
+
+### Schwelle der auslösenden Aktivitaet selbst (FA-TP-08, Grenzfall)
+
+Loest eine Aktivitaet einen Breakthrough aus, wird fuer **diese** Aktivitaet
+(NP/TSS/IF/Strain) noch die alte (Vor-Breakthrough-)Schwelle verwendet – der
+Breakthrough wurde ja erst waehrend dieser Fahrt "entdeckt", der groesste Teil
+der Fahrt fand unter der alten Signatur statt. Die neue Signatur gilt ab dem
+Datum fuer alle **folgenden** Aktivitaeten. Alternative Lesart waere denkbar,
+das Lastenheft legt diesen Grenzfall nicht explizit fest.
+
+### Bewegungszeit fuer TSS
+
+Als `movingTimeSec` fuer die TSS-Formel wird die Anzahl gueltiger
+Leistungssekunden (`validPowerMask`-Summe) verwendet, nicht die reine
+Aufzeichnungsdauer. Vereinfachung fuer M1; eine feinere Trennung
+"angehalten vs. rollend ohne Leistungsdaten" folgt bei Bedarf in M3.
+
+## Bekannte offene Punkte / Risiken
+
+- **FIT-Parser (`src/importers/fit.js`) ist inzwischen gegen eine echte
+  Geraetedatei verifiziert** (siehe "Stand der Verifikation" oben,
+  `scripts/verify-fit.js`) - zusaetzlich zur synthetischen Minimaldatei
+  (`test/importers/fit.test.js`). Ungewoehnliche Geraete-Varianten (andere
+  Entwicklerfelder, abweichende Skalierungen) sind damit nicht generell
+  ausgeschlossen, nur der getestete Fall.
+- GPX-Dateien enthalten in der Praxis selten Leistungsdaten (kein offizieller
+  GPX-Standard dafuer) – der Parser unterstuetzt das `<power>`-Element, das
+  einige Tools schreiben, aber die meisten Original-Aufzeichnungen von
+  Leistungsmessern liegen als FIT vor.
+- `.gz`-komprimierte Originaldateien (Strava komprimiert grosse Exports)
+  muessen vom Aufrufer vor dem Parsen entpackt werden (z. B.
+  `zlib.gunzipSync` in Node, `DecompressionStream('gzip')` im Browser) – nicht
+  Teil dieses Moduls, um keine Kompressions-Abhaengigkeit einzufuehren.
+- Alle in diesem Modul stehenden Tests wurden von Hand gegen die Formeln
+  geprueft, aber in dieser Sitzung mangels Shell-Zugriff nicht ausgefuehrt
+  (siehe oben). Bitte `node --test` laufen lassen, bevor auf M1 aufgebaut wird.
+- Performance einer vollstaendigen Mehrjahres-Historie (viele Aktivitaeten,
+  jede mit eigenem Refit/Envelope-Aufruf) ist nicht optimiert/gemessen –
+  NFA-04 fordert nur die Neuberechnung einer einzelnen 6h-Aktivitaet ≤ 2s,
+  nicht die Gesamthistorie. Bei Bedarf (grosse Gruppen-Historien) spaeter
+  Memoisierung der Envelope-Berechnung ergaenzen.
+
+## Verwendung
+
+```js
+import { prepareActivity, computeSignatureHistory, mergeSettings, importers } from './src/index.js';
+
+const settings = mergeSettings(); // oder z.B. mergeSettings({ mpaExponent: 1 })
+
+const raw = { id: 'a1', date: '2026-01-01', startTime: '2026-01-01T08:00:00Z', points: [...] };
+const activity = prepareActivity(raw, settings);
+
+const history = computeSignatureHistory([activity, /* ...weitere */], { settings });
+// history.history        -> Signaturverlauf (TP/HIE/PP je Datum)
+// history.breakthroughs   -> erkannte Breakthroughs inkl. Medaillen
+// history.activityResults -> NP/IF/TSS/Strain je Aktivitaet
+```
+
+Zum Verwerfen/Reaktivieren eines Breakthroughs (FA-SIG-07) einfach mit einem
+`discardedBreakthroughIds`-Set neu berechnen:
+
+```js
+const withoutOne = computeSignatureHistory(activities, {
+  settings,
+  discardedBreakthroughIds: new Set(['a17']),
+});
+```
+
+## Tests
+
+```bash
+node --test test/
+```
+
+Deckt ab: Strain-Score-Testvektoren (Kap. 7.6), W'bal-Linearitaet/Asymptotik
+(Kap. 10 Abnahme), CP-Fit-Rekonstruktion und Robustheit gegen Ausreisser,
+Breakthrough-Erkennung (Schwellen, Mindestdauer, Datenqualitaets-Ausschluss),
+NP/TSS/hrTSS/paceTSS-Formeln, Determinismus des gesamten Signaturverlaufs,
+sowie die Text-/FIT-Importer.

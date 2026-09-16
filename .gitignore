@@ -1,0 +1,12 @@
+node_modules/
+
+# NFA-06: echte Trainingsdaten duerfen nicht ins Repository committet werden
+**/local-data/
+**/strava-export/
+*.fit
+*.fit.gz
+*.gpx
+*.gpx.gz
+*.tcx
+*.tcx.gz
+activities.csv
