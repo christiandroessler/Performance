@@ -7,20 +7,20 @@ compatibility_date = "2026-09-01"
 # Namespace-ID nach "wrangler kv namespace create ALLOWLIST_KV" eintragen.
 [[kv_namespaces]]
 binding = "ALLOWLIST_KV"
-id = "REPLACE_ME_WRANGLER_KV_NAMESPACE_CREATE"
+id = "278adcb9f0b542b9aba4c651879173b5"
 
 # Nicht-geheime Konfiguration. Geheimnisse (siehe unten) NIE hier eintragen,
 # sondern per "wrangler secret put <NAME>" setzen (NFA-03).
 [vars]
 # Oeffentliche Google-OAuth-Client-ID (Web-Client, kein Secret).
-GOOGLE_CLIENT_ID = "REPLACE_ME"
+GOOGLE_CLIENT_ID = "697108768665-7pfik3hpoe46forqrndo544j29e8vc59.apps.googleusercontent.com"
 # Oeffentliche Strava-Client-ID (kein Secret, siehe strava.com/settings/api).
-STRAVA_CLIENT_ID = "REPLACE_ME"
+STRAVA_CLIENT_ID = "269925"
 # Herkunft des Frontends (Cloudflare Pages), fuer CORS und OAuth-Redirects.
-FRONTEND_ORIGIN = "https://REPLACE_ME.pages.dev"
+FRONTEND_ORIGIN = "https://performance-app-web.christian-droessler.workers.dev"
 # Google-Konto-E-Mail des Auftraggebers - bootstrapt sich selbst als Admin
 # beim ersten Login (Kap. 4 M2: "Allowlist mit Admin als erstem Eintrag").
-ADMIN_EMAIL = "REPLACE_ME@example.com"
+ADMIN_EMAIL = "christian.droessler@googlemail.com"
 # Basis-URLs konfigurierbar (Kap. 3.2: neue Basis-URL ab 01.06.2027 absehbar).
 STRAVA_AUTH_BASE_URL = "https://www.strava.com"
 STRAVA_API_BASE_URL = "https://www.strava.com/api/v3"

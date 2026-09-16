@@ -7,10 +7,12 @@
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <link rel="stylesheet" href="/src/style.css" />
   <script>
-    // Worker-Basis-URL je Umgebung. Fuer die Produktiv-Bereitstellung auf die
-    // echte Worker-URL setzen (z.B. "https://performance-app-worker.<konto>.workers.dev").
-    // Lokal (wrangler pages dev) zeigt der Default auf den lokalen Worker-Dev-Server.
-    window.__WORKER_ORIGIN__ = 'http://127.0.0.1:8787';
+    // Worker-Basis-URL: lokal (wrangler pages dev) auf den lokalen
+    // Worker-Dev-Server, sonst auf den deployten Worker.
+    window.__WORKER_ORIGIN__ =
+      location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+        ? 'http://127.0.0.1:8787'
+        : 'https://performance-app-worker.christian-droessler.workers.dev';
   </script>
 </head>
 <body>
