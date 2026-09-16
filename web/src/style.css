@@ -1,0 +1,40 @@
+/* Bewusst minimal fuer M2 (Fundament) - die eigentliche Oberflaeche kommt in M3. */
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+body {
+  margin: 0;
+  padding: 2rem;
+  max-width: 640px;
+  margin-inline: auto;
+  line-height: 1.5;
+}
+h1 { font-size: 1.4rem; }
+.step {
+  border: 1px solid #8884;
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-block: 1rem;
+}
+.step[data-done="true"] { opacity: 0.6; }
+button {
+  font: inherit;
+  padding: 0.6rem 1.2rem;
+  border-radius: 6px;
+  border: 1px solid #8884;
+  cursor: pointer;
+}
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+.error { color: #c0392b; }
+.progress-bar {
+  height: 8px;
+  background: #8882;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-block: 0.5rem;
+}
+.progress-bar > div {
+  height: 100%;
+  background: #2e86de;
+}

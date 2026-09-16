@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Performance App</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link rel="stylesheet" href="/src/style.css" />
+  <script>
+    // Worker-Basis-URL je Umgebung. Fuer die Produktiv-Bereitstellung auf die
+    // echte Worker-URL setzen (z.B. "https://performance-app-worker.<konto>.workers.dev").
+    // Lokal (wrangler pages dev) zeigt der Default auf den lokalen Worker-Dev-Server.
+    window.__WORKER_ORIGIN__ = 'http://127.0.0.1:8787';
+  </script>
+</head>
+<body>
+  <div id="app">Lade …</div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

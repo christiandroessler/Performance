@@ -1,4 +1,5 @@
 node_modules/
+.wrangler/
 
 # NFA-06: echte Trainingsdaten duerfen nicht ins Repository committet werden
 **/local-data/

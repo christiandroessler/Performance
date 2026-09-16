@@ -1,0 +1,15 @@
+{
+  "name": "@performance-app/worker",
+  "version": "0.1.0",
+  "description": "Cloudflare Worker: Google-Identitaetspruefung, Strava-OAuth (Client Secret), Proxy mit app-weiter Drosselung, Allowlist/Rollen. Keine Modellberechnung, keine Trainingsdaten (Kap. 5.1).",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/cryptoTokens.test.js test/googleAuth.test.js test/rateLimiter.test.js test/kvStore.test.js test/session.test.js test/tokenManager.test.js",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

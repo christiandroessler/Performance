@@ -1,0 +1,30 @@
+name = "performance-app-worker"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+# KV: Allowlist, Rollen, Verbindungsstatus, verschluesselte Strava-Refresh-
+# Tokens, app-weite Ratelimit-Buchfuehrung (Kap. 5.1). KEINE Trainingsdaten.
+# Namespace-ID nach "wrangler kv namespace create ALLOWLIST_KV" eintragen.
+[[kv_namespaces]]
+binding = "ALLOWLIST_KV"
+id = "REPLACE_ME_WRANGLER_KV_NAMESPACE_CREATE"
+
+# Nicht-geheime Konfiguration. Geheimnisse (siehe unten) NIE hier eintragen,
+# sondern per "wrangler secret put <NAME>" setzen (NFA-03).
+[vars]
+# Oeffentliche Google-OAuth-Client-ID (Web-Client, kein Secret).
+GOOGLE_CLIENT_ID = "REPLACE_ME"
+# Oeffentliche Strava-Client-ID (kein Secret, siehe strava.com/settings/api).
+STRAVA_CLIENT_ID = "REPLACE_ME"
+# Herkunft des Frontends (Cloudflare Pages), fuer CORS und OAuth-Redirects.
+FRONTEND_ORIGIN = "https://REPLACE_ME.pages.dev"
+# Google-Konto-E-Mail des Auftraggebers - bootstrapt sich selbst als Admin
+# beim ersten Login (Kap. 4 M2: "Allowlist mit Admin als erstem Eintrag").
+ADMIN_EMAIL = "REPLACE_ME@example.com"
+# Basis-URLs konfigurierbar (Kap. 3.2: neue Basis-URL ab 01.06.2027 absehbar).
+STRAVA_AUTH_BASE_URL = "https://www.strava.com"
+STRAVA_API_BASE_URL = "https://www.strava.com/api/v3"
+
+# Per "wrangler secret put" zu setzende Geheimnisse (NICHT in dieser Datei):
+#   STRAVA_CLIENT_SECRET        - von strava.com/settings/api
+#   TOKEN_ENCRYPTION_KEY        - 32 zufaellige Bytes, base64 (siehe README fuer Erzeugung)
