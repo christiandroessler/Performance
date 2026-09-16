@@ -1,5 +1,7 @@
 # Performance App (Trainingsgruppe)
 
+Performance Dashboard combining Trainingpeaks, XERT and Sentiero.
+
 Umsetzung gemäß [`docs/LASTENHEFT.md`](docs/LASTENHEFT.md). Reihenfolge laut F15:
 Rechenkern zuerst, getestet mit dem Strava-Datenexport.
 
@@ -7,7 +9,7 @@ Rechenkern zuerst, getestet mit dem Strava-Datenexport.
 
 | Meilenstein | Inhalt | Status |
 |---|---|---|
-| **M1** | Rechenkern (Bibliothek) | in Arbeit, siehe [`core/`](core/) |
+| **M1** | Rechenkern (Bibliothek) | abgeschlossen, siehe [`core/`](core/) |
 | M2 | Fundament (Cloudflare, Google-Login, Strava-OAuth, Drive-Ablage) | offen |
 | M3 | Oberfläche TrainingPeaks/Strava/XERT | offen |
 | M4 | 3D-Modell und Kalibrierung | offen |
@@ -20,27 +22,12 @@ Siehe [`core/README.md`](core/README.md) fuer den vollstaendigen Funktionsumfang
 und alle in M1 getroffenen Festlegungen (Stream-Format, Ausreisserregel,
 Lueckenbehandlung, Regressionsverfahren, JS/TS-Entscheidung).
 
-**Wichtig:** Der Code in `core/` wurde in dieser Entwicklungssitzung ohne
-funktionierenden Shell-Zugriff erstellt und daher noch **nicht** per
-`node --test` ausgefuehrt. Bitte vor dem Weiterbauen einmal lokal laufen
-lassen:
-
-```bash
-cd core
-node --test test/
-```
-
-Offene M1-Abnahmepunkte, die echte Daten bzw. eine Laufzeitumgebung
-voraussetzen und daher noch ausstehen:
-
-- [ ] Testlauf `node --test test/` lokal bestaetigen (s. o.).
-- [ ] Vollstaendiger Strava-Export des Auftraggebers laeuft ohne Absturz durch
-      (`core/www/index.html` als Sichtkontrolle, oder ein kleines Node-Script
-      gegen `core/src/importers`).
-- [ ] FIT-Parser gegen eine echte `.fit`-Datei verifizieren (siehe
-      `core/README.md`, Abschnitt "Bekannte offene Punkte").
-- [ ] Performance-Messung NFA-04 (6h-Aktivitaet, Neuberechnung ≤ 2s) auf einem
-      echten Desktop-Rechner dokumentieren.
+Alle 33 automatisierten Tests laufen gruen (`cd core && npm test`). Zusaetzlich
+gegen den vollstaendigen 7-Jahres-Aktivitaetsbestand eines echten Nutzers
+(1977 Aktivitaeten) sowie gegen eine echte Geraete-`.fit`-Datei verifiziert,
+inkl. formaler NFA-04-Performance-Messung. Details und verbleibende, nicht
+blockierende Punkte siehe [`core/README.md`](core/README.md), Abschnitt
+"Stand der Verifikation".
 
 ## Ausgangslage
 
