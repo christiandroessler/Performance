@@ -7,32 +7,15 @@ import { fetchSession } from './api.js';
 import { renderOnboarding, loadOrInitSettings } from './onboarding.js';
 import { renderSyncView } from './syncView.js';
 import { renderDashboard } from './dashboardView.js';
+import { applyStoredTheme } from './theme.js';
+import { openSettings } from './settingsView.js';
+import { openGlossary } from './glossaryView.js';
 
 const app = document.getElementById('app');
 
 applyStoredTheme(); // vor dem ersten Render, damit kein kurzes Dunkel-Aufblitzen im Hellmodus entsteht
 
 main().catch(showFatalError);
-
-/** Heller/dunkler Modus ist eine reine Anzeigepraeferenz je Geraet, daher localStorage statt Drive/Settings. */
-function applyStoredTheme() {
-  try {
-    if (localStorage.getItem('theme') === 'light') document.documentElement.dataset.theme = 'light';
-  } catch {
-    // localStorage kann in seltenen Faellen (privater Modus etc.) fehlschlagen - dann bleibt es beim Dunkelmodus.
-  }
-}
-
-function toggleTheme() {
-  const isLight = document.documentElement.dataset.theme === 'light';
-  if (isLight) delete document.documentElement.dataset.theme;
-  else document.documentElement.dataset.theme = 'light';
-  try {
-    localStorage.setItem('theme', isLight ? 'dark' : 'light');
-  } catch {
-    // s. o.
-  }
-}
 
 async function main() {
   renderSignIn();
@@ -187,14 +170,25 @@ function buildHeader() {
 
   const brand = document.createElement('div');
   brand.className = 'brand';
-  brand.innerHTML = '<span class="brand-mark"></span>Performance';
+  brand.innerHTML = '<span class="brand-mark"></span>Performance App';
   header.appendChild(brand);
 
   const tabs = document.createElement('nav');
   tabs.className = 'app-tabs';
   header.appendChild(tabs);
 
+  header.appendChild(buildUserMenu());
+
+  return header;
+}
+
+/** Klick auf den Nutzerbereich oeffnet ein Menue (Einstellungen/Begriffe/Abmelden) statt einzelner Buttons. */
+function buildUserMenu() {
   const email = getSignedInEmail() || '';
+
+  const wrap = document.createElement('div');
+  wrap.className = 'user-menu';
+
   const chip = document.createElement('div');
   chip.className = 'user-chip';
   chip.innerHTML = `
@@ -204,30 +198,63 @@ function buildHeader() {
       <span class="user-status"><span class="status-dot"></span>Angemeldet</span>
     </div>
   `;
-  const themeBtn = document.createElement('button');
-  themeBtn.className = 'btn-ghost theme-toggle-btn';
-  const setThemeBtnLabel = () => {
-    themeBtn.textContent = document.documentElement.dataset.theme === 'light' ? '🌙' : '☀️';
-    themeBtn.title = document.documentElement.dataset.theme === 'light' ? 'Dunkler Modus' : 'Heller Modus';
-  };
-  setThemeBtnLabel();
-  themeBtn.onclick = () => {
-    toggleTheme();
-    setThemeBtnLabel();
-  };
-  chip.appendChild(themeBtn);
+  wrap.appendChild(chip);
 
-  const signOutBtn = document.createElement('button');
-  signOutBtn.className = 'btn-ghost';
-  signOutBtn.textContent = 'Abmelden';
-  signOutBtn.onclick = () => {
-    signOut();
-    window.location.reload();
-  };
-  chip.appendChild(signOutBtn);
-  header.appendChild(chip);
+  const dropdown = document.createElement('div');
+  dropdown.className = 'user-menu-dropdown';
+  dropdown.hidden = true;
+  wrap.appendChild(dropdown);
 
-  return header;
+  function addItem(label, onClick, { danger = false } = {}) {
+    const btn = document.createElement('button');
+    btn.className = 'user-menu-item' + (danger ? ' danger' : '');
+    btn.textContent = label;
+    btn.onclick = () => {
+      closeDropdown();
+      onClick();
+    };
+    dropdown.appendChild(btn);
+    return btn;
+  }
+
+  addItem('Einstellungen', openSettings);
+  addItem('Begriffe', openGlossary);
+  const divider = document.createElement('hr');
+  divider.className = 'user-menu-divider';
+  dropdown.appendChild(divider);
+  addItem(
+    'Abmelden',
+    () => {
+      signOut();
+      window.location.reload();
+    },
+    { danger: true }
+  );
+
+  function openDropdown() {
+    dropdown.hidden = false;
+    document.addEventListener('click', onOutsideClick);
+    document.addEventListener('keydown', onKeydown);
+  }
+  function closeDropdown() {
+    dropdown.hidden = true;
+    document.removeEventListener('click', onOutsideClick);
+    document.removeEventListener('keydown', onKeydown);
+  }
+  function onOutsideClick(e) {
+    if (!wrap.contains(e.target)) closeDropdown();
+  }
+  function onKeydown(e) {
+    if (e.key === 'Escape') closeDropdown();
+  }
+
+  chip.onclick = (e) => {
+    e.stopPropagation();
+    if (dropdown.hidden) openDropdown();
+    else closeDropdown();
+  };
+
+  return wrap;
 }
 
 function showFatalError(err) {

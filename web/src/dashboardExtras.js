@@ -4,7 +4,7 @@
 
 import { openActivityDetail } from './activityDetailView.js';
 import { groupByWeek, mondayOf } from './calendarUtils.js';
-import { formatDuration } from './format.js';
+import { formatDuration, formatDistance } from './format.js';
 
 const MEDAL_LABEL = { bronze: '🥉', silver: '🥈', gold: '🥇' };
 const PARAM_LABEL = { cp: 'TP', wPrimeJ: 'HIE', pMax: 'PP' };
@@ -39,6 +39,7 @@ export function renderRecentActivity(container, index) {
   grid.innerHTML = `
     <div class="stat-tile"><span class="stat-tile-label">Sportart</span><span class="stat-tile-value">${a.type}</span></div>
     <div class="stat-tile"><span class="stat-tile-label">Dauer</span><span class="stat-tile-value">${formatDuration(a.movingTimeSec)}</span></div>
+    <div class="stat-tile"><span class="stat-tile-label">Distanz</span><span class="stat-tile-value">${formatDistance(a.distanceM)}</span></div>
     ${a.tss != null ? `<div class="stat-tile accent"><span class="stat-tile-label">TSS</span><span class="stat-tile-value">${a.tss}</span></div>` : ''}
   `;
   box.appendChild(grid);

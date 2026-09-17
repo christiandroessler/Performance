@@ -112,7 +112,13 @@ export async function recomputeAll({ settingsOverrides, discardedBreakthroughIds
   const byId = new Map(result.activityResults.map((r) => [r.id, r]));
   for (const a of index.activities) {
     const r = byId.get(a.id);
-    if (!r) continue;
+    if (!r) {
+      // Aktivitaeten ohne Stream-Bundle (z. B. Strava-404, siehe syncEngine.js) tauchen nie in
+      // rawActivities/activityResults auf - hasSignature bliebe sonst fuer immer undefined und
+      // wuerde den "noch nicht berechnet"-Zaehler unten (dashboardView.js) dauerhaft falsch anzeigen.
+      a.hasSignature = false;
+      continue;
+    }
     a.hasSignature = r.hasSignature;
     a.np = r.np ?? null;
     a.if = r.if ?? null;

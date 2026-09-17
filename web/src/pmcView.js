@@ -8,7 +8,15 @@
 // berechnet werden.
 
 import { computeCTLATL } from '../vendor/core/src/index.js';
-import { rampRate } from './pmcMath.js';
+import { rampRate, sliceSeriesForRange } from './pmcMath.js';
+
+const CHART_RANGES = [
+  { value: '42', label: '42 Tage' },
+  { value: '90', label: '90 Tage' },
+  { value: '365', label: '365 Tage' },
+  { value: 'thisYear', label: 'Dieses Jahr' },
+];
+const DEFAULT_CHART_RANGE = '90';
 
 function addDaysISO(dateStr, days) {
   const d = new Date(dateStr + 'T00:00:00Z');
@@ -123,7 +131,7 @@ export function renderMetricsSidebar(container, { series, message }) {
   box.appendChild(rampGrid);
 }
 
-/** Mittlere Spalte: der eigentliche CTL/ATL/TSB-Verlaufschart. */
+/** Mittlere Spalte: der eigentliche CTL/ATL/TSB-Verlaufschart, mit Zeitraum-Buttons fuer den Anzeigeausschnitt. */
 export function renderPmcChart(container, { series, message }) {
   container.innerHTML = '';
   const box = document.createElement('div');
@@ -142,7 +150,36 @@ export function renderPmcChart(container, { series, message }) {
     return;
   }
 
-  box.appendChild(buildChart(series));
+  const rangeRow = document.createElement('div');
+  rangeRow.className = 'btn-row pmc-range-row';
+  box.appendChild(rangeRow);
+
+  const chartContainer = document.createElement('div');
+  box.appendChild(chartContainer);
+
+  let selectedRange = DEFAULT_CHART_RANGE;
+  const rangeButtons = {};
+
+  function renderChart() {
+    chartContainer.innerHTML = '';
+    chartContainer.appendChild(buildChart(sliceSeriesForRange(series, selectedRange)));
+    for (const r of CHART_RANGES) {
+      rangeButtons[r.value].className = r.value === selectedRange ? 'btn-primary' : 'btn-ghost';
+    }
+  }
+
+  for (const r of CHART_RANGES) {
+    const btn = document.createElement('button');
+    btn.textContent = r.label;
+    btn.onclick = () => {
+      selectedRange = r.value;
+      renderChart();
+    };
+    rangeRow.appendChild(btn);
+    rangeButtons[r.value] = btn;
+  }
+
+  renderChart();
 }
 
 const CTL_COLOR = '#45b8b4';
