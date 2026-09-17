@@ -35,10 +35,19 @@ export function renderPmc(container, index, modelState) {
     const p = document.createElement('p');
     // FA-SIG-03: die ersten 90 Tage der Historie dienen der Startsignatur-Regression,
     // erst danach gibt es ueberhaupt eine Schwelle und damit TSS (Kap. 7.1) - das ist
-    // der haeufigste Grund fuer "noch kein TSS", nicht fehlende Leistungsdaten.
-    p.textContent = modelState && modelState.needsMoreData
-      ? `Noch keine Startsignatur, deshalb noch kein TSS: ${modelState.initial?.reason || 'nicht genug Daten in den ersten 90 Tagen der Historie'}. Mehr Historie importieren (z. B. "Gesamte Historie") oder abwarten, bis 90 Tage Trainingsdaten vorliegen.`
-      : 'Noch keine Kennzahlen berechnet (Aktivitäten ohne Leistung/Schwelle liefern keinen TSS).';
+    // der haeufigste Grund fuer "noch kein TSS", nicht fehlende Leistungsdaten. Wenn die
+    // Startsignatur bereits steht (modelState.history nicht leer) aber trotzdem noch kein
+    // TSS existiert, liegt die GESAMTE bisher importierte Historie noch im Regressionsfenster
+    // (z. B. weil genau "letzte 90 Tage" importiert wurden) - dann fehlen schlicht Tage NACH
+    // dem Regressionsfenster, kein technisches Problem.
+    if (modelState && modelState.needsMoreData) {
+      p.textContent = `Noch keine Startsignatur, deshalb noch kein TSS: ${modelState.initial?.reason || 'nicht genug Daten in den ersten 90 Tagen der Historie'}. Mehr Historie importieren (z. B. "Gesamte Historie") oder abwarten, bis 90 Tage Trainingsdaten vorliegen.`;
+    } else if (modelState && modelState.history && modelState.history.length > 0) {
+      const effectiveDate = modelState.history[0].date;
+      p.textContent = `Startsignatur steht seit ${effectiveDate} (aus den ersten 90 Tagen der Historie ermittelt). TSS/PMC gibt es erst für Aktivitäten danach - deine importierte Historie reicht noch nicht darüber hinaus. Unter "Daten" mehr/ältere Historie laden (dadurch rückt das 90-Tage-Fenster weiter zurück) oder auf neue Aktivitäten warten.`;
+    } else {
+      p.textContent = 'Noch keine Kennzahlen berechnet (Aktivitäten ohne Leistung/Schwelle liefern keinen TSS).';
+    }
     box.appendChild(p);
     return;
   }
