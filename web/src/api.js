@@ -14,7 +14,8 @@ async function workerFetch(path, init = {}) {
 
 async function workerError(res) {
   const body = await res.json().catch(() => ({}));
-  const err = new Error(body.error || `Worker-Fehler ${res.status}`);
+  const detail = body.status ? ` (Strava-Status ${body.status})` : '';
+  const err = new Error((body.error || `Worker-Fehler ${res.status}`) + detail);
   err.status = res.status;
   return err;
 }

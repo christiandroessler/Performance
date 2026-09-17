@@ -128,7 +128,12 @@ export function createSyncEngine(deps) {
         return { status: 'paused', reason: res.error, retryAfterSeconds: res.retryAfterSeconds };
       }
 
-      await appendActivityToBundle(next, res.streams);
+      // res.streams ist null, wenn Strava fuer diese Aktivitaet ueberhaupt keine Aufzeichnung hat
+      // (z. B. manuell angelegter Eintrag) - dann kein Bundle schreiben, Aktivitaet trotzdem
+      // (ohne Verlaufsdaten) in den Index aufnehmen, statt den gesamten Import daran scheitern zu lassen.
+      if (res.streams) {
+        await appendActivityToBundle(next, res.streams);
+      }
       index.activities.push({
         id: next.id,
         date: next.startTime.slice(0, 10),
@@ -137,8 +142,8 @@ export function createSyncEngine(deps) {
         type: next.type,
         movingTimeSec: next.movingTimeSec,
         distanceM: next.distanceM,
-        hasWatts: !!(res.streams.watts && res.streams.watts.data && res.streams.watts.data.length),
-        hasHeartrate: !!(res.streams.heartrate && res.streams.heartrate.data && res.streams.heartrate.data.length),
+        hasWatts: !!(res.streams && res.streams.watts && res.streams.watts.data && res.streams.watts.data.length),
+        hasHeartrate: !!(res.streams && res.streams.heartrate && res.streams.heartrate.data && res.streams.heartrate.data.length),
       });
       index.activities.sort((a, b) => a.startTime.localeCompare(b.startTime));
       await saveIndex(index);

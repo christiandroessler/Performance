@@ -192,6 +192,9 @@ async function handleStreamsProxy(request, url, env, activityId) {
   const res = await stravaApiFetch(env, accessToken, `/activities/${activityId}/streams?keys=${encodeURIComponent(keys)}&key_by_type=true`);
   await recordRateLimitFromResponse(env, res);
 
+  // Strava liefert 404, wenn eine Aktivitaet ueberhaupt keine Stream-Daten hat (z. B. manuell
+  // angelegte Eintraege ohne Aufzeichnung) - kein Fehler, sondern ein legitimer leerer Fall.
+  if (res.status === 404) return json({ streams: null }, {}, env);
   if (!res.ok) return json({ error: 'strava_error', status: res.status }, { status: 502 }, env);
   const streams = await res.json();
   return json({ streams }, {}, env);

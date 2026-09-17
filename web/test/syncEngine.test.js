@@ -40,7 +40,9 @@ function makeFakeBackend({ activities = [], streamsByActivityId = {}, isDesktop 
     },
     fetchStreams: async (activityId) => {
       state.streamsCalls.push(activityId);
-      const streams = streamsByActivityId[activityId] || { time: { data: [0, 1, 2] }, watts: { data: [100, 110, 120] } };
+      const streams = Object.prototype.hasOwnProperty.call(streamsByActivityId, activityId)
+        ? streamsByActivityId[activityId]
+        : { time: { data: [0, 1, 2] }, watts: { data: [100, 110, 120] } };
       return { streams };
     },
     getSyncProgress: async () => state.progress,
@@ -170,6 +172,22 @@ test('Backfill: laedt nur Aktivitaeten vor der bisher aeltesten bekannten nach, 
   assert.ok(state.index.activities.some((a) => a.id === '0'));
   assert.equal(state.streamsCalls.length, 1); // nur fuer die neu gefundene, nicht fuer "1"
   assert.equal(state.activitiesCalls[0].beforeEpoch, Math.floor(Date.parse('2026-01-05T10:00:00Z') / 1000));
+});
+
+test('Aktivitaet ohne Stream-Daten (Strava 404, z. B. manueller Eintrag) blockiert den Import nicht, landet ohne Bundle im Index', async () => {
+  const activities = [makeActivity('1', '2026-01-05T10:00:00Z'), makeActivity('2', '2026-01-06T10:00:00Z')];
+  const { engine, state } = makeFakeBackend({ activities, streamsByActivityId: { 2: null } });
+
+  const result = await engine.runSync({ firstImportWindowDays: 'all' });
+
+  assert.equal(result.status, 'done');
+  assert.equal(state.index.activities.length, 2);
+  const noStreamEntry = state.index.activities.find((a) => a.id === '2');
+  assert.equal(noStreamEntry.hasWatts, false);
+  assert.equal(noStreamEntry.hasHeartrate, false);
+  const bundle = state.bundles.get('2026-01');
+  assert.ok('1' in bundle.activities);
+  assert.ok(!('2' in bundle.activities)); // kein Bundle-Eintrag fuer die Aktivitaet ohne Stream-Daten
 });
 
 test('firstKnownEpoch: leerer Index liefert null, sonst Startzeit der ersten (sortiert-ersten) Aktivitaet', () => {
