@@ -16,6 +16,20 @@ const WINDOWS = [
   { days: null, label: 'Gesamt' },
 ];
 
+// Kandidaten fuer die X-Achsen-Beschriftung (log-Skala) - nur die im Datenbereich werden gezeichnet.
+const DURATION_TICKS = [
+  { t: 1, label: '1s' },
+  { t: 5, label: '5s' },
+  { t: 15, label: '15s' },
+  { t: 60, label: '1min' },
+  { t: 300, label: '5min' },
+  { t: 600, label: '10min' },
+  { t: 1200, label: '20min' },
+  { t: 3600, label: '1h' },
+  { t: 7200, label: '2h' },
+  { t: 10800, label: '3h' },
+];
+
 function formatDuration(sec) {
   if (sec < 60) return `${sec}s`;
   if (sec < 3600) return `${Math.round(sec / 60)}min`;
@@ -76,6 +90,9 @@ export async function renderPowerCurve(container) {
   controls.appendChild(wkgLabel);
   box.appendChild(controls);
 
+  const chartContainer = document.createElement('div');
+  box.appendChild(chartContainer);
+
   const tableContainer = document.createElement('div');
   box.appendChild(tableContainer);
 
@@ -90,12 +107,23 @@ export async function renderPowerCurve(container) {
 
     const envelope = aggregateMMP(filtered, DEFAULT_GRID);
 
+    chartContainer.innerHTML = '';
     tableContainer.innerHTML = '';
     if (envelope.length === 0) {
       const p = document.createElement('p');
       p.textContent = 'Keine Daten in diesem Zeitraum.';
       tableContainer.appendChild(p);
       return;
+    }
+
+    const chart = buildPowerCurveChart(envelope, { asWkg: wkgCheckbox.checked, settings });
+    if (chart) {
+      chartContainer.appendChild(chart);
+    } else {
+      const hint = document.createElement('p');
+      hint.className = 'hint';
+      hint.textContent = 'Für die Grafik in W/kg fehlt zu diesen Daten das Gewicht.';
+      chartContainer.appendChild(hint);
     }
 
     const table = document.createElement('table');
@@ -127,4 +155,82 @@ export async function renderPowerCurve(container) {
   windowSelect.onchange = render;
   wkgCheckbox.onchange = render;
   render();
+}
+
+/** Leistungskurve als Grafik (log-Dauer-Achse, da 1s bis mehrere Stunden auf einer Skala nicht ablesbar waeren). */
+export function buildPowerCurveChart(envelope, { asWkg, settings }) {
+  const points = envelope
+    .map((e) => {
+      const kg = asWkg ? weightAtDate(settings, e.date) : null;
+      const value = asWkg ? (kg ? e.watts / kg : null) : e.watts;
+      return { ...e, value };
+    })
+    .filter((p) => p.value != null);
+
+  if (points.length === 0) return null;
+
+  const width = 620;
+  const height = 260;
+  const padL = 46;
+  const padR = 16;
+  const padT = 12;
+  const padB = 30;
+  const plotW = width - padL - padR;
+  const plotH = height - padT - padB;
+
+  const minT = Math.min(...points.map((p) => p.t));
+  const maxT = Math.max(...points.map((p) => p.t), minT + 1);
+  const maxVal = Math.max(...points.map((p) => p.value)) * 1.08;
+  const logMin = Math.log10(minT);
+  const logMax = Math.log10(maxT);
+
+  const x = (t) => padL + ((Math.log10(t) - logMin) / (logMax - logMin || 1)) * plotW;
+  const y = (v) => padT + plotH - (v / maxVal) * plotH;
+
+  const svgNs = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNs, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  svg.setAttribute('width', '100%');
+  svg.style.maxWidth = `${width}px`;
+  svg.style.display = 'block';
+
+  function addEl(tag, attrs) {
+    const el = document.createElementNS(svgNs, tag);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    svg.appendChild(el);
+    return el;
+  }
+
+  // Y-Achse (Leistung/W'kg): Gitterlinien + Beschriftung.
+  for (const frac of [0, 1 / 3, 2 / 3, 1]) {
+    const val = maxVal * frac;
+    const yy = y(val);
+    addEl('line', { x1: padL, y1: yy.toFixed(1), x2: width - padR, y2: yy.toFixed(1), stroke: 'var(--border)', 'stroke-width': 1 });
+    addEl('text', { x: padL - 6, y: (yy + 3).toFixed(1), 'text-anchor': 'end', 'font-size': 9, fill: 'var(--text-faint)' }).textContent = asWkg
+      ? val.toFixed(1)
+      : String(Math.round(val));
+  }
+
+  // X-Achse (Dauer, log-Skala): nur die Standard-Ticks, die im Datenbereich liegen.
+  for (const tk of DURATION_TICKS.filter((t) => t.t >= minT && t.t <= maxT)) {
+    const xx = x(tk.t);
+    addEl('text', { x: xx.toFixed(1), y: height - padB + 14, 'text-anchor': 'middle', 'font-size': 9, fill: 'var(--text-faint)' }).textContent = tk.label;
+  }
+  addEl('text', { x: width - padR, y: height - 4, 'text-anchor': 'end', 'font-size': 9, fill: 'var(--text-faint)' }).textContent = 'Dauer (log)';
+  addEl('text', { x: 4, y: padT - 2, 'text-anchor': 'start', 'font-size': 9, fill: 'var(--text-faint)' }).textContent = asWkg ? 'W/kg' : 'Watt';
+
+  const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(p.t).toFixed(1)} ${y(p.value).toFixed(1)}`).join(' ');
+  addEl('path', { d, fill: 'none', stroke: '#45b8b4', 'stroke-width': 2 });
+
+  for (const p of points) {
+    const circle = addEl('circle', { cx: x(p.t).toFixed(1), cy: y(p.value).toFixed(1), r: 2.75, fill: '#45b8b4' });
+    const title = document.createElementNS(svgNs, 'title');
+    title.textContent = `${formatDuration(p.t)} · ${asWkg ? `${p.value.toFixed(2)} W/kg` : `${Math.round(p.value)} W`} · ${p.date}`;
+    circle.appendChild(title);
+  }
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'power-curve-chart-wrapper';
+  wrapper.appendChild(svg);
+  return wrapper;
 }

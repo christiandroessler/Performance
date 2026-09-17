@@ -19,6 +19,13 @@ export function addDays(dateStr, days) {
   return d.toISOString().slice(0, 10);
 }
 
+/** dateStr, n Kalendermonate zurueck (fuer "bis 12 Monate zurueck"-Grenzen). */
+export function monthsAgo(dateStr, n) {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() - n);
+  return d.toISOString().slice(0, 10);
+}
+
 /** Aktivitaeten nach ISO-Woche gruppiert, neueste zuerst. TSS/Dauer summiert, Anzahl je Sportart. */
 export function groupByWeek(activities) {
   const weeks = new Map();
@@ -34,6 +41,23 @@ export function groupByWeek(activities) {
     w.activities.push(a);
   }
   return [...weeks.values()].sort((x, y) => y.weekStart.localeCompare(x.weekStart));
+}
+
+/** Aktivitaeten nach Kalendermonat gruppiert ("YYYY-MM"), neueste zuerst - fuer die Monatsansicht jenseits der letzten 4 Wochen. */
+export function groupByMonth(activities) {
+  const months = new Map();
+  for (const a of activities) {
+    const monthKey = a.date.slice(0, 7);
+    if (!months.has(monthKey)) {
+      months.set(monthKey, { month: monthKey, totalTss: 0, totalDurationSec: 0, countsByType: {}, activities: [] });
+    }
+    const m = months.get(monthKey);
+    m.totalTss += a.tss || 0;
+    m.totalDurationSec += a.movingTimeSec || 0;
+    m.countsByType[a.type] = (m.countsByType[a.type] || 0) + 1;
+    m.activities.push(a);
+  }
+  return [...months.values()].sort((x, y) => y.month.localeCompare(x.month));
 }
 
 /** Aktivitaeten nach Kalendertag gruppiert (Map "YYYY-MM-DD" -> {date, totalTss, activities}). */

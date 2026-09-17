@@ -3,8 +3,11 @@
 // abgelegten Kennzahlen (compute.js schreibt TSS/Strain dort hinein nach
 // jeder Neuberechnung) - keine erneute Berechnung hier.
 
-import { groupByWeek, groupByDay, mondayOf, addDays } from './calendarUtils.js';
+import { groupByWeek, groupByMonth, groupByDay, mondayOf, addDays, monthsAgo } from './calendarUtils.js';
 import { openActivityDetail } from './activityDetailView.js';
+
+const WEEKS_IN_DETAIL = 4;
+const MONTHS_BACK = 12;
 
 function formatDuration(sec) {
   if (!sec) return '-';
@@ -18,6 +21,18 @@ function formatWeekRange(weekStart, weekEnd) {
   return `${fmt(weekStart)} – ${fmt(weekEnd)}`;
 }
 
+function formatMonthLabel(monthKey) {
+  const [year, month] = monthKey.split('-');
+  return new Date(Date.UTC(Number(year), Number(month) - 1, 1)).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+}
+
+function sportSummaryOf(countsByType) {
+  return Object.entries(countsByType)
+    .sort((a, b) => b[1] - a[1])
+    .map(([type, count]) => `${type} ${count}`)
+    .join(' · ');
+}
+
 export function renderWeekOverview(container, index) {
   container.innerHTML = '';
 
@@ -29,8 +44,17 @@ export function renderWeekOverview(container, index) {
     return;
   }
 
-  renderWeekTable(container, index.activities);
   renderMonthCalendar(container, index.activities);
+
+  // Detailliert (Woche-fuer-Woche) nur die letzten 4 Wochen, alles Aeltere (bis 12 Monate zurueck) als
+  // Monatsuebersicht - eine Wochenzeile pro Woche fuer ein ganzes Jahr waere unuebersichtlich (TrainingPeaks-Vorbild).
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const detailCutoff = addDays(mondayOf(todayIso), -7 * (WEEKS_IN_DETAIL - 1));
+  const recentActivities = index.activities.filter((a) => a.date >= detailCutoff);
+  const olderActivities = index.activities.filter((a) => a.date < detailCutoff && a.date >= monthsAgo(todayIso, MONTHS_BACK));
+
+  renderWeekTable(container, recentActivities);
+  renderMonthTable(container, olderActivities);
 }
 
 function renderWeekTable(container, activities) {
@@ -40,22 +64,62 @@ function renderWeekTable(container, activities) {
 
   const header = document.createElement('div');
   header.className = 'card-header';
-  header.innerHTML = '<h2>Wochenübersicht</h2>';
+  header.innerHTML = `<h2>Wochenübersicht (letzte ${WEEKS_IN_DETAIL} Wochen)</h2>`;
   box.appendChild(header);
 
   const weeks = groupByWeek(activities);
+  if (weeks.length === 0) {
+    const p = document.createElement('p');
+    p.className = 'hint';
+    p.textContent = 'Keine Aktivitäten in den letzten 4 Wochen.';
+    box.appendChild(p);
+    return;
+  }
 
   const table = document.createElement('table');
   table.className = 'data-table';
   table.innerHTML = '<thead><tr><th>Woche</th><th>TSS</th><th>Dauer</th><th>Einheiten je Sportart</th></tr></thead>';
   const tbody = document.createElement('tbody');
   for (const w of weeks) {
-    const sportSummary = Object.entries(w.countsByType)
-      .sort((a, b) => b[1] - a[1])
-      .map(([type, count]) => `${type} ${count}`)
-      .join(' · ');
     const tr = document.createElement('tr');
-    const cells = [formatWeekRange(w.weekStart, w.weekEnd), String(Math.round(w.totalTss)), formatDuration(w.totalDurationSec), sportSummary];
+    const cells = [formatWeekRange(w.weekStart, w.weekEnd), String(Math.round(w.totalTss)), formatDuration(w.totalDurationSec), sportSummaryOf(w.countsByType)];
+    for (const c of cells) {
+      const td = document.createElement('td');
+      td.textContent = c;
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  box.appendChild(table);
+}
+
+function renderMonthTable(container, activities) {
+  const box = document.createElement('div');
+  box.className = 'card';
+  container.appendChild(box);
+
+  const header = document.createElement('div');
+  header.className = 'card-header';
+  header.innerHTML = `<h2>Monatsübersicht (bis ${MONTHS_BACK} Monate zurück)</h2>`;
+  box.appendChild(header);
+
+  const months = groupByMonth(activities);
+  if (months.length === 0) {
+    const p = document.createElement('p');
+    p.className = 'hint';
+    p.textContent = 'Keine älteren Aktivitäten in diesem Zeitraum.';
+    box.appendChild(p);
+    return;
+  }
+
+  const table = document.createElement('table');
+  table.className = 'data-table';
+  table.innerHTML = '<thead><tr><th>Monat</th><th>TSS</th><th>Dauer</th><th>Einheiten je Sportart</th></tr></thead>';
+  const tbody = document.createElement('tbody');
+  for (const m of months) {
+    const tr = document.createElement('tr');
+    const cells = [formatMonthLabel(m.month), String(Math.round(m.totalTss)), formatDuration(m.totalDurationSec), sportSummaryOf(m.countsByType)];
     for (const c of cells) {
       const td = document.createElement('td');
       td.textContent = c;

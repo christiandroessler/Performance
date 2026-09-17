@@ -145,18 +145,29 @@ export function renderPmcChart(container, { series, message }) {
   box.appendChild(buildChart(series));
 }
 
+const CTL_COLOR = '#45b8b4';
+const ATL_COLOR = '#8b90a8';
+const TSB_COLOR = '#d8b34a';
+
+/** Achsbeschriftete Verlaufsgrafik mit Hover-Tooltip (Datum + CTL/ATL/TSB an der Mausposition). */
 function buildChart(series) {
   const width = 600;
-  const height = 220;
-  const padding = 30;
+  const height = 260;
+  const padL = 38;
+  const padR = 38;
+  const padT = 12;
+  const padB = 26;
+  const plotW = width - padL - padR;
+  const plotH = height - padT - padB;
+
   const maxVal = Math.max(1, ...series.map((s) => Math.max(s.ctl, s.atl)));
   const minTsb = Math.min(0, ...series.map((s) => s.tsb));
   const maxTsb = Math.max(1, ...series.map((s) => s.tsb));
   const n = series.length;
 
-  const x = (i) => padding + (i / Math.max(1, n - 1)) * (width - 2 * padding);
-  const yVal = (v) => height - padding - (v / maxVal) * (height - 2 * padding);
-  const yTsb = (v) => height - padding - ((v - minTsb) / (maxTsb - minTsb || 1)) * (height - 2 * padding);
+  const x = (i) => padL + (i / Math.max(1, n - 1)) * plotW;
+  const yVal = (v) => padT + plotH - (v / maxVal) * plotH;
+  const yTsb = (v) => padT + plotH - ((v - minTsb) / (maxTsb - minTsb || 1)) * plotH;
 
   const pathFor = (getY) => series.map((s, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${getY(s).toFixed(1)}`).join(' ');
 
@@ -165,29 +176,117 @@ function buildChart(series) {
   svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
   svg.setAttribute('width', '100%');
   svg.style.maxWidth = `${width}px`;
+  svg.style.display = 'block';
 
-  function addPath(d, color, widthPx) {
-    const p = document.createElementNS(svgNs, 'path');
-    p.setAttribute('d', d);
-    p.setAttribute('fill', 'none');
-    p.setAttribute('stroke', color);
-    p.setAttribute('stroke-width', String(widthPx));
-    svg.appendChild(p);
+  function addEl(tag, attrs) {
+    const el = document.createElementNS(svgNs, tag);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    svg.appendChild(el);
+    return el;
   }
 
-  addPath(pathFor((s) => yTsb(s.tsb)), '#d8b34a', 1.5);
-  addPath(pathFor((s) => yVal(s.atl)), '#8b90a8', 1.5);
-  addPath(pathFor((s) => yVal(s.ctl)), '#45b8b4', 2);
+  // Gitterlinien + Primaerachse links (CTL/ATL-Skala, "TSS/Tag").
+  for (const frac of [0, 1 / 3, 2 / 3, 1]) {
+    const val = maxVal * frac;
+    const y = yVal(val);
+    addEl('line', { x1: padL, y1: y.toFixed(1), x2: width - padR, y2: y.toFixed(1), stroke: 'var(--border)', 'stroke-width': 1 });
+    addEl('text', { x: padL - 6, y: (y + 3).toFixed(1), 'text-anchor': 'end', 'font-size': 9, fill: 'var(--text-faint)' }).textContent = String(Math.round(val));
+  }
+
+  // Sekundaerachse rechts (TSB-Skala, eigener Wertebereich, farblich TSB zugeordnet).
+  for (const frac of [0, 0.5, 1]) {
+    const val = minTsb + (maxTsb - minTsb) * frac;
+    const y = yTsb(val);
+    addEl('text', { x: width - padR + 6, y: (y + 3).toFixed(1), 'text-anchor': 'start', 'font-size': 9, fill: TSB_COLOR }).textContent = String(Math.round(val));
+  }
+
+  // X-Achse: bis zu 6 Datumsbeschriftungen ueber den Verlauf verteilt.
+  const xTickCount = Math.min(6, n);
+  for (let k = 0; k < xTickCount; k++) {
+    const idx = Math.round((k / Math.max(1, xTickCount - 1)) * (n - 1));
+    const label = new Date(series[idx].date + 'T00:00:00Z').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+    addEl('text', { x: x(idx).toFixed(1), y: height - padB + 14, 'text-anchor': 'middle', 'font-size': 9, fill: 'var(--text-faint)' }).textContent = label;
+  }
+
+  function addPath(d, color, widthPx) {
+    addEl('path', { d, fill: 'none', stroke: color, 'stroke-width': widthPx });
+  }
+  addPath(pathFor((s) => yTsb(s.tsb)), TSB_COLOR, 1.5);
+  addPath(pathFor((s) => yVal(s.atl)), ATL_COLOR, 1.5);
+  addPath(pathFor((s) => yVal(s.ctl)), CTL_COLOR, 2);
+
+  // Hover: Crosshair + 3 Punkte + Tooltip (HTML-Overlay, da SVG kein natives Tooltip kennt).
+  const crosshair = addEl('line', { x1: padL, y1: padT, x2: padL, y2: padT + plotH, stroke: 'var(--text-faint)', 'stroke-width': 1, 'stroke-dasharray': '3 3', opacity: 0 });
+  const dotCtl = addEl('circle', { r: 3.5, fill: CTL_COLOR, opacity: 0 });
+  const dotAtl = addEl('circle', { r: 3.5, fill: ATL_COLOR, opacity: 0 });
+  const dotTsb = addEl('circle', { r: 3.5, fill: TSB_COLOR, opacity: 0 });
+  const hoverRect = addEl('rect', { x: padL, y: padT, width: plotW, height: plotH, fill: 'transparent' });
+  hoverRect.style.cursor = 'crosshair';
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'pmc-chart-wrapper';
+
+  const tooltip = document.createElement('div');
+  tooltip.className = 'pmc-tooltip';
+  tooltip.hidden = true;
+  wrapper.appendChild(tooltip);
+
+  function indexFromClientX(clientX) {
+    const svgRect = svg.getBoundingClientRect();
+    const scaleX = svgRect.width > 0 ? width / svgRect.width : 1;
+    const localX = (clientX - svgRect.left) * scaleX;
+    const stepX = plotW / Math.max(1, n - 1);
+    return Math.max(0, Math.min(n - 1, Math.round((localX - padL) / stepX)));
+  }
+
+  hoverRect.addEventListener('pointermove', (evt) => {
+    const idx = indexFromClientX(evt.clientX);
+    const s = series[idx];
+    const px = x(idx);
+
+    crosshair.setAttribute('x1', px.toFixed(1));
+    crosshair.setAttribute('x2', px.toFixed(1));
+    crosshair.setAttribute('opacity', 1);
+    dotCtl.setAttribute('cx', px.toFixed(1));
+    dotCtl.setAttribute('cy', yVal(s.ctl).toFixed(1));
+    dotCtl.setAttribute('opacity', 1);
+    dotAtl.setAttribute('cx', px.toFixed(1));
+    dotAtl.setAttribute('cy', yVal(s.atl).toFixed(1));
+    dotAtl.setAttribute('opacity', 1);
+    dotTsb.setAttribute('cx', px.toFixed(1));
+    dotTsb.setAttribute('cy', yTsb(s.tsb).toFixed(1));
+    dotTsb.setAttribute('opacity', 1);
+
+    const dateLabel = new Date(s.date + 'T00:00:00Z').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    tooltip.innerHTML = `
+      <strong>${dateLabel}</strong>
+      <div><span class="pmc-tooltip-dot" style="background:${CTL_COLOR}"></span>CTL · Fitness: ${s.ctl.toFixed(1)}</div>
+      <div><span class="pmc-tooltip-dot" style="background:${ATL_COLOR}"></span>ATL · Fatigue: ${s.atl.toFixed(1)}</div>
+      <div><span class="pmc-tooltip-dot" style="background:${TSB_COLOR}"></span>TSB · Form: ${s.tsb.toFixed(1)}</div>
+    `;
+    tooltip.hidden = false;
+
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const nearRightEdge = evt.clientX - wrapperRect.left > wrapperRect.width - 150;
+    tooltip.style.left = nearRightEdge ? `${evt.clientX - wrapperRect.left - 150}px` : `${evt.clientX - wrapperRect.left + 14}px`;
+    tooltip.style.top = `${Math.max(0, evt.clientY - wrapperRect.top - 46)}px`;
+  });
+
+  hoverRect.addEventListener('pointerleave', () => {
+    crosshair.setAttribute('opacity', 0);
+    dotCtl.setAttribute('opacity', 0);
+    dotAtl.setAttribute('opacity', 0);
+    dotTsb.setAttribute('opacity', 0);
+    tooltip.hidden = true;
+  });
 
   const legend = document.createElement('div');
-  legend.innerHTML =
-    '<span style="color:#45b8b4">● CTL</span> &nbsp; <span style="color:#8b90a8">● ATL</span> &nbsp; <span style="color:#d8b34a">● TSB</span>';
+  legend.innerHTML = `<span style="color:${CTL_COLOR}">● CTL · Fitness</span> &nbsp; <span style="color:${ATL_COLOR}">● ATL · Fatigue</span> &nbsp; <span style="color:${TSB_COLOR}">● TSB · Form (rechte Achse)</span>`;
   legend.style.fontSize = '0.78rem';
   legend.style.color = 'var(--text-muted)';
   legend.style.marginBottom = '0.5rem';
 
-  const wrapper = document.createElement('div');
-  wrapper.appendChild(legend);
-  wrapper.appendChild(svg);
+  wrapper.prepend(svg);
+  wrapper.prepend(legend);
   return wrapper;
 }

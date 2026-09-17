@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mondayOf, addDays, groupByWeek, groupByDay } from '../src/calendarUtils.js';
+import { mondayOf, addDays, monthsAgo, groupByWeek, groupByMonth, groupByDay } from '../src/calendarUtils.js';
 
 test('mondayOf: liefert den Montag der ISO-Woche, unabhaengig vom Wochentag', () => {
   assert.equal(mondayOf('2026-09-17'), '2026-09-14'); // Donnerstag -> Montag derselben Woche
@@ -41,6 +41,25 @@ test('groupByWeek: Aktivitaeten ohne TSS (null) tragen 0 zur Summe bei, blockier
   const weeks = groupByWeek(activities);
   assert.equal(weeks[0].totalTss, 50);
   assert.equal(weeks[0].countsByType.Ride, 2);
+});
+
+test('monthsAgo: rechnet Kalendermonate zurueck, auch ueber Jahresgrenzen', () => {
+  assert.equal(monthsAgo('2026-09-17', 12), '2025-09-17');
+  assert.equal(monthsAgo('2026-01-15', 1), '2025-12-15');
+});
+
+test('groupByMonth: summiert TSS/Dauer und zaehlt Einheiten je Sportart pro Kalendermonat, neueste zuerst', () => {
+  const activities = [
+    { date: '2026-07-05', type: 'Ride', tss: 50, movingTimeSec: 3600 },
+    { date: '2026-07-20', type: 'Run', tss: 30, movingTimeSec: 1800 },
+    { date: '2026-08-01', type: 'Ride', tss: 40, movingTimeSec: 2400 },
+  ];
+  const months = groupByMonth(activities);
+  assert.equal(months.length, 2);
+  assert.equal(months[0].month, '2026-08'); // neueste zuerst
+  assert.equal(months[1].month, '2026-07');
+  assert.equal(months[1].totalTss, 80);
+  assert.deepEqual(months[1].countsByType, { Ride: 1, Run: 1 });
 });
 
 test('groupByDay: gruppiert nach Kalendertag und summiert TSS', () => {

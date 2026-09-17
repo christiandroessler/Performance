@@ -35,13 +35,13 @@ selbst wird vor jedem Deploy nach `web/vendor/core/src` kopiert (siehe
 | `src/activityFilter.js` | Reine Filterlogik fuer die Aktivitaetsliste (Suche/Sportart/Zeitraum) - ohne Browser-Abhaengigkeit, testbar mit `node:test` |
 | `src/activityDetailView.js` | FA-ACT-02: Detailansicht (Modal) - Leistungs-/Puls-/Kadenz-Verlauf, MPA und W'bal (per `signatureAtDate`), Belastungsanteile (Strain Low/High/Peak), Kennzahlen. Rechnet direkt im Hauptfenster, kein Worker (eine Aktivitaet ist klein genug) |
 | `src/chartUtils.js` | Reine Chart-Hilfsfunktionen (Downsampling fuer lange Sekunden-Arrays) - bewusst von `activityDetailView.js` getrennt, damit ohne Browser-Abhaengigkeit mit `node:test` testbar |
-| `src/powerCurveView.js` | FA-ACT-03: Leistungskurve/persoenliche Bestwerte, waehlbarer Zeitraum, optional W/kg |
-| `src/pmcView.js` | FA-TP-06: Performance Management Chart. `computePmcSeries` einmal berechnen, `renderPmcChart` (Verlaufschart, Mitte) und `renderMetricsSidebar` (Fatigue/Fitness/Form-Kacheln + Ramp Rates, rechte Spalte) teilen sich das Ergebnis |
+| `src/powerCurveView.js` | FA-ACT-03: Leistungskurve/persoenliche Bestwerte, waehlbarer Zeitraum, optional W/kg. `buildPowerCurveChart` zeichnet zusaetzlich zur Tabelle eine Grafik mit log-Dauer-Achse (1s bis mehrere Stunden auf einer Skala) |
+| `src/pmcView.js` | FA-TP-06: Performance Management Chart. `computePmcSeries` einmal berechnen, `renderPmcChart` (Verlaufschart mit Achsbeschriftung + Sekundaerachse fuer TSB, Hover-Tooltip mit Datum + CTL/ATL/TSB) und `renderMetricsSidebar` (Fatigue/Fitness/Form-Kacheln + Ramp Rates, rechte Spalte) teilen sich das Ergebnis |
 | `src/pmcMath.js` | Reine Ramp-Rate-Berechnung (CTL-Veraenderung ueber 7/28/90/365 Tage) - ohne Browser-Abhaengigkeit, testbar mit `node:test` |
 | `src/dashboardExtras.js` | Uebersicht-Redesign (TrainingPeaks-Vorbild): "Letzte Aktivitaet", "Diese Woche", "Neueste Breakthroughs" - reine Zusammenfassungen bereits vorhandener Daten |
 | `src/breakthroughView.js` | FA-SIG-07/08: Breakthrough-Uebersicht, Mehrfachauswahl zum Verwerfen, Reaktivieren |
-| `src/calendarUtils.js` | Reine Datums-/Aggregationsfunktionen fuer FA-TP-07 (Wochengruppierung, Kalendertag-Gruppierung) - ohne Browser-Abhaengigkeit, testbar mit `node:test` |
-| `src/weekView.js` | FA-TP-07: Wochenuebersicht (TSS/Dauer/Einheiten je Sportart pro ISO-Woche) und Monatskalender (Tages-TSS, Klick auf Aktivitaet oeffnet die Detailansicht) - reine Aggregation der in `index.json` bereits abgelegten Kennzahlen, keine erneute Berechnung |
+| `src/calendarUtils.js` | Reine Datums-/Aggregationsfunktionen fuer FA-TP-07 (Wochen-/Monats-/Tagesgruppierung) - ohne Browser-Abhaengigkeit, testbar mit `node:test` |
+| `src/weekView.js` | FA-TP-07: Monatskalender oben (Tages-TSS, Klick auf Aktivitaet oeffnet die Detailansicht), darunter Wochenuebersicht fuer die letzten 4 Wochen und eine Monatsuebersicht fuer die 12 Monate davor (TrainingPeaks-Vorbild - eine Wochenzeile je Woche ueber ein ganzes Jahr waere unuebersichtlich) - reine Aggregation der in `index.json` bereits abgelegten Kennzahlen, keine erneute Berechnung |
 | `src/dashboardView.js` | Verdrahtet die M3-Ansichten, stoesst die Erstberechnung nach dem ersten Sync automatisch an |
 | `src/main.js` | Einstiegspunkt, verdrahtet alles (M2 + M3) |
 
