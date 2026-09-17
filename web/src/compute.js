@@ -16,6 +16,7 @@ import { readFile, readJson, writeJson } from './storage.js';
 import { decodeBundle, streamFileName, pointsFromActivityBundle } from './streamCodec.js';
 
 const MODEL_FILE = 'model/signature-history.json';
+const MMP_CURVES_FILE = 'model/mmp-curves.json';
 const INDEX_FILE = 'index.json';
 
 let worker = null;
@@ -26,11 +27,11 @@ function getWorker() {
   if (!worker) {
     worker = new Worker(new URL('./calcWorker.js', import.meta.url), { type: 'module' });
     worker.onmessage = (e) => {
-      const { requestId, ok, result, error } = e.data;
+      const { requestId, ok, result, mmpCurves, error } = e.data;
       const cb = pending.get(requestId);
       if (!cb) return;
       pending.delete(requestId);
-      if (ok) cb.resolve(result);
+      if (ok) cb.resolve({ result, mmpCurves });
       else cb.reject(new Error(error));
     };
   }
@@ -76,6 +77,12 @@ export async function loadModelState() {
   return (await readJson(MODEL_FILE)) || { schemaVersion: 1, computedAt: null, discardedBreakthroughIds: [], history: [], breakthroughs: [] };
 }
 
+/** FA-ACT-03: Grundlage der persoenlichen Bestwerte (siehe powerCurveView.js). */
+export async function loadMmpCurves() {
+  const state = await readJson(MMP_CURVES_FILE);
+  return state ? state.curves : [];
+}
+
 /** FA-SIG-07/M1: reine Funktion ueber den GESAMTEN Verlauf - kein inkrementelles Patchen. */
 export async function recomputeAll({ settingsOverrides, discardedBreakthroughIds } = {}) {
   const index = await loadIndex();
@@ -83,11 +90,13 @@ export async function recomputeAll({ settingsOverrides, discardedBreakthroughIds
   const modelState = await loadModelState();
   const discardedIds = discardedBreakthroughIds ?? modelState.discardedBreakthroughIds;
 
-  const result = await runInWorker({
+  const { result, mmpCurves } = await runInWorker({
     rawActivities,
     settingsOverrides,
     discardedBreakthroughIds: discardedIds,
   });
+
+  await writeJson(MMP_CURVES_FILE, { schemaVersion: 1, computedAt: new Date().toISOString(), curves: mmpCurves });
 
   await writeJson(MODEL_FILE, {
     schemaVersion: 1,

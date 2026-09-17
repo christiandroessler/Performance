@@ -15,7 +15,11 @@ self.onmessage = (e) => {
       settings,
       discardedBreakthroughIds: new Set(discardedBreakthroughIds || []),
     });
-    self.postMessage({ requestId, ok: true, result });
+    // FA-ACT-03: Grundlage der persoenlichen Bestwerte. Kommt direkt aus
+    // prepareActivity() (core, unveraendert), nicht aus computeSignatureHistory -
+    // die MMP-Kurve gilt unabhaengig von einer erkannten Signatur/Schwelle.
+    const mmpCurves = prepared.map((p) => ({ date: p.date, activityId: p.id, mmp: p.mmp }));
+    self.postMessage({ requestId, ok: true, result, mmpCurves });
   } catch (err) {
     self.postMessage({ requestId, ok: false, error: String((err && err.message) || err) });
   }

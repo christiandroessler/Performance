@@ -10,6 +10,7 @@ import { loadModelState, recomputeAll } from './compute.js';
 import { renderActivityList } from './activityListView.js';
 import { renderPmc } from './pmcView.js';
 import { renderBreakthroughs } from './breakthroughView.js';
+import { renderPowerCurve } from './powerCurveView.js';
 
 export async function renderDashboard(container) {
   const box = document.createElement('div');
@@ -25,9 +26,11 @@ export async function renderDashboard(container) {
 
   const activitiesContainer = document.createElement('div');
   const pmcContainer = document.createElement('div');
+  const powerCurveContainer = document.createElement('div');
   const breakthroughsContainer = document.createElement('div');
   box.appendChild(activitiesContainer);
   box.appendChild(pmcContainer);
+  box.appendChild(powerCurveContainer);
   box.appendChild(breakthroughsContainer);
 
   async function refresh() {
@@ -40,6 +43,7 @@ export async function renderDashboard(container) {
 
     renderActivityList(activitiesContainer, index);
     renderPmc(pmcContainer, index);
+    await renderPowerCurve(powerCurveContainer);
     await renderBreakthroughs(breakthroughsContainer, modelState, refresh);
     return { index, modelState };
   }
