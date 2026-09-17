@@ -15,12 +15,13 @@ function signatureText(sig) {
 export async function renderBreakthroughs(container, modelState, onChanged) {
   container.innerHTML = '';
   const box = document.createElement('div');
-  box.className = 'step';
+  box.className = 'card';
   container.appendChild(box);
 
-  const heading = document.createElement('h2');
-  heading.textContent = 'Breakthroughs';
-  box.appendChild(heading);
+  const header = document.createElement('div');
+  header.className = 'card-header';
+  header.innerHTML = '<h2>Breakthroughs</h2>';
+  box.appendChild(header);
 
   if (modelState.needsMoreData) {
     const p = document.createElement('p');
@@ -42,18 +43,21 @@ export async function renderBreakthroughs(container, modelState, onChanged) {
   box.appendChild(busyBox);
 
   const bulkBtn = document.createElement('button');
+  bulkBtn.className = 'btn-danger';
   bulkBtn.textContent = 'Ausgewählte verwerfen';
   bulkBtn.disabled = true;
-  bulkBtn.style.marginBottom = '0.5rem';
+  bulkBtn.style.marginBottom = '0.75rem';
   box.appendChild(bulkBtn);
 
   const list = document.createElement('div');
+  list.style.display = 'flex';
+  list.style.flexDirection = 'column';
   box.appendChild(list);
 
   for (const bt of [...breakthroughs].sort((a, b) => b.date.localeCompare(a.date))) {
     const row = document.createElement('div');
-    row.style.borderBottom = '1px solid #8882';
-    row.style.padding = '0.5rem 0';
+    row.style.borderBottom = '1px solid var(--border)';
+    row.style.padding = '0.65rem 0';
     row.style.display = 'flex';
     row.style.alignItems = 'center';
     row.style.gap = '0.75rem';
@@ -70,9 +74,9 @@ export async function renderBreakthroughs(container, modelState, onChanged) {
 
     const info = document.createElement('div');
     info.style.flex = '1';
-    const medalPart = bt.medal ? ` · ${MEDAL_LABEL[bt.medal]}` : '';
-    const discardedPart = bt.discarded ? ' · VERWORFEN' : '';
-    info.innerHTML = `<strong>${bt.date}</strong>${medalPart}${discardedPart}<br>` + `${signatureText(bt.previousSignature)} → ${signatureText(bt.proposedSignature)}`;
+    const medalPart = bt.medal ? ` <span class="badge badge-accent">${MEDAL_LABEL[bt.medal]}</span>` : '';
+    const discardedPart = bt.discarded ? ' <span class="badge badge-muted">Verworfen</span>' : '';
+    info.innerHTML = `<strong>${bt.date}</strong>${medalPart}${discardedPart}<br>` + `<span class="hint">${signatureText(bt.previousSignature)} → ${signatureText(bt.proposedSignature)}</span>`;
     if (bt.constraintUnsatisfied) {
       info.innerHTML += '<br><span class="error">Nebenbedingung nicht erfüllt - Datenqualität prüfen</span>';
     }
@@ -80,6 +84,7 @@ export async function renderBreakthroughs(container, modelState, onChanged) {
 
     if (bt.discarded) {
       const reactivateBtn = document.createElement('button');
+      reactivateBtn.className = 'btn-ghost';
       reactivateBtn.textContent = 'Reaktivieren';
       reactivateBtn.onclick = () => runChange(() => reactivateBreakthrough(bt.activityId));
       row.appendChild(reactivateBtn);

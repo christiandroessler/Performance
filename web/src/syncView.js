@@ -28,12 +28,13 @@ export async function renderSyncView(container) {
   }
 
   const box = document.createElement('div');
-  box.className = 'step';
+  box.className = 'card';
   container.appendChild(box);
 
-  const heading = document.createElement('h2');
-  heading.textContent = 'Datenimport';
-  box.appendChild(heading);
+  const header = document.createElement('div');
+  header.className = 'card-header';
+  header.innerHTML = '<h2>Datenimport</h2>';
+  box.appendChild(header);
 
   const status = document.createElement('p');
   box.appendChild(status);
@@ -50,6 +51,7 @@ export async function renderSyncView(container) {
   box.appendChild(errorP);
 
   const actions = document.createElement('div');
+  actions.className = 'btn-row';
   box.appendChild(actions);
 
   function setStatus(text) {
@@ -97,6 +99,7 @@ export async function renderSyncView(container) {
   function renderContinueButton(firstImportWindowDays) {
     actions.innerHTML = '';
     const btn = document.createElement('button');
+    btn.className = 'btn-primary';
     btn.textContent = 'Jetzt erneut versuchen';
     btn.onclick = () => start(firstImportWindowDays);
     actions.appendChild(btn);
@@ -105,6 +108,7 @@ export async function renderSyncView(container) {
   function renderSyncButton() {
     actions.innerHTML = '';
     const btn = document.createElement('button');
+    btn.className = 'btn-primary';
     btn.textContent = 'Jetzt synchronisieren';
     btn.onclick = () => start();
     actions.appendChild(btn);
@@ -115,8 +119,8 @@ export async function renderSyncView(container) {
     actions.innerHTML = '';
     for (const opt of WINDOW_OPTIONS) {
       const btn = document.createElement('button');
+      btn.className = 'btn-primary';
       btn.textContent = opt.label;
-      btn.style.marginRight = '0.5rem';
       btn.onclick = () => start(opt.days);
       actions.appendChild(btn);
     }
@@ -137,7 +141,7 @@ export async function renderSyncView(container) {
 
 function renderDesktopOnlyNotice(container) {
   const box = document.createElement('div');
-  box.className = 'step';
+  box.className = 'card';
   const h = document.createElement('h2');
   h.textContent = 'Datenimport';
   box.appendChild(h);

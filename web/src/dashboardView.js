@@ -12,26 +12,30 @@ import { renderPmc } from './pmcView.js';
 import { renderBreakthroughs } from './breakthroughView.js';
 import { renderPowerCurve } from './powerCurveView.js';
 
-export async function renderDashboard(container) {
-  const box = document.createElement('div');
-  container.appendChild(box);
+export async function renderDashboard({ overviewContainer, activitiesContainer, powerCurveContainer, breakthroughsContainer }) {
+  const statusCard = document.createElement('div');
+  statusCard.className = 'card';
+  overviewContainer.appendChild(statusCard);
+
+  const statusHeader = document.createElement('div');
+  statusHeader.className = 'card-header';
+  const statusHeading = document.createElement('h2');
+  statusHeading.textContent = 'Status';
+  statusHeader.appendChild(statusHeading);
+  const recomputeBtn = document.createElement('button');
+  recomputeBtn.className = 'btn-primary';
+  recomputeBtn.textContent = 'Kennzahlen neu berechnen';
+  statusHeader.appendChild(recomputeBtn);
+  statusCard.appendChild(statusHeader);
 
   const statusP = document.createElement('p');
-  box.appendChild(statusP);
+  statusCard.appendChild(statusP);
 
-  const recomputeBtn = document.createElement('button');
-  recomputeBtn.textContent = 'Kennzahlen neu berechnen';
-  recomputeBtn.style.marginBottom = '1rem';
-  box.appendChild(recomputeBtn);
+  const signatureContainer = document.createElement('div');
+  overviewContainer.appendChild(signatureContainer);
 
-  const activitiesContainer = document.createElement('div');
   const pmcContainer = document.createElement('div');
-  const powerCurveContainer = document.createElement('div');
-  const breakthroughsContainer = document.createElement('div');
-  box.appendChild(activitiesContainer);
-  box.appendChild(pmcContainer);
-  box.appendChild(powerCurveContainer);
-  box.appendChild(breakthroughsContainer);
+  overviewContainer.appendChild(pmcContainer);
 
   async function refresh() {
     const index = await loadIndex();
@@ -39,10 +43,11 @@ export async function renderDashboard(container) {
 
     const uncomputed = index.activities.filter((a) => a.hasSignature === undefined).length;
     statusP.className = '';
-    statusP.textContent = uncomputed > 0 ? `${uncomputed} Aktivität(en) noch ohne berechnete Kennzahlen - "Kennzahlen neu berechnen" klicken.` : '';
+    statusP.textContent = uncomputed > 0 ? `${uncomputed} Aktivität(en) noch ohne berechnete Kennzahlen - "Kennzahlen neu berechnen" klicken.` : 'Alle Aktivitäten sind berechnet.';
 
-    renderActivityList(activitiesContainer, index);
+    renderSignatureTiles(signatureContainer, modelState);
     renderPmc(pmcContainer, index, modelState);
+    renderActivityList(activitiesContainer, index);
     await renderPowerCurve(powerCurveContainer);
     await renderBreakthroughs(breakthroughsContainer, modelState, refresh);
     return { index, modelState };
@@ -68,4 +73,43 @@ export async function renderDashboard(container) {
   if (index.activities.length > 0 && !modelState.computedAt) {
     await triggerRecompute(); // Erstberechnung nach dem allerersten Sync
   }
+}
+
+/** XERT-Vorbild: aktuelle Leistungssignatur (CP/W'/Pmax) prominent als Kacheln. */
+function renderSignatureTiles(container, modelState) {
+  container.innerHTML = '';
+  if (modelState.needsMoreData || !modelState.history || modelState.history.length === 0) return;
+
+  const box = document.createElement('div');
+  box.className = 'card';
+  container.appendChild(box);
+
+  const header = document.createElement('div');
+  header.className = 'card-header';
+  header.innerHTML = '<h2>Leistungssignatur</h2>';
+  box.appendChild(header);
+
+  const latest = modelState.history[modelState.history.length - 1];
+  const grid = document.createElement('div');
+  grid.className = 'stat-grid';
+  grid.innerHTML = `
+    <div class="stat-tile accent">
+      <span class="stat-tile-label">Critical Power</span>
+      <span class="stat-tile-value">${Math.round(latest.cp)}<span class="unit">W</span></span>
+    </div>
+    <div class="stat-tile accent">
+      <span class="stat-tile-label">W' (HIE)</span>
+      <span class="stat-tile-value">${(latest.wPrimeJ / 1000).toFixed(1)}<span class="unit">kJ</span></span>
+    </div>
+    <div class="stat-tile accent">
+      <span class="stat-tile-label">Pmax</span>
+      <span class="stat-tile-value">${Math.round(latest.pMax)}<span class="unit">W</span></span>
+    </div>
+  `;
+  box.appendChild(grid);
+
+  const caption = document.createElement('p');
+  caption.className = 'stat-tile-caption';
+  caption.textContent = `Stand: ${latest.date}${latest.source === 'initial' ? ' (Startsignatur)' : ' (nach Breakthrough)'}`;
+  box.appendChild(caption);
 }

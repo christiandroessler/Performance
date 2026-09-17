@@ -22,12 +22,13 @@ export function renderActivityList(container, index) {
   container.innerHTML = '';
 
   const box = document.createElement('div');
-  box.className = 'step';
+  box.className = 'card';
   container.appendChild(box);
 
-  const heading = document.createElement('h2');
-  heading.textContent = 'Aktivitäten';
-  box.appendChild(heading);
+  const header = document.createElement('div');
+  header.className = 'card-header';
+  header.innerHTML = '<h2>Aktivitäten</h2>';
+  box.appendChild(header);
 
   if (index.activities.length === 0) {
     const p = document.createElement('p');
@@ -54,8 +55,7 @@ export function renderActivityList(container, index) {
   box.appendChild(controls);
 
   const table = document.createElement('table');
-  table.style.width = '100%';
-  table.style.borderCollapse = 'collapse';
+  table.className = 'data-table';
   box.appendChild(table);
 
   const columns = [
@@ -79,10 +79,6 @@ export function renderActivityList(container, index) {
     for (const col of columns) {
       const th = document.createElement('th');
       th.textContent = col.label + (sortKey === col.key ? (sortDesc ? ' ▼' : ' ▲') : '');
-      th.style.textAlign = 'left';
-      th.style.borderBottom = '1px solid #8884';
-      th.style.padding = '0.4rem';
-      th.style.cursor = 'pointer';
       th.onclick = () => {
         if (sortKey === col.key) sortDesc = !sortDesc;
         else {
@@ -120,8 +116,6 @@ export function renderActivityList(container, index) {
       for (const c of cells) {
         const td = document.createElement('td');
         td.textContent = c;
-        td.style.padding = '0.4rem';
-        td.style.borderBottom = '1px solid #8882';
         row.appendChild(td);
       }
       tbody.appendChild(row);

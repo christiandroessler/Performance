@@ -36,12 +36,13 @@ function weightAtDate(settings, date) {
 export async function renderPowerCurve(container) {
   container.innerHTML = '';
   const box = document.createElement('div');
-  box.className = 'step';
+  box.className = 'card';
   container.appendChild(box);
 
-  const heading = document.createElement('h2');
-  heading.textContent = 'Leistungskurve';
-  box.appendChild(heading);
+  const header = document.createElement('div');
+  header.className = 'card-header';
+  header.innerHTML = '<h2>Leistungskurve</h2>';
+  box.appendChild(header);
 
   const curves = await loadMmpCurves();
   if (curves.length === 0) {
@@ -54,7 +55,8 @@ export async function renderPowerCurve(container) {
   const settings = await readJson('settings.json');
 
   const controls = document.createElement('div');
-  controls.style.marginBottom = '0.5rem';
+  controls.className = 'btn-row';
+  controls.style.marginBottom = '0.75rem';
   const windowSelect = document.createElement('select');
   for (const w of WINDOWS) {
     const opt = document.createElement('option');
@@ -65,7 +67,8 @@ export async function renderPowerCurve(container) {
   controls.appendChild(windowSelect);
 
   const wkgLabel = document.createElement('label');
-  wkgLabel.style.marginLeft = '1rem';
+  wkgLabel.className = 'checkbox-row';
+  wkgLabel.style.marginBottom = '0';
   const wkgCheckbox = document.createElement('input');
   wkgCheckbox.type = 'checkbox';
   wkgLabel.appendChild(wkgCheckbox);
@@ -96,14 +99,13 @@ export async function renderPowerCurve(container) {
     }
 
     const table = document.createElement('table');
-    table.style.width = '100%';
-    table.style.borderCollapse = 'collapse';
+    table.className = 'data-table';
     const thead = document.createElement('thead');
     thead.innerHTML = `<tr>
-      <th style="text-align:left;padding:0.4rem;border-bottom:1px solid #8884">Dauer</th>
-      <th style="text-align:left;padding:0.4rem;border-bottom:1px solid #8884">Leistung</th>
-      ${wkgCheckbox.checked ? '<th style="text-align:left;padding:0.4rem;border-bottom:1px solid #8884">W/kg</th>' : ''}
-      <th style="text-align:left;padding:0.4rem;border-bottom:1px solid #8884">Datum</th>
+      <th>Dauer</th>
+      <th>Leistung</th>
+      ${wkgCheckbox.checked ? '<th>W/kg</th>' : ''}
+      <th>Datum</th>
     </tr>`;
     table.appendChild(thead);
 
@@ -112,10 +114,10 @@ export async function renderPowerCurve(container) {
       const tr = document.createElement('tr');
       const kg = wkgCheckbox.checked ? weightAtDate(settings, e.date) : null;
       tr.innerHTML = `
-        <td style="padding:0.4rem;border-bottom:1px solid #8882">${formatDuration(e.t)}</td>
-        <td style="padding:0.4rem;border-bottom:1px solid #8882">${e.watts} W</td>
-        ${wkgCheckbox.checked ? `<td style="padding:0.4rem;border-bottom:1px solid #8882">${kg ? (e.watts / kg).toFixed(2) : '-'}</td>` : ''}
-        <td style="padding:0.4rem;border-bottom:1px solid #8882">${e.date}</td>`;
+        <td>${formatDuration(e.t)}</td>
+        <td>${e.watts} W</td>
+        ${wkgCheckbox.checked ? `<td>${kg ? (e.watts / kg).toFixed(2) : '-'}</td>` : ''}
+        <td>${e.date}</td>`;
       tbody.appendChild(tr);
     }
     table.appendChild(tbody);

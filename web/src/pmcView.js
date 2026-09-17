@@ -22,12 +22,13 @@ function allDatesBetween(startDate, endDate) {
 export function renderPmc(container, index, modelState) {
   container.innerHTML = '';
   const box = document.createElement('div');
-  box.className = 'step';
+  box.className = 'card';
   container.appendChild(box);
 
-  const heading = document.createElement('h2');
-  heading.textContent = 'Performance Management Chart';
-  box.appendChild(heading);
+  const header = document.createElement('div');
+  header.className = 'card-header';
+  header.innerHTML = '<h2>Performance Management Chart</h2>';
+  box.appendChild(header);
 
   const withTss = index.activities.filter((a) => a.date && a.tss != null);
   if (withTss.length === 0) {
@@ -50,9 +51,24 @@ export function renderPmc(container, index, modelState) {
   const series = computeCTLATL(dates, dailyTSSMap);
 
   const latest = series[series.length - 1];
-  const summary = document.createElement('p');
-  summary.textContent = `Aktuell: CTL (Fitness) ${latest.ctl.toFixed(1)} · ATL (Fatigue) ${latest.atl.toFixed(1)} · TSB (Form) ${latest.tsb.toFixed(1)}`;
-  box.appendChild(summary);
+  const grid = document.createElement('div');
+  grid.className = 'stat-grid';
+  grid.style.marginBottom = '0.9rem';
+  grid.innerHTML = `
+    <div class="stat-tile accent">
+      <span class="stat-tile-label">CTL · Fitness</span>
+      <span class="stat-tile-value">${latest.ctl.toFixed(1)}</span>
+    </div>
+    <div class="stat-tile">
+      <span class="stat-tile-label">ATL · Fatigue</span>
+      <span class="stat-tile-value">${latest.atl.toFixed(1)}</span>
+    </div>
+    <div class="stat-tile">
+      <span class="stat-tile-label">TSB · Form</span>
+      <span class="stat-tile-value">${latest.tsb.toFixed(1)}</span>
+    </div>
+  `;
+  box.appendChild(grid);
 
   box.appendChild(buildChart(series));
 }
@@ -87,14 +103,15 @@ function buildChart(series) {
     svg.appendChild(p);
   }
 
-  addPath(pathFor((s) => yTsb(s.tsb)), '#f39c12', 1.5);
-  addPath(pathFor((s) => yVal(s.atl)), '#e74c3c', 1.5);
-  addPath(pathFor((s) => yVal(s.ctl)), '#2e86de', 2);
+  addPath(pathFor((s) => yTsb(s.tsb)), '#d8b34a', 1.5);
+  addPath(pathFor((s) => yVal(s.atl)), '#8b90a8', 1.5);
+  addPath(pathFor((s) => yVal(s.ctl)), '#45b8b4', 2);
 
   const legend = document.createElement('div');
   legend.innerHTML =
-    '<span style="color:#2e86de">● CTL</span> &nbsp; <span style="color:#e74c3c">● ATL</span> &nbsp; <span style="color:#f39c12">● TSB</span>';
-  legend.style.fontSize = '0.85rem';
+    '<span style="color:#45b8b4">● CTL</span> &nbsp; <span style="color:#8b90a8">● ATL</span> &nbsp; <span style="color:#d8b34a">● TSB</span>';
+  legend.style.fontSize = '0.78rem';
+  legend.style.color = 'var(--text-muted)';
   legend.style.marginBottom = '0.5rem';
 
   const wrapper = document.createElement('div');

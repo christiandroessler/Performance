@@ -3,10 +3,18 @@
 // Drive-Ablage, (3) Drive-Zugriff (drive.appdata) erteilen, (4) Strava
 // verbinden, (5) Gewicht bestaetigen/eingeben.
 //
-// FA-AUTH-03: Schritt 4 (Strava) ist erst erreichbar, nachdem Schritt 2
-// (Einwilligung) UND Schritt 3 (Drive-Zugriff) abgeschlossen sind - das wird
-// hier durch die Reihenfolge der Schritte selbst erzwungen, nicht nur durch
-// UI-Kosmetik.
+// UX: Schritte 1-3 sind EIN Bildschirm (Datenschutztext + Einwilligungs-
+// Haken + ein Button, der Einwilligung UND Drive-Zugriff in einem Klick
+// erledigt) - weniger Klick-Strecke vor dem eigentlich einzig unvermeidbaren
+// zweiten Google-Dialog (Google trennt "Anmeldung" und "Drive-Zugriff
+// erlauben" technisch, das laesst sich ohne Sicherheitsabstriche nicht in
+// einen einzigen Google-Dialog zusammenfassen - wohl aber in einen
+// einzigen App-Bildschirm). Interne Schrittnummern (1/4/5) bleiben wie
+// zuvor gueltige Einstiegspunkte fuer main.js (resumeStep).
+//
+// FA-AUTH-03: Strava (Schritt 4) ist erst erreichbar, nachdem Einwilligung
+// UND Drive-Zugriff abgeschlossen sind - das wird hier durch die
+// Reihenfolge der Schritte selbst erzwungen, nicht nur durch UI-Kosmetik.
 
 import { requestDriveAccess, getSignedInEmail } from './auth.js';
 import { readJson, writeJson } from './storage.js';
@@ -34,20 +42,39 @@ export function renderOnboarding(container, { resumeStep, onComplete }) {
 
   async function render() {
     container.innerHTML = '';
+    const shell = document.createElement('div');
+    shell.className = 'onboarding-shell';
+    container.appendChild(shell);
+
+    const mark = document.createElement('div');
+    mark.className = 'brand-mark';
+    mark.style.width = '32px';
+    mark.style.height = '5px';
+    mark.style.marginBottom = '0.75rem';
+    shell.appendChild(mark);
+
     const heading = document.createElement('h1');
     heading.textContent = 'Einrichtung';
-    container.appendChild(heading);
+    shell.appendChild(heading);
 
-    if (step === 1) renderPrivacyStep();
-    else if (step === 2) renderConsentStep();
-    else if (step === 3) renderDriveStep();
-    else if (step === 4) renderStravaStep();
-    else if (step === 5) await renderWeightStep();
+    const progressStage = step >= 4 ? (step >= 5 ? 2 : 1) : 0;
+    const progress = document.createElement('div');
+    progress.className = 'onboarding-progress';
+    for (let i = 0; i < 3; i++) {
+      const seg = document.createElement('div');
+      seg.className = 'onboarding-progress-step' + (i <= progressStage ? ' done' : '');
+      progress.appendChild(seg);
+    }
+    shell.appendChild(progress);
+
+    if (step === 1 || step === 2 || step === 3) renderWelcomeStep(shell);
+    else if (step === 4) renderStravaStep(shell);
+    else if (step === 5) await renderWeightStep(shell);
   }
 
-  function stepBox(title) {
+  function stepBox(container, title) {
     const box = document.createElement('div');
-    box.className = 'step';
+    box.className = 'card';
     const h = document.createElement('h2');
     h.textContent = title;
     box.appendChild(h);
@@ -55,63 +82,44 @@ export function renderOnboarding(container, { resumeStep, onComplete }) {
     return box;
   }
 
-  function renderPrivacyStep() {
-    const box = stepBox('1. Datenschutzhinweis');
+  function renderWelcomeStep(container) {
+    const box = stepBox(container, 'Konto einrichten');
     const p = document.createElement('p');
+    p.className = 'lede';
     p.textContent =
       'Deine Trainingsdaten liegen ausschliesslich in deinem eigenen Google-Drive-App-Ordner und im lokalen Browser-Cache. ' +
       'Der Server (Worker) speichert keine Trainingsdaten, nur deinen Verbindungsstatus und ein verschluesseltes Strava-Token. ' +
       'Der Admin hat keinen Zugriff auf deine Trainingsdaten. Du kannst deine Daten jederzeit vollstaendig loeschen.';
     // Hinweis: vollstaendiger, rechtlich abgestimmter Text folgt in M6 (NFA-02).
     box.appendChild(p);
-    const btn = document.createElement('button');
-    btn.textContent = 'Gelesen, weiter';
-    btn.onclick = () => {
-      step = 2;
-      render();
-    };
-    box.appendChild(btn);
-  }
 
-  function renderConsentStep() {
-    const box = stepBox('2. Einwilligung');
     const label = document.createElement('label');
+    label.className = 'checkbox-row';
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
     label.appendChild(checkbox);
-    label.append(' Ich willige ausdruecklich ein, dass meine eigenen Strava-Daten in meinem eigenen Google-Drive-App-Ordner gespeichert werden.');
+    label.append('Ich willige ausdrücklich ein, dass meine eigenen Strava-Daten in meinem eigenen Google-Drive-App-Ordner gespeichert werden.');
     box.appendChild(label);
 
+    const hint = document.createElement('p');
+    hint.className = 'hint';
+    hint.textContent = 'Google zeigt dazu gleich noch einmal einen eigenen Freigabe-Dialog für den Drive-Zugriff - das ist eine Sicherheitsvorgabe von Google und lässt sich nicht überspringen.';
+    box.appendChild(hint);
+
     const btn = document.createElement('button');
-    btn.textContent = 'Zustimmen und fortfahren';
+    btn.className = 'btn-primary';
+    btn.textContent = 'Erlauben & fortfahren';
     btn.disabled = true;
     checkbox.onchange = () => {
       btn.disabled = !checkbox.checked;
     };
     btn.onclick = async () => {
-      settings = await loadOrInitSettings();
-      settings.consent = { given: true, at: new Date().toISOString() };
-      step = 3;
-      render();
-    };
-    box.appendChild(document.createElement('br'));
-    box.appendChild(btn);
-  }
-
-  function renderDriveStep() {
-    const box = stepBox('3. Google-Drive-Zugriff');
-    const p = document.createElement('p');
-    p.textContent = 'Erlaube Zugriff auf einen versteckten App-Ordner in deinem Google Drive (nur fuer diese App sichtbar, keine anderen Dateien).';
-    box.appendChild(p);
-
-    const btn = document.createElement('button');
-    btn.textContent = 'Drive-Zugriff erlauben';
-    btn.onclick = async () => {
       btn.disabled = true;
       try {
+        settings = await loadOrInitSettings();
+        settings.consent = { given: true, at: new Date().toISOString() };
         await requestDriveAccess();
-        // FA-AUTH-03: die in Schritt 2 gegebene Einwilligung wird JETZT persistiert,
-        // sobald ueberhaupt Drive-Zugriff besteht - vorher konnte nichts geschrieben werden.
+        // FA-AUTH-03: die Einwilligung wird JETZT persistiert, sobald ueberhaupt Drive-Zugriff besteht.
         await writeJson(SETTINGS_FILE, settings);
         step = 4;
         render();
@@ -123,13 +131,14 @@ export function renderOnboarding(container, { resumeStep, onComplete }) {
     box.appendChild(btn);
   }
 
-  function renderStravaStep() {
-    const box = stepBox('4. Strava verbinden');
+  function renderStravaStep(container) {
+    const box = stepBox(container, 'Strava verbinden');
     const p = document.createElement('p');
-    p.textContent = 'Verbinde dein Strava-Konto (nur Lesezugriff auf deine Aktivitaeten, auch private).';
+    p.textContent = 'Verbinde dein Strava-Konto (nur Lesezugriff auf deine Aktivitäten, auch private).';
     box.appendChild(p);
 
     const btn = document.createElement('button');
+    btn.className = 'btn-primary';
     btn.textContent = 'Mit Strava verbinden';
     btn.onclick = async () => {
       btn.disabled = true;
@@ -143,12 +152,12 @@ export function renderOnboarding(container, { resumeStep, onComplete }) {
     box.appendChild(btn);
   }
 
-  async function renderWeightStep() {
-    const box = stepBox('5. Gewicht');
+  async function renderWeightStep(container) {
+    const box = stepBox(container, 'Gewicht');
     if (!settings) settings = await loadOrInitSettings();
 
     const p = document.createElement('p');
-    p.textContent = 'Fuer W/kg-Kennzahlen brauchen wir dein aktuelles Gewicht.';
+    p.textContent = 'Für W/kg-Kennzahlen brauchen wir dein aktuelles Gewicht.';
     box.appendChild(p);
 
     const input = document.createElement('input');
@@ -162,7 +171,9 @@ export function renderOnboarding(container, { resumeStep, onComplete }) {
     box.appendChild(document.createElement('br'));
 
     const btn = document.createElement('button');
-    btn.textContent = 'Bestaetigen';
+    btn.className = 'btn-primary';
+    btn.style.marginTop = '0.75rem';
+    btn.textContent = 'Bestätigen';
     btn.onclick = async () => {
       const kg = Number(input.value);
       if (!kg || kg < 30 || kg > 250) {
