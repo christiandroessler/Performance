@@ -354,6 +354,23 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .pmc-tooltip strong { display: block; margin-bottom: 0.3rem; font-size: 0.72rem; color: var(--text-muted); }
 .pmc-tooltip-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 0.4rem; }
 
+.chart-tooltip-anchor { position: relative; }
+.chart-tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--bg-elevated-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.65rem;
+  font-size: 0.75rem;
+  color: var(--text);
+  white-space: nowrap;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+  z-index: 5;
+}
+.chart-tooltip strong { display: block; margin-bottom: 0.3rem; font-size: 0.72rem; color: var(--text-muted); }
+.chart-tooltip-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 0.4rem; }
+
 /* ---------- Leistungskurve-Grafik (log-x) ---------- */
 
 .power-curve-chart-wrapper { margin-bottom: 1rem; }

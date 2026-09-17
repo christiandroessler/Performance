@@ -9,7 +9,7 @@ import { loadIndex } from './sync.js';
 import { loadModelState } from './compute.js';
 import { readFile, readJson } from './storage.js';
 import { decodeBundle, streamFileName, pointsFromActivityBundle } from './streamCodec.js';
-import { downsample } from './chartUtils.js';
+import { downsample, downsampledBucketSize } from './chartUtils.js';
 
 const MEDAL_LABEL = { bronze: '🥉 Bronze', silver: '🥈 Silber', gold: '🥇 Gold' };
 
@@ -25,8 +25,29 @@ function formatDistance(m) {
   return `${(m / 1000).toFixed(1)} km`;
 }
 
-function buildLineChart(series, { height = 140, width = 820 } = {}) {
-  const padding = 24;
+/** "1:23:45" bzw. "23:45" - Zeit im Training seit Start (nicht Uhrzeit). */
+function formatElapsed(sec) {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = Math.floor(sec % 60);
+  const mm = String(m).padStart(2, '0');
+  const ss = String(s).padStart(2, '0');
+  return h > 0 ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
+}
+
+/**
+ * Achsbeschriftete Verlaufsgrafik mit Hover-Crosshair; die eigentliche Tooltip-Anzeige (mit allen
+ * Kennzahlen ueber alle Verlaufs-Charts hinweg synchronisiert) steuert der Aufrufer per onHoverIndex/onLeave,
+ * damit z. B. Leistung, Herzfrequenz und Kadenz in EINEM Tooltip erscheinen, egal welche Grafik gehovert wird.
+ */
+function createTimeChart(series, { height = 140, width = 820, bucketSize = 1, showXAxis = false, unitLabel = '', formatY = (v) => String(Math.round(v)), onHoverIndex, onLeave } = {}) {
+  const padL = 38;
+  const padR = 10;
+  const padT = 10;
+  const padB = showXAxis ? 22 : 8;
+  const plotW = width - padL - padR;
+  const plotH = height - padT - padB;
+
   const svgNs = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(svgNs, 'svg');
   svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
@@ -34,23 +55,91 @@ function buildLineChart(series, { height = 140, width = 820 } = {}) {
   svg.style.display = 'block';
 
   const n = Math.max(...series.map((s) => s.data.length));
-  if (n === 0) return svg;
-  const x = (i) => padding + (i / Math.max(1, n - 1)) * (width - 2 * padding);
+  if (n === 0) return { element: svg, setCrosshair() {} };
+
+  function addEl(tag, attrs) {
+    const el = document.createElementNS(svgNs, tag);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    svg.appendChild(el);
+    return el;
+  }
+
+  const x = (i) => padL + (i / Math.max(1, n - 1)) * plotW;
+  const yMin = Math.min(...series.map((s) => s.yMin ?? Math.min(...s.data)));
+  const yMax = Math.max(...series.map((s) => s.yMax ?? Math.max(...s.data)), yMin + 1);
+  const y = (v) => padT + plotH - ((v - yMin) / (yMax - yMin || 1)) * plotH;
+
+  // Y-Achse: Gitterlinien + Beschriftung (eine gemeinsame Skala fuer alle Serien dieser Grafik, damit z. B.
+  // Leistung und MPA direkt vergleichbar bleiben statt unabhaengig voneinander normiert zu werden).
+  for (const frac of [0, 1 / 3, 2 / 3, 1]) {
+    const val = yMin + (yMax - yMin) * frac;
+    const yy = y(val);
+    addEl('line', { x1: padL, y1: yy.toFixed(1), x2: width - padR, y2: yy.toFixed(1), stroke: 'var(--border)', 'stroke-width': 1 });
+    addEl('text', { x: padL - 6, y: (yy + 3).toFixed(1), 'text-anchor': 'end', 'font-size': 9, fill: 'var(--text-faint)' }).textContent = formatY(val);
+  }
+  if (unitLabel) {
+    addEl('text', { x: 2, y: padT - 2, 'text-anchor': 'start', 'font-size': 9, fill: 'var(--text-faint)' }).textContent = unitLabel;
+  }
+
+  // X-Achse (nur bei der untersten sichtbaren Grafik, sonst redundant): Zeit im Training seit Start.
+  if (showXAxis) {
+    const tickCount = Math.min(6, n);
+    for (let k = 0; k < tickCount; k++) {
+      const idx = Math.round((k / Math.max(1, tickCount - 1)) * (n - 1));
+      addEl('text', { x: x(idx).toFixed(1), y: height - 4, 'text-anchor': 'middle', 'font-size': 9, fill: 'var(--text-faint)' }).textContent = formatElapsed(idx * bucketSize);
+    }
+  }
 
   for (const s of series) {
-    const yMin = s.yMin ?? Math.min(...s.data);
-    const yMax = s.yMax ?? Math.max(...s.data, yMin + 1);
-    const y = (v) => height - padding - ((v - yMin) / (yMax - yMin || 1)) * (height - 2 * padding);
     const d = s.data.map((v, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(' ');
-    const path = document.createElementNS(svgNs, 'path');
-    path.setAttribute('d', d);
-    path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', s.color);
-    path.setAttribute('stroke-width', String(s.width || 1.5));
-    if (s.dashed) path.setAttribute('stroke-dasharray', '4 3');
-    svg.appendChild(path);
+    addEl('path', { d, fill: 'none', stroke: s.color, 'stroke-width': s.width || 1.5, ...(s.dashed ? { 'stroke-dasharray': '4 3' } : {}) });
   }
-  return svg;
+
+  // Hover: eigener Crosshair + je Serie ein Punkt, Position wird von aussen gesetzt (setCrosshair),
+  // damit alle Verlaufs-Charts synchron denselben Zeitpunkt markieren.
+  const crosshair = addEl('line', { x1: padL, y1: padT, x2: padL, y2: padT + plotH, stroke: 'var(--text-faint)', 'stroke-width': 1, 'stroke-dasharray': '3 3', opacity: 0 });
+  const dots = series.map((s) => addEl('circle', { r: 3, fill: s.color, opacity: 0 }));
+  const hoverRect = addEl('rect', { x: padL, y: padT, width: plotW, height: plotH, fill: 'transparent' });
+  hoverRect.style.cursor = 'crosshair';
+
+  function setCrosshair(idx) {
+    if (idx == null) {
+      crosshair.setAttribute('opacity', 0);
+      dots.forEach((d) => d.setAttribute('opacity', 0));
+      return;
+    }
+    const px = x(idx);
+    crosshair.setAttribute('x1', px.toFixed(1));
+    crosshair.setAttribute('x2', px.toFixed(1));
+    crosshair.setAttribute('opacity', 1);
+    series.forEach((s, i) => {
+      const v = s.data[idx];
+      if (v == null) {
+        dots[i].setAttribute('opacity', 0);
+        return;
+      }
+      dots[i].setAttribute('cx', px.toFixed(1));
+      dots[i].setAttribute('cy', y(v).toFixed(1));
+      dots[i].setAttribute('opacity', 1);
+    });
+  }
+
+  function indexFromClientX(clientX) {
+    const rect = svg.getBoundingClientRect();
+    const scale = rect.width > 0 ? width / rect.width : 1;
+    const localX = (clientX - rect.left) * scale;
+    const stepX = plotW / Math.max(1, n - 1);
+    return Math.max(0, Math.min(n - 1, Math.round((localX - padL) / stepX)));
+  }
+
+  if (onHoverIndex) {
+    hoverRect.addEventListener('pointermove', (evt) => onHoverIndex(indexFromClientX(evt.clientX), evt));
+  }
+  if (onLeave) {
+    hoverRect.addEventListener('pointerleave', onLeave);
+  }
+
+  return { element: svg, setCrosshair };
 }
 
 function statTile(label, value, unit, accent) {
@@ -182,38 +271,107 @@ export async function openActivityDetail(activityId) {
       panel.appendChild(strainCard);
     }
 
-    // Leistung (+ MPA, falls Signatur zum Datum bekannt) und Herzfrequenz
+    // Leistung (+ MPA, falls Signatur zum Datum bekannt), W'bal, Herzfrequenz, Kadenz - EIN gemeinsamer Hover:
+    // egal welche Grafik gehovert wird, markieren alle synchron denselben Zeitpunkt und EIN Tooltip zeigt Zeit
+    // im Training + alle an diesem Zeitpunkt verfuegbaren Kennzahlen (Leistung/MPA/W'bal/Herzfrequenz/Kadenz).
     if (stream.n > 0) {
       const chartsCard = document.createElement('div');
-      chartsCard.className = 'card';
+      chartsCard.className = 'card chart-tooltip-anchor';
       chartsCard.innerHTML = '<h3>Verläufe</h3>';
       panel.appendChild(chartsCard);
 
-      if (validWatts.length > 0) {
-        const sig = modelState.history && modelState.history.length ? signatureAtDate(modelState.history, meta.date) : null;
+      const tooltip = document.createElement('div');
+      tooltip.className = 'chart-tooltip';
+      tooltip.hidden = true;
+      chartsCard.appendChild(tooltip);
+
+      const bucketSize = downsampledBucketSize(stream.n);
+      const chartInstances = [];
+      const combined = [];
+
+      function collect(idx, key, value) {
+        if (!combined[idx]) combined[idx] = { timeSec: idx * bucketSize };
+        combined[idx][key] = value;
+      }
+
+      function onHoverIndex(idx, evt) {
+        chartInstances.forEach((c) => c.setCrosshair(idx));
+        const d = combined[idx];
+        if (!d) return;
+        const rows = [`<strong>Zeit: ${formatElapsed(d.timeSec)}</strong>`];
+        if (d.watts != null) rows.push(`<div><span class="chart-tooltip-dot" style="background:#45b8b4"></span>Leistung: ${Math.round(d.watts)} W</div>`);
+        if (d.mpa != null) rows.push(`<div><span class="chart-tooltip-dot" style="background:#e5495b"></span>MPA: ${Math.round(d.mpa)} W</div>`);
+        if (d.balanceKJ != null) rows.push(`<div><span class="chart-tooltip-dot" style="background:#d8b34a"></span>W'bal: ${d.balanceKJ.toFixed(1)} kJ</div>`);
+        if (d.hr != null) rows.push(`<div><span class="chart-tooltip-dot" style="background:#f0a7b0"></span>Herzfrequenz: ${Math.round(d.hr)} bpm</div>`);
+        if (d.cadence != null) rows.push(`<div><span class="chart-tooltip-dot" style="background:#9397ab"></span>Kadenz: ${Math.round(d.cadence)} rpm</div>`);
+        tooltip.innerHTML = rows.join('');
+        tooltip.hidden = false;
+
+        const anchorRect = chartsCard.getBoundingClientRect();
+        const left = evt.clientX - anchorRect.left + 14;
+        const nearRight = left > anchorRect.width - 170;
+        tooltip.style.left = nearRight ? `${evt.clientX - anchorRect.left - 170}px` : `${left}px`;
+        tooltip.style.top = `${Math.max(0, evt.clientY - anchorRect.top - 24)}px`;
+      }
+
+      function onLeave() {
+        chartInstances.forEach((c) => c.setCrosshair(null));
+        tooltip.hidden = true;
+      }
+
+      const sig = validWatts.length > 0 && modelState.history && modelState.history.length ? signatureAtDate(modelState.history, meta.date) : null;
+      const hasFullSignature = !!(sig && sig.cp && sig.wPrimeJ && sig.pMax);
+      const hasCadence = [...stream.cadence].some((c) => c > 0);
+
+      const willRenderPower = validWatts.length > 0;
+      const willRenderHr = validHr.length > 0;
+      const willRenderCadence = hasCadence;
+      const lastChart = willRenderCadence ? 'cadence' : willRenderHr ? 'hr' : willRenderPower ? (hasFullSignature ? 'wbal' : 'power') : null;
+
+      if (willRenderPower) {
         const powerTitle = document.createElement('p');
         powerTitle.className = 'chart-title';
         powerTitle.textContent = sig ? 'Leistung (teal) · MPA (rot gestrichelt)' : 'Leistung';
         chartsCard.appendChild(powerTitle);
 
         const wattsDown = downsample(stream.watts);
-        const series = [{ data: wattsDown, color: '#45b8b4', width: 1.5, yMin: 0 }];
+        const powerSeries = [{ data: wattsDown, color: '#45b8b4', width: 1.5, yMin: 0 }];
+        wattsDown.forEach((v, i) => collect(i, 'watts', v));
 
-        if (sig && sig.cp && sig.wPrimeJ && sig.pMax) {
+        if (hasFullSignature) {
           const balance = wPrimeBalanceSkiba2015(prepared.recoveryWatts, sig.cp, sig.wPrimeJ);
           const { mpa } = mpaTrace(prepared.recoveryWatts, { cp: sig.cp, wPrimeJ: sig.wPrimeJ, pMax: sig.pMax, n: settings.mpaExponent }, { balance });
-          series.push({ data: downsample(mpa), color: '#e5495b', width: 1.25, dashed: true, yMin: 0 });
+          const mpaDown = downsample(mpa);
+          powerSeries.push({ data: mpaDown, color: '#e5495b', width: 1.25, dashed: true, yMin: 0 });
+          mpaDown.forEach((v, i) => collect(i, 'mpa', v));
 
-          chartsCard.appendChild(buildLineChart(series));
+          const powerChart = createTimeChart(powerSeries, { bucketSize, showXAxis: lastChart === 'power', unitLabel: 'W', onHoverIndex, onLeave });
+          chartInstances.push(powerChart);
+          chartsCard.appendChild(powerChart.element);
 
           const wbalTitle = document.createElement('p');
           wbalTitle.className = 'chart-title';
           wbalTitle.style.marginTop = '0.75rem';
           wbalTitle.textContent = "W'bal";
           chartsCard.appendChild(wbalTitle);
-          chartsCard.appendChild(buildLineChart([{ data: downsample(balance), color: '#d8b34a', width: 1.5, yMin: 0, yMax: sig.wPrimeJ }], { height: 90 }));
+
+          const balanceKJDown = downsample(balance).map((v) => v / 1000);
+          balanceKJDown.forEach((v, i) => collect(i, 'balanceKJ', v));
+          const wbalChart = createTimeChart([{ data: balanceKJDown, color: '#d8b34a', width: 1.5, yMin: 0, yMax: sig.wPrimeJ / 1000 }], {
+            height: 90,
+            bucketSize,
+            showXAxis: lastChart === 'wbal',
+            unitLabel: 'kJ',
+            formatY: (v) => v.toFixed(1),
+            onHoverIndex,
+            onLeave,
+          });
+          chartInstances.push(wbalChart);
+          chartsCard.appendChild(wbalChart.element);
         } else {
-          chartsCard.appendChild(buildLineChart(series));
+          const powerChart = createTimeChart(powerSeries, { bucketSize, showXAxis: lastChart === 'power', unitLabel: 'W', onHoverIndex, onLeave });
+          chartInstances.push(powerChart);
+          chartsCard.appendChild(powerChart.element);
           if (!sig) {
             const hint = document.createElement('p');
             hint.className = 'hint';
@@ -223,23 +381,32 @@ export async function openActivityDetail(activityId) {
         }
       }
 
-      if (validHr.length > 0) {
+      if (willRenderHr) {
         const hrTitle = document.createElement('p');
         hrTitle.className = 'chart-title';
         hrTitle.style.marginTop = '0.75rem';
         hrTitle.textContent = 'Herzfrequenz';
         chartsCard.appendChild(hrTitle);
-        chartsCard.appendChild(buildLineChart([{ data: downsample(stream.heartrate), color: '#f0a7b0', width: 1.5 }], { height: 90 }));
+
+        const hrDown = downsample(stream.heartrate);
+        hrDown.forEach((v, i) => collect(i, 'hr', v));
+        const hrChart = createTimeChart([{ data: hrDown, color: '#f0a7b0', width: 1.5 }], { height: 90, bucketSize, showXAxis: lastChart === 'hr', unitLabel: 'bpm', onHoverIndex, onLeave });
+        chartInstances.push(hrChart);
+        chartsCard.appendChild(hrChart.element);
       }
 
-      const hasCadence = [...stream.cadence].some((c) => c > 0);
-      if (hasCadence) {
+      if (willRenderCadence) {
         const cadTitle = document.createElement('p');
         cadTitle.className = 'chart-title';
         cadTitle.style.marginTop = '0.75rem';
         cadTitle.textContent = 'Kadenz';
         chartsCard.appendChild(cadTitle);
-        chartsCard.appendChild(buildLineChart([{ data: downsample(stream.cadence), color: '#9397ab', width: 1.5, yMin: 0 }], { height: 90 }));
+
+        const cadDown = downsample(stream.cadence);
+        cadDown.forEach((v, i) => collect(i, 'cadence', v));
+        const cadChart = createTimeChart([{ data: cadDown, color: '#9397ab', width: 1.5, yMin: 0 }], { height: 90, bucketSize, showXAxis: lastChart === 'cadence', unitLabel: 'rpm', onHoverIndex, onLeave });
+        chartInstances.push(cadChart);
+        chartsCard.appendChild(cadChart.element);
       }
     }
 

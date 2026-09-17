@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { downsample } from '../src/chartUtils.js';
+import { downsample, downsampledBucketSize } from '../src/chartUtils.js';
 
 test('downsample: kurze Arrays bleiben unveraendert', () => {
   const arr = [1, 2, 3];
@@ -13,4 +13,10 @@ test('downsample: lange Arrays werden auf maxPoints Buckets mit Mittelwert reduz
   assert.ok(out.length <= 100);
   assert.equal(out[0], 4.5); // Mittelwert der ersten 10 Werte (0..9)
   assert.ok(out[out.length - 1] > out[0]); // monoton steigend erhalten
+});
+
+test('downsampledBucketSize: 1 bei kurzen Arrays, sonst dieselbe Bucket-Groesse wie downsample() intern verwendet', () => {
+  assert.equal(downsampledBucketSize(3, 500), 1);
+  assert.equal(downsampledBucketSize(1000, 100), 10);
+  assert.equal(downsampledBucketSize(1005, 100), 11); // aufgerundet, wie Math.ceil in downsample()
 });
