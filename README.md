@@ -10,8 +10,8 @@ Rechenkern zuerst, getestet mit dem Strava-Datenexport.
 | Meilenstein | Inhalt | Status |
 |---|---|---|
 | **M1** | Rechenkern (Bibliothek) | abgeschlossen, siehe [`core/`](core/) |
-| **M2** | Fundament (Cloudflare, Google-Login, Strava-OAuth, Drive-Ablage) | in Arbeit, siehe [`worker/`](worker/) und [`web/`](web/) |
-| M3 | Oberfläche TrainingPeaks/Strava/XERT | offen |
+| **M2** | Fundament (Cloudflare, Google-Login, Strava-OAuth, Drive-Ablage) | in Arbeit (nur GitHub-Auto-Deploy offen), siehe [`worker/`](worker/) und [`web/`](web/) |
+| **M3** | Oberfläche TrainingPeaks/Strava/XERT | in Arbeit, siehe [`web/README.md`](web/README.md) |
 | M4 | 3D-Modell und Kalibrierung | offen |
 | M5 | Stoffwechselmodell | offen |
 | M6 | Gruppe, Datenschutz, PWA | offen |
@@ -95,7 +95,9 @@ verlangt berechnete Kennzahlen.
      Build-Befehl leer lassen (kein Bundling noetig), Deploy-Befehl
      `npx wrangler deploy` (Standard).
   3. Gleiches Vorgehen fuer Projekt `performance-app-web`, **Root
-     directory** = `performance-app/web`.
+     directory** = `performance-app/web`, Deploy-Befehl **`npm run deploy`**
+     (nicht `npx wrangler deploy` direkt) - das synct vorher `core/src` (M1)
+     nach `web/vendor/core/src`, siehe `web/README.md`.
   4. Nach dem Verbinden: Secrets (`STRAVA_CLIENT_SECRET`,
      `TOKEN_ENCRYPTION_KEY`) sind bereits per `wrangler secret put` auf dem
      Worker gesetzt und bleiben bei Git-Deploys erhalten (Secrets sind nicht
@@ -105,6 +107,28 @@ verlangt berechnete Kennzahlen.
 - Echtes Tageskontingent-Pause/Resume (s. o., eher ein theoretischer Punkt).
 - `storage.js`/`idb.js` noch nicht gegen ein Konto mit mehrjaehriger
   Trainingshistorie durchgespielt (nur 30-Tage-Fenster bisher getestet).
+
+## M3-Status im Detail
+
+Erste Runde begonnen (Lastenheft Kap. 6.5-6.7 minus FA-SIG-10/11/12, Kap. 6.9
+teilweise), siehe `web/README.md` fuer die volle Aufschluesselung. `core/`
+(M1, unveraendert) ist jetzt ins Frontend eingebunden und laeuft dort in
+einem Web Worker (NFA-04), gefuettert mit den in M2 abgelegten Rohdaten:
+
+- **Aktivitaetsliste** (FA-ACT-01), **Leistungskurve/persoenliche Bestwerte**
+  (FA-ACT-03, inkl. W/kg mit Gewicht zum Aktivitaetsdatum), **Performance
+  Management Chart** (FA-TP-06, CTL/ATL/TSB), **Breakthrough-Verwaltung**
+  (FA-SIG-07/08: Mehrfachauswahl zum Verwerfen, Reaktivieren) sind gebaut und
+  deployt, aber noch **nicht** live gegen die echten 33 importierten
+  Aktivitaeten des Auftraggebers durchgeklickt.
+- Absichtlich noch offen: Detailansicht mit Stream-Charts (FA-ACT-02),
+  Wochen-/Kalenderuebersicht (FA-TP-07), automatische Schwellen-Schaetzung
+  fuer HF/Pace/Schwimmen (FA-TP-03/04 - ohne die gibt es aktuell kein
+  hrTSS/Pace-TSS, nur NP/IF/TSS aus Leistung), PP-Plausibilisierung
+  (FA-SIG-13), Einstellungen-UI (FA-SET-01-04).
+- `web/test/computePipeline.test.js` prueft die Naht Ablageformat -> core
+  (RawStreamPoint[]-Form, FA-DQ-01 deviceWatts-Maskierung); die
+  Algorithmus-Korrektheit selbst deckt bereits `core/test/` ab (M1).
 
 ## Ausgangslage
 

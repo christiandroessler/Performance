@@ -1,12 +1,14 @@
-# Frontend (M2 – Fundament)
+# Frontend (M2 Fundament + M3 Oberflaeche)
 
-Statisches Frontend fuer Cloudflare Pages. Bewusst ohne Build-Schritt (reine
-ES-Module, wie `core/`) - Pages kann den Ordner direkt ausliefern. Die
-eigentliche Oberflaeche (Aktivitaetsliste, Kennzahlen, Diagramme) folgt in
-M3; M2 deckt Anmeldung, Onboarding, Infrastruktur (Kap. 10) UND den
-Rohdaten-Sync (5.3, FA-SYNC-01 bis 05) ab.
+Statisches Frontend fuer Cloudflare (Workers mit Static Assets). Bewusst ohne
+Build-Schritt (reine ES-Module, wie `core/`) - eine Ausnahme: `core/src`
+selbst wird vor jedem Deploy nach `web/vendor/core/src` kopiert (siehe
+"Rechenkern-Anbindung" unten), weil Cloudflare nur Dateien innerhalb von
+`web/` ausliefert.
 
 ## Code-Struktur
+
+**M2 (Fundament: Auth, Onboarding, Sync):**
 
 | Datei | Zweck |
 |---|---|
@@ -21,14 +23,43 @@ Rohdaten-Sync (5.3, FA-SYNC-01 bis 05) ab.
 | `src/syncView.js` | UI: Erstimport-Zeitfenster waehlen, Fortschritt anzeigen, Drosselung/Fortsetzen |
 | `src/api.js` | Client fuer die Worker-API (sendet das ID-Token im Header) |
 | `src/onboarding.js` | Die 5 festen Onboarding-Schritte (FA-AUTH-02) |
-| `src/main.js` | Einstiegspunkt, verdrahtet alles |
 
-`core/` (M1) wird erst in M3 eingebunden: M2 legt nur Rohdaten ab
-(`index.json`-Metadaten, komprimierte Streams), die eigentliche
-Modellberechnung (Signaturverlauf, Breakthroughs, `model/*.json`) und ihre
-Anzeige sind M3-Scope - dort auch gegen die M1-Ergebnisse verifiziert
-(Lastenheft M3-Abnahme). Das ist eine bewusste Scope-Entscheidung dieser
-Sitzung: keine der M2-Abnahmekriterien prueft berechnete Kennzahlen.
+**M3 (Oberflaeche: Rechenkern-Anbindung, Ansichten):**
+
+| Datei | Zweck |
+|---|---|
+| `scripts/sync-core.mjs` | Kopiert `core/src` nach `web/vendor/core/src` (`npm run sync-core`, laeuft automatisch vor `npm test`/`npm run dev`/`npm run deploy`) |
+| `src/calcWorker.js` | Web Worker (NFA-04): ruft `core/prepareActivity` + `computeSignatureHistory` unveraendert auf, liefert nur aggregierte Ergebnisse zurueck (keine Sekunden-Streams) |
+| `src/compute.js` | Laedt alle Rohdaten (index.json + streams/\*.bin), schickt sie an den Worker, schreibt `model/signature-history.json` + `model/mmp-curves.json`, schreibt Kennzahlen in `index.json` zurueck. `discardBreakthrough`/`reactivateBreakthrough` (FA-SIG-07) |
+| `src/activityListView.js` | FA-ACT-01: Aktivitaetsliste, sortier-/filterbar |
+| `src/powerCurveView.js` | FA-ACT-03: Leistungskurve/persoenliche Bestwerte, waehlbarer Zeitraum, optional W/kg |
+| `src/pmcView.js` | FA-TP-06: Performance Management Chart (CTL/ATL/TSB), reines SVG |
+| `src/breakthroughView.js` | FA-SIG-07/08: Breakthrough-Uebersicht, Mehrfachauswahl zum Verwerfen, Reaktivieren |
+| `src/dashboardView.js` | Verdrahtet die M3-Ansichten, stoesst die Erstberechnung nach dem ersten Sync automatisch an |
+| `src/main.js` | Einstiegspunkt, verdrahtet alles (M2 + M3) |
+
+## Rechenkern-Anbindung (M3)
+
+`core/` (M1) laeuft **unveraendert** im Browser, in einem Web Worker
+(NFA-04: Berechnung blockiert die UI nicht). `computeSignatureHistory` ist
+eine reine Funktion ueber den GESAMTEN chronologischen Verlauf (M1-Design,
+kein inkrementelles Patchen) - jede Neuberechnung (nach einem Sync, nach
+Verwerfen/Reaktivieren eines Breakthroughs) laedt daher alle Rohpunkte aller
+Aktivitaeten neu und rechnet komplett neu. Das ist bei sehr langer Historie
+(mehrere Jahre) potenziell spuerbar langsam - bewusst nicht optimiert in
+dieser Runde (kein M3-Abnahmekriterium verlangt eine bestimmte
+Neuberechnungsdauer fuer den Gesamtverlauf, nur NFA-04 fuer eine einzelne
+6h-Aktivitaet).
+
+`web/test/computePipeline.test.js` prueft die Naht Ablageformat -> core
+(RawStreamPoint[]-Form, FA-DQ-01 `deviceWatts`-Maskierung) - die
+Algorithmus-Korrektheit selbst deckt bereits `core/test/` ab (33 Tests, M1).
+
+**Bewusst noch nicht gebaut** (M3, spaetere Runde): Detailansicht mit
+Stream-Charts (FA-ACT-02), Wochen-/Kalenderuebersicht (FA-TP-07),
+automatische Schwellen-Schaetzung fuer HF/Pace/Schwimmen (FA-TP-03/04 - ohne
+die gibt es aktuell nur NP/IF/TSS aus Leistung, kein hrTSS/Pace-TSS),
+PP-Plausibilisierung (FA-SIG-13), Einstellungen-UI (FA-SET-01-04).
 
 ## Ablageformat der Streams (`streams/YYYY-MM.bin`)
 
@@ -110,16 +141,21 @@ erscheint), aber die eigentliche Anmeldung schlaegt fehl - dafuer muss
 
 ## Deployment
 
-Cloudflare Pages Projekt mit dem GitHub-Repo verbinden (Auto-Deploy, Kap. 4
-M2), Root-Verzeichnis `performance-app/web`, kein Build-Befehl noetig
-(Framework-Preset "None").
+Aktuell manuell: `cd web && npm run deploy` (synct zuerst `core/src` nach
+`vendor/`, dann `wrangler deploy`). Geplant: Cloudflare Workers Builds mit
+diesem GitHub-Repo verbinden (Auto-Deploy) - Root-Verzeichnis
+`performance-app/web`, Deploy-Befehl `npm run deploy` (nicht
+`npx wrangler deploy` direkt, sonst fehlt ggf. der `vendor/`-Sync), siehe
+Anleitung im Root-`README.md`.
 
 ## Sicherheitsmodell
 
 - Der Browser erhaelt nie ein Strava-Token (FA-AUTH-04) - alle
-  Strava-Aufrufe laufen ueber den Worker-Proxy (`src/api.js`).
+  Strava-Aufrufe laufen ueber den Worker-Proxy (`src/api.js`). Live per
+  Entwicklerwerkzeuge bestaetigt (2026-09-17): alle Strava-Netzwerk-Anfragen
+  gehen an den Worker, nie direkt an `strava.com`.
 - Das Google-ID-Token wird nicht in `localStorage` abgelegt, sondern nur im
   Modul-Speicher gehalten (verschwindet beim Neuladen, dann erneute
   Anmeldung / stiller Google-Sign-In).
-- Trainingsdaten (spaeter, M3) liegen ausschliesslich in IndexedDB (lokaler
-  Cache) und im Google-Drive-App-Ordner des Nutzers, nirgends sonst.
+- Trainingsdaten liegen ausschliesslich in IndexedDB (lokaler Cache) und im
+  Google-Drive-App-Ordner des Nutzers, nirgends sonst.
