@@ -42,7 +42,7 @@ export async function renderDashboard(container) {
     statusP.textContent = uncomputed > 0 ? `${uncomputed} Aktivität(en) noch ohne berechnete Kennzahlen - "Kennzahlen neu berechnen" klicken.` : '';
 
     renderActivityList(activitiesContainer, index);
-    renderPmc(pmcContainer, index);
+    renderPmc(pmcContainer, index, modelState);
     await renderPowerCurve(powerCurveContainer);
     await renderBreakthroughs(breakthroughsContainer, modelState, refresh);
     return { index, modelState };

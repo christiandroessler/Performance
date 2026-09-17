@@ -19,7 +19,7 @@ function allDatesBetween(startDate, endDate) {
   return dates;
 }
 
-export function renderPmc(container, index) {
+export function renderPmc(container, index, modelState) {
   container.innerHTML = '';
   const box = document.createElement('div');
   box.className = 'step';
@@ -32,7 +32,12 @@ export function renderPmc(container, index) {
   const withTss = index.activities.filter((a) => a.date && a.tss != null);
   if (withTss.length === 0) {
     const p = document.createElement('p');
-    p.textContent = 'Noch keine Kennzahlen berechnet (Aktivitäten ohne Leistung/Schwelle liefern keinen TSS).';
+    // FA-SIG-03: die ersten 90 Tage der Historie dienen der Startsignatur-Regression,
+    // erst danach gibt es ueberhaupt eine Schwelle und damit TSS (Kap. 7.1) - das ist
+    // der haeufigste Grund fuer "noch kein TSS", nicht fehlende Leistungsdaten.
+    p.textContent = modelState && modelState.needsMoreData
+      ? `Noch keine Startsignatur, deshalb noch kein TSS: ${modelState.initial?.reason || 'nicht genug Daten in den ersten 90 Tagen der Historie'}. Mehr Historie importieren (z. B. "Gesamte Historie") oder abwarten, bis 90 Tage Trainingsdaten vorliegen.`
+      : 'Noch keine Kennzahlen berechnet (Aktivitäten ohne Leistung/Schwelle liefern keinen TSS).';
     box.appendChild(p);
     return;
   }
