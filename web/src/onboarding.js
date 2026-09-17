@@ -9,7 +9,7 @@
 // UI-Kosmetik.
 
 import { requestDriveAccess, getSignedInEmail } from './auth.js';
-import { readJson, writeJson } from './drive.js';
+import { readJson, writeJson } from './storage.js';
 import { startStravaConnect } from './api.js';
 
 const SETTINGS_FILE = 'settings.json';

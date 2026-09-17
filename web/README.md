@@ -3,7 +3,8 @@
 Statisches Frontend fuer Cloudflare Pages. Bewusst ohne Build-Schritt (reine
 ES-Module, wie `core/`) - Pages kann den Ordner direkt ausliefern. Die
 eigentliche Oberflaeche (Aktivitaetsliste, Kennzahlen, Diagramme) folgt in
-M3; M2 deckt nur Anmeldung, Onboarding und die Infrastruktur ab (Kap. 10).
+M3; M2 deckt Anmeldung, Onboarding, Infrastruktur (Kap. 10) UND den
+Rohdaten-Sync (5.3, FA-SYNC-01 bis 05) ab.
 
 ## Code-Struktur
 
@@ -11,13 +12,55 @@ M3; M2 deckt nur Anmeldung, Onboarding und die Infrastruktur ab (Kap. 10).
 |---|---|
 | `src/config.js` | Laedt die oeffentliche Konfiguration vom Worker (`GET /api/config`) |
 | `src/auth.js` | Google Sign-In (ID-Token) + Drive-Zugriffs-Token (Scope `drive.appdata`) |
-| `src/drive.js` | Lesen/Schreiben im Drive-App-Ordner (Kap. 5.2) |
+| `src/drive.js` | Rohzugriff auf den Drive-App-Ordner (Kap. 5.2) - Dateien nach `name` |
+| `src/idb.js` | Generischer IndexedDB-Key-Value-Store (lokaler Cache) |
+| `src/storage.js` | Speicherschicht ueber `drive.js` + `idb.js`: schreibt zuerst nach Drive (fuehrend), spiegelt in den Cache; liest zuerst aus dem Cache, faellt sonst auf Drive zurueck und fuellt den Cache nach - macht "Drive-Inhalte nach Cache-Loeschung wiederherstellbar" automatisch wahr |
+| `src/streamCodec.js` | Ablageformat fuer `streams/YYYY-MM.bin` (M2-Festlegung, siehe unten) |
+| `src/sync.js` | Sync-Orchestrierung: Listing-Phase + Streams-Phase, Drosselungs-Pause/Resume, Fortschritt beim Worker |
+| `src/syncView.js` | UI: Erstimport-Zeitfenster waehlen, Fortschritt anzeigen, Drosselung/Fortsetzen |
 | `src/api.js` | Client fuer die Worker-API (sendet das ID-Token im Header) |
 | `src/onboarding.js` | Die 5 festen Onboarding-Schritte (FA-AUTH-02) |
 | `src/main.js` | Einstiegspunkt, verdrahtet alles |
 
-`core/` (M1) wird spaeter in M3 eingebunden, wenn die eigentliche Berechnung
-im Browser (Web Worker) live an echten Sync-Daten haengt.
+`core/` (M1) wird erst in M3 eingebunden: M2 legt nur Rohdaten ab
+(`index.json`-Metadaten, komprimierte Streams), die eigentliche
+Modellberechnung (Signaturverlauf, Breakthroughs, `model/*.json`) und ihre
+Anzeige sind M3-Scope - dort auch gegen die M1-Ergebnisse verifiziert
+(Lastenheft M3-Abnahme). Das ist eine bewusste Scope-Entscheidung dieser
+Sitzung: keine der M2-Abnahmekriterien prueft berechnete Kennzahlen.
+
+## Ablageformat der Streams (`streams/YYYY-MM.bin`)
+
+In M1 bewusst offengelassen ("wird erst in M2 festgelegt", `core/README.md`).
+M2-Festlegung (`src/streamCodec.js`): JSON mit parallelen Zahlen-Arrays
+(kompakter als Array-of-Objects) pro Aktivitaet, gzip-komprimiert ueber die
+native `CompressionStream`-API (kein zusaetzliches Paket, passt zur
+Zero-Build-Architektur). `schemaVersion` steht im JSON. Gespeichert werden
+die Rohwerte, wie Strava sie liefert (`t` = Sekunden seit Aktivitaetsbeginn,
+Luecken moeglich) - das Resampling auf ein luekenloses 1-Hz-Raster
+(`core/src/streams.js`) passiert erst bei der Berechnung, nie bei der
+Ablage, fuer Reproduzierbarkeit.
+
+## Sync-Ablauf (5.3, FA-SYNC-01 bis 05)
+
+- **Erstimport**: Der Nutzer waehlt ein Zeitfenster (30/90/365 Tage oder
+  gesamte Historie). Nur in der Desktop-Ansicht startbar (FA-SYNC-05,
+  `isDesktopViewport()`: Breite ≥ 900px).
+- **Zwei Phasen**: (1) Aktivitaetsliste paginiert vom Worker abfragen, (2) je
+  neuer Aktivitaet die Streams laden, ins Monatsbuendel schreiben,
+  `index.json` fortschreiben.
+- **Drosselung (FA-SYNC-04)**: Bei 429 vom Worker wird der Lauf angehalten,
+  der Fortschritt serverseitig gespeichert (`PUT /api/sync/progress`,
+  `worker/src/kvStore.js#putImportProgress`). Kurzes 15-Minuten-Fenster ->
+  automatischer Retry im Frontend; Tageskontingent erschoepft ->
+  Hinweistext, Fortsetzung beim naechsten App-Start (FA-SYNC-02: mehrtaegiger
+  Erstimport).
+- **Keine Doppelimporte**: `index.json` ist die dauerhafte Quelle dafuer, was
+  bereits vollstaendig importiert ist; die Worker-Fortschrittsangabe ist nur
+  der transiente Zustand eines laufenden Imports.
+- **Inkrementeller Sync (FA-SYNC-01)**: Laeuft automatisch beim Oeffnen der
+  App, sobald bereits Aktivitaeten gespeichert sind (`after` = letzte
+  bekannte Aktivitaet in `index.json`).
 
 ## Einrichtung
 
@@ -29,6 +72,20 @@ im Browser (Web Worker) live an echten Sync-Daten haengt.
 2. Die `GOOGLE_CLIENT_ID` kommt automatisch vom Worker (`GET /api/config`),
    dort einmalig eintragen (siehe `../worker/README.md`) - im Frontend ist
    nichts weiter zu tun.
+
+## Tests
+
+Reine Logik ohne Browser-APIs (`streamCodec.js`) ist mit `node:test`
+abgedeckt (Node 18+ hat `CompressionStream`/`DecompressionStream` bereits als
+globale Klassen, keine Extra-Pakete noetig):
+
+```bash
+cd web && npm test
+```
+
+`storage.js`/`sync.js`/`idb.js` brauchen echte Browser-APIs (IndexedDB,
+`fetch`, Drive-/Worker-Zugriff) und sind bisher nur manuell im Browser
+verifiziert, nicht automatisiert getestet.
 
 ## Lokal testen
 

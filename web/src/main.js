@@ -4,6 +4,7 @@
 import { signInWithGoogle, getSignedInEmail } from './auth.js';
 import { fetchSession } from './api.js';
 import { renderOnboarding, loadOrInitSettings } from './onboarding.js';
+import { renderSyncView } from './syncView.js';
 
 const app = document.getElementById('app');
 
@@ -84,8 +85,9 @@ function renderAppShell(settings) {
   h.textContent = `Willkommen, ${getSignedInEmail() || ''}`;
   app.appendChild(h);
   const p = document.createElement('p');
-  p.textContent = `Einrichtung abgeschlossen (M2). Gewicht: ${settings.weightKg} kg. Die eigentliche Oberflaeche (Aktivitaeten, Kennzahlen, Sync) folgt in M3.`;
+  p.textContent = `Gewicht: ${settings.weightKg} kg. Kennzahlen/Diagramme folgen in M3.`;
   app.appendChild(p);
+  renderSyncView(app).catch(showFatalError);
 }
 
 function showFatalError(err) {

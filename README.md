@@ -38,21 +38,32 @@ verschluesselte Refresh-Tokens, app-weite Drosselung anhand der
 Strava-Rate-Limit-Header, Drive-App-Ordner-Zugriff und der 5-stufige
 Onboarding-Ablauf (FA-AUTH-02) im Frontend. 41 automatisierte Tests fuer die
 pure Worker-Logik laufen gruen (`cd worker && npm test`), beide Dienste
-starten lokal fehlerfrei (`wrangler dev` / `wrangler pages dev`).
+starten lokal fehlerfrei (`wrangler dev` / `wrangler pages dev`). Onboarding
+Ende-zu-Ende erfolgreich gegen echte Google-/Cloudflare-/Strava-Dienste
+getestet (Admin-Self-Bootstrap, Statusuebergaenge, verschluesseltes Token in
+KV - server- und clientseitig verifiziert).
+
+IndexedDB-Cache und der inkrementelle/mehrtaegige Sync-Ablauf (Kap. 5.3,
+FA-SYNC-01 bis 05) sind jetzt ebenfalls implementiert (`web/src/idb.js`,
+`storage.js`, `streamCodec.js`, `sync.js`, `syncView.js` - siehe
+`web/README.md` fuer Ablageformat und Ablauf). Bewusst **nicht** Teil dieser
+M2-Runde: die eigentliche Modellberechnung (Signaturverlauf, Breakthroughs,
+`model/*.json`) haengt noch nicht am Sync - das ist M3-Scope, dort auch
+gegen die M1-Ergebnisse verifiziert; keines der M2-Abnahmekriterien
+verlangt berechnete Kennzahlen.
 
 **Noch offen, bevor M2 als abgenommen gelten kann** (siehe
 `worker/README.md` fuer die Einrichtungsschritte):
-- Echter Google-Cloud-OAuth-Client muss angelegt werden (Consent-Screen "In
-  Produktion", Client-ID in `worker/wrangler.toml`).
-- Cloudflare KV-Namespace anlegen und Secrets setzen
-  (`STRAVA_CLIENT_SECRET`, `TOKEN_ENCRYPTION_KEY`).
-- Cloudflare Pages + Worker mit Auto-Deploy an dieses GitHub-Repo anbinden.
-- Ende-zu-Ende-Test mit einem echten Konto (Onboarding, Token-Handling,
-  mehrtaegiger Erstimport, Drive-Wiederherstellbarkeit) gemaess der
-  M2-Abnahmekriterien (Lastenheft Kap. 10).
-- IndexedDB-Cache und der eigentliche inkrementelle Sync-Ablauf (Kap. 5.3)
-  sind noch nicht implementiert - aktuell endet M2 nach dem Onboarding an
-  einer Platzhalter-Ansicht, der echte Sync folgt zusammen mit M3.
+- Cloudflare Pages + Worker mit Auto-Deploy an dieses GitHub-Repo anbinden
+  (aktuell manuelles `wrangler deploy` / `wrangler pages deploy`).
+- Der neue Sync-Code ist bisher nur durch `web/test/streamCodec.test.js`
+  (reine Logik) automatisiert getestet, `sync.js`/`storage.js`/`idb.js`
+  noch nicht im echten Browser gegen ein Konto mit Trainingshistorie
+  durchgespielt.
+- Verbleibende M2-Abnahmekriterien noch zu pruefen: "Kein Strava-Token im
+  Browser" (Entwicklerwerkzeuge), Erstimport-Fortsetzung ohne Doppelimport
+  nach Browser-Neustart, Pause/Fortsetzung bei erschoepftem Tageskontingent,
+  vollstaendige Drive-Wiederherstellbarkeit nach Cache-Loeschung.
 
 ## Ausgangslage
 
