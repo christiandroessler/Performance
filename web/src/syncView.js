@@ -73,21 +73,29 @@ export async function renderSyncView(container) {
     errorP.textContent = '';
     setStatus(opts.backfillWindowDays !== undefined ? 'Lade ältere Historie...' : 'Import läuft...');
 
-    const result = await runSync(opts, (s) => {
-      if (s.done) {
-        setStatus(`Import abgeschlossen: ${s.storedTotal} Aktivitaeten gespeichert.`);
-        setProgressFraction(1, 1);
-        return;
-      }
-      const total = s.discovered || 0;
-      const done = total - s.remaining;
-      setStatus(
-        s.listingDone
-          ? `Lade Aktivitaeten: ${done} von ${total} verarbeitet.`
-          : `Suche neue Aktivitaeten... (${total} gefunden)`
-      );
-      setProgressFraction(done, total);
-    });
+    let result;
+    try {
+      result = await runSync(opts, (s) => {
+        if (s.done) {
+          setStatus(`Import abgeschlossen: ${s.storedTotal} Aktivitaeten gespeichert.`);
+          setProgressFraction(1, 1);
+          return;
+        }
+        const total = s.discovered || 0;
+        const done = total - s.remaining;
+        setStatus(
+          s.listingDone
+            ? `Lade Aktivitaeten: ${done} von ${total} verarbeitet.`
+            : `Suche neue Aktivitaeten... (${total} gefunden)`
+        );
+        setProgressFraction(done, total);
+      });
+    } catch (err) {
+      setStatus('Import unterbrochen.');
+      errorP.textContent = `Fehler: ${err.message}`;
+      renderContinueButton(opts);
+      return;
+    }
 
     if (result.status === 'paused') {
       errorP.textContent = REASON_TEXT[result.reason] || `Angehalten (${result.reason}).`;
@@ -159,8 +167,10 @@ export async function renderSyncView(container) {
 
   if (inFlight) {
     // Fortsetzen braucht kein Zeitfenster mehr - Modus/Grenze stecken bereits im gespeicherten Fortschritt.
-    setStatus('Ein Import wurde unterbrochen und kann fortgesetzt werden.');
-    renderContinueButton({});
+    // Automatisch fortsetzen (nicht nur Button anzeigen) - deckt genau den Fall ab, dass der Import beim
+    // letzten Mal wegen eines Fehlers oder geschlossenen Browsers stehen geblieben ist.
+    setStatus('Ein unterbrochener Import wird fortgesetzt...');
+    start({});
   } else if (!hasData) {
     renderWindowChooser();
   } else {
