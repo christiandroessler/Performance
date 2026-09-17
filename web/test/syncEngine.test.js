@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSyncEngine, windowStartEpoch, lastKnownEpoch } from '../src/syncEngine.js';
+import { createSyncEngine, windowStartEpoch, lastKnownEpoch, firstKnownEpoch } from '../src/syncEngine.js';
 
 function makeActivity(id, isoDate) {
   return {
@@ -25,11 +25,17 @@ function makeFakeBackend({ activities = [], streamsByActivityId = {}, isDesktop 
   };
 
   const engine = createSyncEngine({
-    fetchActivities: async (afterEpoch, page) => {
-      state.activitiesCalls.push({ afterEpoch, page });
+    fetchActivities: async (afterEpoch, page, beforeEpoch) => {
+      state.activitiesCalls.push({ afterEpoch, page, beforeEpoch });
+      const filtered = activities.filter((a) => {
+        const epoch = Math.floor(new Date(a.start_date).getTime() / 1000);
+        if (afterEpoch && epoch <= afterEpoch) return false;
+        if (beforeEpoch && epoch >= beforeEpoch) return false;
+        return true;
+      });
       const perPage = 100;
       const start = (page - 1) * perPage;
-      const slice = activities.slice(start, start + perPage);
+      const slice = filtered.slice(start, start + perPage);
       return { activities: slice };
     },
     fetchStreams: async (activityId) => {
@@ -60,7 +66,9 @@ test('Erstimport: alle Aktivitaeten einer Seite werden importiert, Fortschritt w
   const activities = [makeActivity('1', '2026-01-05T10:00:00Z'), makeActivity('2', '2026-01-06T10:00:00Z')];
   const { engine, state } = makeFakeBackend({ activities });
 
-  const result = await engine.runSync({ firstImportWindowDays: 30 });
+  // 'all' statt eines Tage-Fensters, damit der Test unabhaengig vom Ausfuehrungsdatum
+  // ist (das Fenster-Verhalten selbst deckt windowStartEpoch separat ab).
+  const result = await engine.runSync({ firstImportWindowDays: 'all' });
 
   assert.equal(result.status, 'done');
   assert.equal(state.index.activities.length, 2);
@@ -138,6 +146,36 @@ test('FA-SYNC-02/03: bereits in index.json gelandete Warteschlangen-Eintraege we
   assert.equal(result.status, 'done');
   assert.equal(state.index.activities.length, 1); // kein zweiter Eintrag
   assert.equal(state.streamsCalls.length, 0); // kein erneuter Strava-Aufruf fuer bereits gespeicherte Aktivitaet
+});
+
+test('Backfill: laedt nur Aktivitaeten vor der bisher aeltesten bekannten nach, keine Doppelabfrage der vorhandenen', async () => {
+  const older = makeActivity('0', '2025-12-01T10:00:00Z');
+  const existing = makeActivity('1', '2026-01-05T10:00:00Z');
+  const { engine, state } = makeFakeBackend({ activities: [older, existing] });
+
+  // Erstimport haette "existing" (und nur diese) importiert, wenn das Fenster
+  // eng genug war - hier simulieren wir direkt den Zustand "1 Aktivitaet bereits da".
+  state.index = {
+    schemaVersion: 1,
+    lastSyncAt: new Date().toISOString(),
+    activities: [
+      { id: '1', date: '2026-01-05', startTime: '2026-01-05T10:00:00Z', name: 'x', type: 'Ride', movingTimeSec: 60, distanceM: 100, hasWatts: true, hasHeartrate: false },
+    ],
+  };
+
+  const result = await engine.runSync({ backfillWindowDays: 'all' });
+
+  assert.equal(result.status, 'done');
+  assert.equal(state.index.activities.length, 2); // die aeltere kam dazu
+  assert.ok(state.index.activities.some((a) => a.id === '0'));
+  assert.equal(state.streamsCalls.length, 1); // nur fuer die neu gefundene, nicht fuer "1"
+  assert.equal(state.activitiesCalls[0].beforeEpoch, Math.floor(Date.parse('2026-01-05T10:00:00Z') / 1000));
+});
+
+test('firstKnownEpoch: leerer Index liefert null, sonst Startzeit der ersten (sortiert-ersten) Aktivitaet', () => {
+  assert.equal(firstKnownEpoch({ activities: [] }), null);
+  const idx = { activities: [{ startTime: '2026-01-01T00:00:00Z' }, { startTime: '2026-01-05T12:00:00Z' }] };
+  assert.equal(firstKnownEpoch(idx), Math.floor(Date.parse('2026-01-01T00:00:00Z') / 1000));
 });
 
 test('windowStartEpoch: "all" bzw. falsy ergibt kein Zeitfenster (gesamte Historie)', () => {

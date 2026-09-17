@@ -54,6 +54,10 @@ export async function renderSyncView(container) {
   actions.className = 'btn-row';
   box.appendChild(actions);
 
+  const backfillBox = document.createElement('div');
+  backfillBox.style.marginTop = '0.75rem';
+  box.appendChild(backfillBox);
+
   function setStatus(text) {
     status.textContent = text;
   }
@@ -63,12 +67,13 @@ export async function renderSyncView(container) {
     barFill.style.width = `${pct}%`;
   }
 
-  async function start(firstImportWindowDays) {
+  async function start(opts = {}) {
     actions.innerHTML = '';
+    backfillBox.innerHTML = '';
     errorP.textContent = '';
-    setStatus('Import laeuft...');
+    setStatus(opts.backfillWindowDays !== undefined ? 'Lade ältere Historie...' : 'Import läuft...');
 
-    const result = await runSync({ firstImportWindowDays }, (s) => {
+    const result = await runSync(opts, (s) => {
       if (s.done) {
         setStatus(`Import abgeschlossen: ${s.storedTotal} Aktivitaeten gespeichert.`);
         setProgressFraction(1, 1);
@@ -87,21 +92,21 @@ export async function renderSyncView(container) {
     if (result.status === 'paused') {
       errorP.textContent = REASON_TEXT[result.reason] || `Angehalten (${result.reason}).`;
       if (result.reason === 'rate_limited' && result.retryAfterSeconds) {
-        setTimeout(() => start(firstImportWindowDays), (result.retryAfterSeconds + 2) * 1000);
+        setTimeout(() => start(opts), (result.retryAfterSeconds + 2) * 1000);
       } else {
-        renderContinueButton(firstImportWindowDays);
+        renderContinueButton(opts);
       }
     } else if (result.status === 'done') {
       renderSyncButton();
     }
   }
 
-  function renderContinueButton(firstImportWindowDays) {
+  function renderContinueButton(opts) {
     actions.innerHTML = '';
     const btn = document.createElement('button');
     btn.className = 'btn-primary';
     btn.textContent = 'Jetzt erneut versuchen';
-    btn.onclick = () => start(firstImportWindowDays);
+    btn.onclick = () => start(opts);
     actions.appendChild(btn);
   }
 
@@ -112,6 +117,7 @@ export async function renderSyncView(container) {
     btn.textContent = 'Jetzt synchronisieren';
     btn.onclick = () => start();
     actions.appendChild(btn);
+    renderBackfillOffer();
   }
 
   function renderWindowChooser() {
@@ -121,15 +127,40 @@ export async function renderSyncView(container) {
       const btn = document.createElement('button');
       btn.className = 'btn-primary';
       btn.textContent = opt.label;
-      btn.onclick = () => start(opt.days);
+      btn.onclick = () => start({ firstImportWindowDays: opt.days });
       actions.appendChild(btn);
     }
+  }
+
+  /** Nachtraeglich mehr (aeltere) Historie laden - kein erneuter Abruf bereits gespeicherter Aktivitaeten. */
+  function renderBackfillOffer() {
+    backfillBox.innerHTML = '';
+    const toggleBtn = document.createElement('button');
+    toggleBtn.className = 'btn-ghost';
+    toggleBtn.textContent = 'Mehr Historie laden...';
+    toggleBtn.onclick = () => {
+      backfillBox.innerHTML = '';
+      const hint = document.createElement('p');
+      hint.className = 'hint';
+      hint.textContent = 'Laedt zusaetzliche, aeltere Aktivitaeten nach (ohne bereits Gespeichertes erneut abzufragen). Bis zu wann zurueck insgesamt?';
+      backfillBox.appendChild(hint);
+      const row = document.createElement('div');
+      row.className = 'btn-row';
+      for (const opt of WINDOW_OPTIONS) {
+        const btn = document.createElement('button');
+        btn.textContent = opt.label;
+        btn.onclick = () => start({ backfillWindowDays: opt.days });
+        row.appendChild(btn);
+      }
+      backfillBox.appendChild(row);
+    };
+    backfillBox.appendChild(toggleBtn);
   }
 
   if (inFlight) {
     // Fortsetzen braucht kein Zeitfenster mehr - Modus/Grenze stecken bereits im gespeicherten Fortschritt.
     setStatus('Ein Import wurde unterbrochen und kann fortgesetzt werden.');
-    renderContinueButton(undefined);
+    renderContinueButton({});
   } else if (!hasData) {
     renderWindowChooser();
   } else {

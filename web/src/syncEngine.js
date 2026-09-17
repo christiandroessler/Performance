@@ -19,6 +19,13 @@ export function lastKnownEpoch(index) {
   return Math.floor(new Date(last.startTime).getTime() / 1000);
 }
 
+/** Aelteste bekannte Aktivitaet - Grenze fuer "mehr Historie laden" (Backfill). */
+export function firstKnownEpoch(index) {
+  if (index.activities.length === 0) return null;
+  const first = index.activities[0];
+  return Math.floor(new Date(first.startTime).getTime() / 1000);
+}
+
 function statusOf(progress, index) {
   return {
     mode: progress.mode,
@@ -31,7 +38,7 @@ function statusOf(progress, index) {
 
 /**
  * @param {Object} deps
- * @param {(afterEpoch: number|null, page: number) => Promise<Object>} deps.fetchActivities
+ * @param {(afterEpoch: number|null, page: number, beforeEpoch: number|null) => Promise<Object>} deps.fetchActivities
  * @param {(activityId: string) => Promise<Object>} deps.fetchStreams
  * @param {() => Promise<Object|null>} deps.getSyncProgress
  * @param {(progress: Object|null) => Promise<void>} deps.putSyncProgress
@@ -54,7 +61,7 @@ export function createSyncEngine(deps) {
     await writeBundle(monthKey, bundle);
   }
 
-  async function runSync({ firstImportWindowDays } = {}, onProgress = () => {}) {
+  async function runSync({ firstImportWindowDays, backfillWindowDays } = {}, onProgress = () => {}) {
     const index = await readIndex();
     const doneIds = new Set(index.activities.map((a) => a.id));
 
@@ -64,18 +71,19 @@ export function createSyncEngine(deps) {
       if (isFirstImport && !isDesktopViewport()) {
         return { status: 'blocked', reason: 'desktop_only' };
       }
-      progress = {
-        mode: isFirstImport ? 'first_import' : 'incremental',
-        afterEpoch: isFirstImport ? windowStartEpoch(firstImportWindowDays) : lastKnownEpoch(index),
-        listingDone: false,
-        nextPage: 1,
-        queue: [],
-        discoveredCount: 0,
-      };
+      if (isFirstImport) {
+        progress = { mode: 'first_import', afterEpoch: windowStartEpoch(firstImportWindowDays), beforeEpoch: null, listingDone: false, nextPage: 1, queue: [], discoveredCount: 0 };
+      } else if (backfillWindowDays !== undefined) {
+        // FA-SYNC: bereits importierte Historie um aeltere Aktivitaeten erweitern,
+        // ohne die bereits gespeicherten erneut abzufragen (before = bisher aelteste bekannte).
+        progress = { mode: 'backfill', afterEpoch: windowStartEpoch(backfillWindowDays), beforeEpoch: firstKnownEpoch(index), listingDone: false, nextPage: 1, queue: [], discoveredCount: 0 };
+      } else {
+        progress = { mode: 'incremental', afterEpoch: lastKnownEpoch(index), beforeEpoch: null, listingDone: false, nextPage: 1, queue: [], discoveredCount: 0 };
+      }
     }
 
     while (!progress.listingDone) {
-      const res = await fetchActivities(progress.afterEpoch, progress.nextPage);
+      const res = await fetchActivities(progress.afterEpoch, progress.nextPage, progress.beforeEpoch);
       if (res.rateLimited) {
         await putSyncProgress(progress);
         onProgress({ ...statusOf(progress, index), paused: true, reason: res.error });

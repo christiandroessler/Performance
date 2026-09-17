@@ -166,10 +166,12 @@ async function handleActivitiesProxy(request, url, env) {
   if (rateCheck) return rateCheck;
 
   const after = url.searchParams.get('after');
+  const before = url.searchParams.get('before');
   const page = url.searchParams.get('page') || '1';
   const perPage = url.searchParams.get('per_page') || '100';
   const params = new URLSearchParams({ page, per_page: perPage });
   if (after) params.set('after', after);
+  if (before) params.set('before', before);
 
   const res = await stravaApiFetch(env, accessToken, `/athlete/activities?${params.toString()}`);
   await recordRateLimitFromResponse(env, res);

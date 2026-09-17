@@ -33,9 +33,11 @@ export async function startStravaConnect() {
   window.location.href = authorizeUrl;
 }
 
-export async function fetchActivities(afterEpochSeconds, page = 1) {
+/** beforeEpochSeconds: FA-SYNC (Historie nachladen) - Aktivitaeten VOR der bisher aeltesten bekannten. */
+export async function fetchActivities(afterEpochSeconds, page = 1, beforeEpochSeconds) {
   const params = new URLSearchParams({ page: String(page) });
   if (afterEpochSeconds) params.set('after', String(afterEpochSeconds));
+  if (beforeEpochSeconds) params.set('before', String(beforeEpochSeconds));
   const res = await workerFetch(`/api/strava/activities?${params}`);
   if (res.status === 429) return { rateLimited: true, ...(await res.json()) };
   if (!res.ok) throw await workerError(res);
