@@ -2,7 +2,9 @@
 // Leistungsdaten ja/nein, TSS, Strain Score, Breakthrough-Status. Filter und
 // Sortierung. Die Kennzahlen kommen direkt aus index.json (von compute.js
 // nach jeder Neuberechnung dort hinterlegt) - keine erneute Berechnung beim
-// Anzeigen.
+// Anzeigen. Klick auf eine Zeile oeffnet die Detailansicht (FA-ACT-02).
+
+import { openActivityDetail } from './activityDetailView.js';
 
 const MEDAL_LABEL = { bronze: '🥉', silver: '🥈', gold: '🥇' };
 
@@ -103,6 +105,8 @@ export function renderActivityList(container, index) {
     const tbody = document.createElement('tbody');
     for (const a of filtered) {
       const row = document.createElement('tr');
+      row.className = 'activity-row';
+      row.onclick = () => openActivityDetail(a.id);
       const cells = [
         a.date,
         a.type,

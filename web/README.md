@@ -31,7 +31,9 @@ selbst wird vor jedem Deploy nach `web/vendor/core/src` kopiert (siehe
 | `scripts/sync-core.mjs` | Kopiert `core/src` nach `web/vendor/core/src` (`npm run sync-core`, laeuft automatisch vor `npm test`/`npm run dev`/`npm run deploy`) |
 | `src/calcWorker.js` | Web Worker (NFA-04): ruft `core/prepareActivity` + `computeSignatureHistory` unveraendert auf, liefert nur aggregierte Ergebnisse zurueck (keine Sekunden-Streams) |
 | `src/compute.js` | Laedt alle Rohdaten (index.json + streams/\*.bin), schickt sie an den Worker, schreibt `model/signature-history.json` + `model/mmp-curves.json`, schreibt Kennzahlen in `index.json` zurueck. `discardBreakthrough`/`reactivateBreakthrough` (FA-SIG-07) |
-| `src/activityListView.js` | FA-ACT-01: Aktivitaetsliste, sortier-/filterbar |
+| `src/activityListView.js` | FA-ACT-01: Aktivitaetsliste, sortier-/filterbar, Klick auf Zeile oeffnet die Detailansicht |
+| `src/activityDetailView.js` | FA-ACT-02: Detailansicht (Modal) - Leistungs-/Puls-/Kadenz-Verlauf, MPA und W'bal (per `signatureAtDate`), Belastungsanteile (Strain Low/High/Peak), Kennzahlen. Rechnet direkt im Hauptfenster, kein Worker (eine Aktivitaet ist klein genug) |
+| `src/chartUtils.js` | Reine Chart-Hilfsfunktionen (Downsampling fuer lange Sekunden-Arrays) - bewusst von `activityDetailView.js` getrennt, damit ohne Browser-Abhaengigkeit mit `node:test` testbar |
 | `src/powerCurveView.js` | FA-ACT-03: Leistungskurve/persoenliche Bestwerte, waehlbarer Zeitraum, optional W/kg |
 | `src/pmcView.js` | FA-TP-06: Performance Management Chart (CTL/ATL/TSB), reines SVG |
 | `src/breakthroughView.js` | FA-SIG-07/08: Breakthrough-Uebersicht, Mehrfachauswahl zum Verwerfen, Reaktivieren |
@@ -55,11 +57,11 @@ Neuberechnungsdauer fuer den Gesamtverlauf, nur NFA-04 fuer eine einzelne
 (RawStreamPoint[]-Form, FA-DQ-01 `deviceWatts`-Maskierung) - die
 Algorithmus-Korrektheit selbst deckt bereits `core/test/` ab (33 Tests, M1).
 
-**Bewusst noch nicht gebaut** (M3, spaetere Runde): Detailansicht mit
-Stream-Charts (FA-ACT-02), Wochen-/Kalenderuebersicht (FA-TP-07),
-automatische Schwellen-Schaetzung fuer HF/Pace/Schwimmen (FA-TP-03/04 - ohne
-die gibt es aktuell nur NP/IF/TSS aus Leistung, kein hrTSS/Pace-TSS),
-PP-Plausibilisierung (FA-SIG-13), Einstellungen-UI (FA-SET-01-04).
+**Bewusst noch nicht gebaut** (M3, spaetere Runde): Wochen-/Kalenderuebersicht
+(FA-TP-07), automatische Schwellen-Schaetzung fuer HF/Pace/Schwimmen
+(FA-TP-03/04 - ohne die gibt es aktuell nur NP/IF/TSS aus Leistung, kein
+hrTSS/Pace-TSS), PP-Plausibilisierung (FA-SIG-13), Einstellungen-UI
+(FA-SET-01-04).
 
 ## Ablageformat der Streams (`streams/YYYY-MM.bin`)
 
@@ -93,6 +95,15 @@ Ablage, fuer Reproduzierbarkeit.
 - **Inkrementeller Sync (FA-SYNC-01)**: Laeuft automatisch beim Oeffnen der
   App, sobald bereits Aktivitaeten gespeichert sind (`after` = letzte
   bekannte Aktivitaet in `index.json`).
+- **Mehr (aeltere) Historie nachladen**: Ueber "Mehr Historie laden..." im
+  Daten-Tab (`syncView.js`), z. B. wenn ein Erstimport mit kurzem Fenster
+  (30 Tage) die 90-Tage-Startsignatur-Schwelle (FA-SIG-03) nicht erreicht.
+  Neuer Sync-Modus `backfill` (`syncEngine.js`): `after` = gewaehltes
+  erweitertes Fenster, `before` = bisher aelteste bekannte Aktivitaet
+  (`firstKnownEpoch`) - laedt ausschliesslich Aktivitaeten VOR der bisher
+  aeltesten, keine Doppelabfrage bereits gespeicherter. Der Worker-Proxy
+  (`/api/strava/activities`) reicht `before` optional an die Strava-API
+  durch.
 
 ## Einrichtung
 

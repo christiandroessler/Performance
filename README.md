@@ -124,17 +124,24 @@ teilweise), siehe `web/README.md` fuer die volle Aufschluesselung. `core/`
 (M1, unveraendert) ist jetzt ins Frontend eingebunden und laeuft dort in
 einem Web Worker (NFA-04), gefuettert mit den in M2 abgelegten Rohdaten:
 
-- **Aktivitaetsliste** (FA-ACT-01), **Leistungskurve/persoenliche Bestwerte**
+- **Aktivitaetsliste** (FA-ACT-01, Klick auf Zeile oeffnet Detailansicht),
+  **Aktivitaets-Detailansicht** (FA-ACT-02: Leistungs-/Puls-/Kadenz-Verlauf,
+  MPA/W'bal, Belastungsanteile), **Leistungskurve/persoenliche Bestwerte**
   (FA-ACT-03, inkl. W/kg mit Gewicht zum Aktivitaetsdatum), **Performance
   Management Chart** (FA-TP-06, CTL/ATL/TSB), **Breakthrough-Verwaltung**
   (FA-SIG-07/08: Mehrfachauswahl zum Verwerfen, Reaktivieren) sind gebaut und
-  deployt, aber noch **nicht** live gegen die echten 33 importierten
-  Aktivitaeten des Auftraggebers durchgeklickt.
-- Absichtlich noch offen: Detailansicht mit Stream-Charts (FA-ACT-02),
-  Wochen-/Kalenderuebersicht (FA-TP-07), automatische Schwellen-Schaetzung
-  fuer HF/Pace/Schwimmen (FA-TP-03/04 - ohne die gibt es aktuell kein
-  hrTSS/Pace-TSS, nur NP/IF/TSS aus Leistung), PP-Plausibilisierung
-  (FA-SIG-13), Einstellungen-UI (FA-SET-01-04).
+  deployt.
+- Desktop-Redesign (2026-09-17): Designsystem (Farbpalette aus der
+  Lexxi-App des Auftraggebers), Kopfzeile mit angemeldetem Nutzer, Tab-
+  Navigation statt einer langen Scroll-Seite, Leistungssignatur-Kacheln
+  (CP/W'/Pmax) in der Uebersicht.
+- "Mehr Historie laden" (Backfill, s. u. Sync-Ablauf) loest den Fall, dass
+  ein Erstimport mit kurzem Fenster nie die 90-Tage-Startsignatur-Schwelle
+  erreicht.
+- Absichtlich noch offen: Wochen-/Kalenderuebersicht (FA-TP-07),
+  automatische Schwellen-Schaetzung fuer HF/Pace/Schwimmen (FA-TP-03/04 -
+  ohne die gibt es aktuell kein hrTSS/Pace-TSS, nur NP/IF/TSS aus Leistung),
+  PP-Plausibilisierung (FA-SIG-13), Einstellungen-UI (FA-SET-01-04).
 - `web/test/computePipeline.test.js` prueft die Naht Ablageformat -> core
   (RawStreamPoint[]-Form, FA-DQ-01 deviceWatts-Maskierung); die
   Algorithmus-Korrektheit selbst deckt bereits `core/test/` ab (M1).
