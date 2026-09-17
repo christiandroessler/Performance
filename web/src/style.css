@@ -263,3 +263,16 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .strain-legend .peak::before { color: var(--danger); }
 
 .activity-row { cursor: pointer; }
+
+/* ---------- Wochen-/Kalenderuebersicht (FA-TP-07) ---------- */
+
+.calendar-nav { justify-content: flex-end; }
+.calendar-month-label { font-size: 0.9rem; font-weight: 600; color: var(--text); min-width: 140px; text-align: center; }
+.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 0.75rem; }
+.calendar-weekday { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-faint); text-align: center; padding-bottom: 0.3rem; }
+.calendar-day { min-height: 76px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.35rem 0.45rem; font-size: 0.72rem; }
+.calendar-day.outside { opacity: 0.35; }
+.calendar-day-num { color: var(--text-muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+.calendar-day-tss { color: var(--accent-text); margin-top: 0.2rem; font-weight: 500; }
+.calendar-day-activity { margin-top: 0.15rem; color: var(--text-faint); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.calendar-day-activity:hover { color: var(--accent-text); }

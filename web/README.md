@@ -37,6 +37,8 @@ selbst wird vor jedem Deploy nach `web/vendor/core/src` kopiert (siehe
 | `src/powerCurveView.js` | FA-ACT-03: Leistungskurve/persoenliche Bestwerte, waehlbarer Zeitraum, optional W/kg |
 | `src/pmcView.js` | FA-TP-06: Performance Management Chart (CTL/ATL/TSB), reines SVG |
 | `src/breakthroughView.js` | FA-SIG-07/08: Breakthrough-Uebersicht, Mehrfachauswahl zum Verwerfen, Reaktivieren |
+| `src/calendarUtils.js` | Reine Datums-/Aggregationsfunktionen fuer FA-TP-07 (Wochengruppierung, Kalendertag-Gruppierung) - ohne Browser-Abhaengigkeit, testbar mit `node:test` |
+| `src/weekView.js` | FA-TP-07: Wochenuebersicht (TSS/Dauer/Einheiten je Sportart pro ISO-Woche) und Monatskalender (Tages-TSS, Klick auf Aktivitaet oeffnet die Detailansicht) - reine Aggregation der in `index.json` bereits abgelegten Kennzahlen, keine erneute Berechnung |
 | `src/dashboardView.js` | Verdrahtet die M3-Ansichten, stoesst die Erstberechnung nach dem ersten Sync automatisch an |
 | `src/main.js` | Einstiegspunkt, verdrahtet alles (M2 + M3) |
 
@@ -57,11 +59,10 @@ Neuberechnungsdauer fuer den Gesamtverlauf, nur NFA-04 fuer eine einzelne
 (RawStreamPoint[]-Form, FA-DQ-01 `deviceWatts`-Maskierung) - die
 Algorithmus-Korrektheit selbst deckt bereits `core/test/` ab (33 Tests, M1).
 
-**Bewusst noch nicht gebaut** (M3, spaetere Runde): Wochen-/Kalenderuebersicht
-(FA-TP-07), automatische Schwellen-Schaetzung fuer HF/Pace/Schwimmen
-(FA-TP-03/04 - ohne die gibt es aktuell nur NP/IF/TSS aus Leistung, kein
-hrTSS/Pace-TSS), PP-Plausibilisierung (FA-SIG-13), Einstellungen-UI
-(FA-SET-01-04).
+**Bewusst noch nicht gebaut** (M3, spaetere Runde): automatische
+Schwellen-Schaetzung fuer HF/Pace/Schwimmen (FA-TP-03/04 - ohne die gibt es
+aktuell nur NP/IF/TSS aus Leistung, kein hrTSS/Pace-TSS),
+PP-Plausibilisierung (FA-SIG-13), Einstellungen-UI (FA-SET-01-04).
 
 ## Ablageformat der Streams (`streams/YYYY-MM.bin`)
 

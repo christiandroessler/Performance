@@ -62,10 +62,10 @@ export function renderActivityList(container, index) {
 
   const columns = [
     { key: 'date', label: 'Datum' },
+    { key: 'name', label: 'Name' },
     { key: 'type', label: 'Sportart' },
     { key: 'movingTimeSec', label: 'Dauer' },
     { key: 'distanceM', label: 'Distanz' },
-    { key: 'hasWatts', label: 'Leistung' },
     { key: 'tss', label: 'TSS' },
     { key: 'strain', label: 'Strain' },
     { key: 'breakthrough', label: 'Breakthrough' },
@@ -109,10 +109,10 @@ export function renderActivityList(container, index) {
       row.onclick = () => openActivityDetail(a.id);
       const cells = [
         a.date,
+        a.name || '-',
         a.type,
         formatDuration(a.movingTimeSec),
         formatDistance(a.distanceM),
-        a.hasWatts ? 'ja' : 'nein',
         a.tss != null ? String(a.tss) : '-',
         a.strain != null && a.strain.total != null ? String(Math.round(a.strain.total)) : '-',
         a.breakthrough ? `${MEDAL_LABEL[a.breakthrough.medal] || ''}${a.breakthrough.discarded ? ' (verworfen)' : ''}` : '-',

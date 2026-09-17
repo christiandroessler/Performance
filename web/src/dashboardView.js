@@ -11,8 +11,9 @@ import { renderActivityList } from './activityListView.js';
 import { renderPmc } from './pmcView.js';
 import { renderBreakthroughs } from './breakthroughView.js';
 import { renderPowerCurve } from './powerCurveView.js';
+import { renderWeekOverview } from './weekView.js';
 
-export async function renderDashboard({ overviewContainer, activitiesContainer, powerCurveContainer, breakthroughsContainer }) {
+export async function renderDashboard({ overviewContainer, activitiesContainer, weeksContainer, powerCurveContainer, breakthroughsContainer }) {
   const statusCard = document.createElement('div');
   statusCard.className = 'card';
   overviewContainer.appendChild(statusCard);
@@ -48,6 +49,7 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
     renderSignatureTiles(signatureContainer, modelState);
     renderPmc(pmcContainer, index, modelState);
     renderActivityList(activitiesContainer, index);
+    renderWeekOverview(weeksContainer, index);
     await renderPowerCurve(powerCurveContainer);
     await renderBreakthroughs(breakthroughsContainer, modelState, refresh);
     return { index, modelState };

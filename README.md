@@ -129,8 +129,9 @@ einem Web Worker (NFA-04), gefuettert mit den in M2 abgelegten Rohdaten:
   MPA/W'bal, Belastungsanteile), **Leistungskurve/persoenliche Bestwerte**
   (FA-ACT-03, inkl. W/kg mit Gewicht zum Aktivitaetsdatum), **Performance
   Management Chart** (FA-TP-06, CTL/ATL/TSB), **Breakthrough-Verwaltung**
-  (FA-SIG-07/08: Mehrfachauswahl zum Verwerfen, Reaktivieren) sind gebaut und
-  deployt.
+  (FA-SIG-07/08: Mehrfachauswahl zum Verwerfen, Reaktivieren), **Wochen- und
+  Kalenderuebersicht** (FA-TP-07: TSS/Dauer/Einheiten je Sportart pro Woche,
+  Monatskalender mit Tages-TSS) sind gebaut und deployt.
 - Desktop-Redesign (2026-09-17): Designsystem (Farbpalette aus der
   Lexxi-App des Auftraggebers), Kopfzeile mit angemeldetem Nutzer, Tab-
   Navigation statt einer langen Scroll-Seite, Leistungssignatur-Kacheln
@@ -138,10 +139,10 @@ einem Web Worker (NFA-04), gefuettert mit den in M2 abgelegten Rohdaten:
 - "Mehr Historie laden" (Backfill, s. u. Sync-Ablauf) loest den Fall, dass
   ein Erstimport mit kurzem Fenster nie die 90-Tage-Startsignatur-Schwelle
   erreicht.
-- Absichtlich noch offen: Wochen-/Kalenderuebersicht (FA-TP-07),
-  automatische Schwellen-Schaetzung fuer HF/Pace/Schwimmen (FA-TP-03/04 -
-  ohne die gibt es aktuell kein hrTSS/Pace-TSS, nur NP/IF/TSS aus Leistung),
-  PP-Plausibilisierung (FA-SIG-13), Einstellungen-UI (FA-SET-01-04).
+- Absichtlich noch offen: automatische Schwellen-Schaetzung fuer
+  HF/Pace/Schwimmen (FA-TP-03/04 - ohne die gibt es aktuell kein
+  hrTSS/Pace-TSS, nur NP/IF/TSS aus Leistung), PP-Plausibilisierung
+  (FA-SIG-13), Einstellungen-UI (FA-SET-01-04).
 - `web/test/computePipeline.test.js` prueft die Naht Ablageformat -> core
   (RawStreamPoint[]-Form, FA-DQ-01 deviceWatts-Maskierung); die
   Algorithmus-Korrektheit selbst deckt bereits `core/test/` ab (M1).

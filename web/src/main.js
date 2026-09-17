@@ -101,6 +101,7 @@ function renderStravaError(reason) {
 const TABS = [
   { id: 'overview', label: 'Übersicht' },
   { id: 'activities', label: 'Aktivitäten' },
+  { id: 'weeks', label: 'Wochen/Kalender' },
   { id: 'power', label: 'Leistungskurve' },
   { id: 'breakthroughs', label: 'Breakthroughs' },
   { id: 'sync', label: 'Daten' },
@@ -151,6 +152,7 @@ function renderAppShell(settings) {
   renderDashboard({
     overviewContainer: panels.overview,
     activitiesContainer: panels.activities,
+    weeksContainer: panels.weeks,
     powerCurveContainer: panels.power,
     breakthroughsContainer: panels.breakthroughs,
     weightKg: settings.weightKg,
