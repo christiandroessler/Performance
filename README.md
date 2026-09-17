@@ -85,11 +85,16 @@ verlangt berechnete Kennzahlen.
   selbst (die duennen Adapter auf IndexedDB/Drive) noch nicht gegen ein
   Konto mit mehrjaehriger Trainingshistorie
   durchgespielt.
-- Verbleibende M2-Abnahmekriterien noch zu pruefen: "Kein Strava-Token im
-  Browser" (Entwicklerwerkzeuge), Pause/Fortsetzung bei tatsaechlich
-  erschoepftem Tageskontingent (bisher nur die 15-Minuten-Drosselung
-  simuliert/getestet, nicht das echte Tageslimit), vollstaendige
-  Drive-Wiederherstellbarkeit nach Cache-Loeschung. Erstimport-Fortsetzung
+- Verbleibende M2-Abnahmekriterien noch zu pruefen: Pause/Fortsetzung bei
+  tatsaechlich erschoepftem Tageskontingent (bisher nur die
+  15-Minuten-Drosselung simuliert/getestet, nicht das echte Tageslimit),
+  vollstaendige Drive-Wiederherstellbarkeit nach Cache-Loeschung.
+  "Kein Strava-Token im Browser" ist am 2026-09-17 live per Entwicklerwerkzeuge
+  bestaetigt: alle Strava-bezogenen Netzwerk-Anfragen laufen ausschliesslich
+  ueber `performance-app-worker...workers.dev` (nie direkt zu `strava.com`),
+  Antworten enthalten kein Token-Feld, Local Storage ist leer - zusammen mit
+  der Code-Pruefung (kein `strava.com`-Aufruf im Frontend-Code) erfuellt.
+  Erstimport-Fortsetzung
   ohne Doppelimport nach Unterbrechung ist bereits live verifiziert (s. o.).
 
 ## Ausgangslage
