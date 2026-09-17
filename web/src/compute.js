@@ -17,6 +17,7 @@ import { decodeBundle, streamFileName, pointsFromActivityBundle } from './stream
 
 const MODEL_FILE = 'model/signature-history.json';
 const MMP_CURVES_FILE = 'model/mmp-curves.json';
+const THRESHOLDS_FILE = 'model/thresholds.json';
 const INDEX_FILE = 'index.json';
 
 let worker = null;
@@ -27,11 +28,11 @@ function getWorker() {
   if (!worker) {
     worker = new Worker(new URL('./calcWorker.js', import.meta.url), { type: 'module' });
     worker.onmessage = (e) => {
-      const { requestId, ok, result, mmpCurves, error } = e.data;
+      const { requestId, ok, result, mmpCurves, thresholds, error } = e.data;
       const cb = pending.get(requestId);
       if (!cb) return;
       pending.delete(requestId);
-      if (ok) cb.resolve({ result, mmpCurves });
+      if (ok) cb.resolve({ result, mmpCurves, thresholds });
       else cb.reject(new Error(error));
     };
   }
@@ -66,6 +67,7 @@ async function loadRawActivities(index) {
         id: meta.id,
         date: meta.date,
         startTime: meta.startTime,
+        type: meta.type,
         points: pointsFromActivityBundle(activityBundle),
       });
     }
@@ -83,6 +85,12 @@ export async function loadMmpCurves() {
   return state ? state.curves : [];
 }
 
+/** FA-TP-03/04: geschaetzte Sportart-Schwellen (Lauf-/Schwimm-Pace, Rad-HF, HF je sonstiger Sportart). */
+export async function loadThresholds() {
+  const state = await readJson(THRESHOLDS_FILE);
+  return state ? state.thresholds : { pace: {}, hr: {} };
+}
+
 /** FA-SIG-07/M1: reine Funktion ueber den GESAMTEN Verlauf - kein inkrementelles Patchen. */
 export async function recomputeAll({ settingsOverrides, discardedBreakthroughIds } = {}) {
   const index = await loadIndex();
@@ -90,13 +98,14 @@ export async function recomputeAll({ settingsOverrides, discardedBreakthroughIds
   const modelState = await loadModelState();
   const discardedIds = discardedBreakthroughIds ?? modelState.discardedBreakthroughIds;
 
-  const { result, mmpCurves } = await runInWorker({
+  const { result, mmpCurves, thresholds } = await runInWorker({
     rawActivities,
     settingsOverrides,
     discardedBreakthroughIds: discardedIds,
   });
 
   await writeJson(MMP_CURVES_FILE, { schemaVersion: 1, computedAt: new Date().toISOString(), curves: mmpCurves });
+  await writeJson(THRESHOLDS_FILE, { schemaVersion: 1, computedAt: new Date().toISOString(), thresholds });
 
   await writeJson(MODEL_FILE, {
     schemaVersion: 1,
@@ -117,12 +126,17 @@ export async function recomputeAll({ settingsOverrides, discardedBreakthroughIds
       // rawActivities/activityResults auf - hasSignature bliebe sonst fuer immer undefined und
       // wuerde den "noch nicht berechnet"-Zaehler unten (dashboardView.js) dauerhaft falsch anzeigen.
       a.hasSignature = false;
+      a.tss = null;
+      a.tssSource = null;
       continue;
     }
     a.hasSignature = r.hasSignature;
     a.np = r.np ?? null;
     a.if = r.if ?? null;
     a.tss = r.tss ?? null;
+    // FA-TP-05: 'power'/'hr'/'pace' erklaert, WIE der TSS zustande kam (fuer die UI-Kennzeichnung
+    // geschaetzter Werte); null bei r.tss == null bedeutet "kein TSS ermittelbar".
+    a.tssSource = r.tss != null ? r.tssSource ?? 'power' : null;
     a.strain = r.strain ?? null;
     a.breakthrough = r.breakthrough ? { medal: r.breakthrough.medal, discarded: r.breakthrough.discarded } : null;
   }

@@ -209,7 +209,7 @@ export async function openActivityDetail(activityId) {
 
     const points = pointsFromActivityBundle(activityBundle);
     const settings = mergeSettings({});
-    const prepared = prepareActivity({ id: activityId, date: meta.date, startTime: meta.startTime, points }, settings);
+    const prepared = prepareActivity({ id: activityId, date: meta.date, startTime: meta.startTime, type: meta.type, points }, settings);
     const stream = prepared.stream;
 
     // Kennzahlen

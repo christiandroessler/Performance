@@ -4,7 +4,7 @@
 
 import { openActivityDetail } from './activityDetailView.js';
 import { groupByWeek, mondayOf } from './calendarUtils.js';
-import { formatDuration, formatDistance } from './format.js';
+import { formatDuration, formatDistance, formatPacePerKm, formatPacePer100m } from './format.js';
 
 const MEDAL_LABEL = { bronze: '🥉', silver: '🥈', gold: '🥇' };
 const PARAM_LABEL = { cp: 'TP', wPrimeJ: 'HIE', pMax: 'PP' };
@@ -88,6 +88,54 @@ export function renderThisWeekSummary(container, index) {
   p.style.marginTop = '0.5rem';
   p.textContent = sportSummary;
   box.appendChild(p);
+}
+
+function latestOf(history) {
+  return history && history.length ? history[history.length - 1] : null;
+}
+
+/** FA-TP-03/04: geschaetzte Sportart-Schwellen (Lauf-/Schwimm-Pace, Rad-HF, HF je sonstiger Sportart), als Schaetzung datiert. */
+export function renderSportThresholds(container, thresholds) {
+  container.innerHTML = '';
+  const box = document.createElement('div');
+  box.className = 'card';
+  container.appendChild(box);
+
+  const header = document.createElement('div');
+  header.className = 'card-header';
+  header.innerHTML = '<h2>Sportart-Schwellen</h2>';
+  box.appendChild(header);
+
+  const rows = [];
+  const runPace = latestOf(thresholds.pace && thresholds.pace.run);
+  if (runPace) rows.push({ label: 'Lauf-Schwellenpace', value: formatPacePerKm(runPace.value), date: runPace.date });
+  const swimPace = latestOf(thresholds.pace && thresholds.pace.swim);
+  if (swimPace) rows.push({ label: 'Schwimm-Schwellenpace', value: formatPacePer100m(swimPace.value), date: swimPace.date });
+  const cyclingHr = latestOf(thresholds.hr && thresholds.hr.cycling);
+  if (cyclingHr) rows.push({ label: 'Rad-Schwellen-HF', value: `${Math.round(cyclingHr.value)} bpm`, date: cyclingHr.date });
+  for (const [type, history] of Object.entries(thresholds.hr || {})) {
+    if (type === 'run' || type === 'swim' || type === 'cycling') continue;
+    const latest = latestOf(history);
+    if (latest) rows.push({ label: `${type} · Schwellen-HF`, value: `${Math.round(latest.value)} bpm`, date: latest.date });
+  }
+
+  if (rows.length === 0) {
+    const p = document.createElement('p');
+    p.className = 'hint';
+    p.textContent = 'Noch keine Sportart-Schwellen schätzbar - siehe "Begriffe" für die Methode.';
+    box.appendChild(p);
+    return;
+  }
+
+  const list = document.createElement('div');
+  list.className = 'threshold-list';
+  for (const row of rows) {
+    const item = document.createElement('div');
+    item.className = 'threshold-row';
+    item.innerHTML = `<span>${row.label}</span><span class="threshold-value">${row.value}</span><span class="hint">geschätzt · ${row.date}</span>`;
+    list.appendChild(item);
+  }
+  box.appendChild(list);
 }
 
 /** Rechte-Spalte-Karte, TrainingPeaks-"Peak Performances"-Vorbild: hier die zuletzt erreichten Signatur-Breakthroughs (Medaillen). */

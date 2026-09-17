@@ -18,3 +18,22 @@ export function formatDistance(m) {
   if (!m) return '-';
   return `${(m / 1000).toFixed(1)} km`;
 }
+
+/** "4:30 min/km" aus einer Geschwindigkeit in m/s (FA-TP-03: Lauf-Schwellenpace). */
+export function formatPacePerKm(speedMs) {
+  if (!speedMs) return '-';
+  return `${formatMinSec(1000 / speedMs)} min/km`;
+}
+
+/** "1:45 min/100m" aus einer Geschwindigkeit in m/s (FA-TP-03: Schwimm-Schwellenpace). */
+export function formatPacePer100m(speedMs) {
+  if (!speedMs) return '-';
+  return `${formatMinSec(100 / speedMs)} min/100m`;
+}
+
+function formatMinSec(totalSeconds) {
+  const totalSecRounded = Math.round(totalSeconds);
+  const m = Math.floor(totalSecRounded / 60);
+  const s = totalSecRounded % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}

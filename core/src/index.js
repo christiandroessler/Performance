@@ -12,6 +12,7 @@ export {
   validSegments,
   aggregateMMP,
   detectMaximalEfforts,
+  bestMeanOverWindows,
 } from './mmp.js';
 export { fit2ParamCP, fitMortonCP, fitMortonRobust, mortonPower, powerDurationCurve } from './cpFit.js';
 export { wPrimeBalanceSkiba2015, finalBalance } from './wbal.js';
@@ -26,6 +27,17 @@ export {
 } from './breakthrough.js';
 export { checkTwoParamConsistency, wPrimeBalance2ParamUnclamped } from './twoParamCheck.js';
 export { computeInitialSignature, computeSignatureHistory, signatureAtDate } from './signature.js';
+export {
+  validVelocitySegments,
+  validHeartRateSegments,
+  bestSustainedSpeed,
+  bestSustainedHeartRate,
+  averageHeartRate,
+  averageSpeed,
+  recordedSeconds,
+  meanHeartRateNearPower,
+} from './pace.js';
+export { sportGroup, thresholdAtDate, estimateThresholds, applySportSpecificTss } from './thresholds.js';
 export {
   normalizedPower,
   normalizedPowerForActivity,

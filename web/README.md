@@ -29,9 +29,9 @@ selbst wird vor jedem Deploy nach `web/vendor/core/src` kopiert (siehe
 | Datei | Zweck |
 |---|---|
 | `scripts/sync-core.mjs` | Kopiert `core/src` nach `web/vendor/core/src` (`npm run sync-core`, laeuft automatisch vor `npm test`/`npm run dev`/`npm run deploy`) |
-| `src/calcWorker.js` | Web Worker (NFA-04): ruft `core/prepareActivity` + `computeSignatureHistory` unveraendert auf, liefert nur aggregierte Ergebnisse zurueck (keine Sekunden-Streams) |
-| `src/compute.js` | Laedt alle Rohdaten (index.json + streams/\*.bin), schickt sie an den Worker, schreibt `model/signature-history.json` + `model/mmp-curves.json`, schreibt Kennzahlen in `index.json` zurueck. `discardBreakthrough`/`reactivateBreakthrough` (FA-SIG-07). Aktivitaeten ganz ohne Stream-Bundle (z. B. Strava-404) bekommen explizit `hasSignature: false` statt `undefined` zu bleiben - sonst zaehlte der "noch nicht berechnet"-Status in dashboardView.js sie fuer immer mit, egal wie oft neu berechnet wird |
-| `src/activityListView.js` | FA-ACT-01: Aktivitaetsliste, sortierbar, Suche (Name) + Filter (Sportart, Zeitraum von/bis), Klick auf Zeile oeffnet die Detailansicht |
+| `src/calcWorker.js` | Web Worker (NFA-04): ruft `core/prepareActivity` + `computeSignatureHistory` unveraendert auf, danach FA-TP-03/04 `estimateThresholds` + `applySportSpecificTss` (Sportart-Schwellen, hrTSS/Pace-TSS-Fallback) als zweiter Durchlauf, liefert nur aggregierte Ergebnisse zurueck (keine Sekunden-Streams) |
+| `src/compute.js` | Laedt alle Rohdaten (index.json + streams/\*.bin) inkl. Sportart (`type`), schickt sie an den Worker, schreibt `model/signature-history.json` + `model/mmp-curves.json` + `model/thresholds.json` (FA-TP-03/04, `loadThresholds()`), schreibt Kennzahlen (inkl. `tssSource`: `power`/`hr`/`pace`/`null`) in `index.json` zurueck. `discardBreakthrough`/`reactivateBreakthrough` (FA-SIG-07). Aktivitaeten ganz ohne Stream-Bundle (z. B. Strava-404) bekommen explizit `hasSignature: false`/`tss: null` statt `undefined` zu bleiben - sonst zaehlte der "noch nicht berechnet"-Status in dashboardView.js sie fuer immer mit, egal wie oft neu berechnet wird |
+| `src/activityListView.js` | FA-ACT-01: Aktivitaetsliste, sortierbar, Suche (Name) + Filter (Sportart, Zeitraum von/bis), Klick auf Zeile oeffnet die Detailansicht. TSS aus HF/Pace (statt Leistung) ist mit "≈" + Tooltip gekennzeichnet (FA-TP-05) |
 | `src/activityFilter.js` | Reine Filterlogik fuer die Aktivitaetsliste (Suche/Sportart/Zeitraum) - ohne Browser-Abhaengigkeit, testbar mit `node:test` |
 | `src/format.js` | Gemeinsame Dauer-/Distanz-Formatierung (`formatDuration`, `formatDistance`), bisher in mehreren Views dupliziert - u. a. behebt das hier zusammengefuehrte `formatDuration` einen Rundungsfehler ("Xh 60min" statt "(X+1)h 0min" bei z. B. 3599s) |
 | `src/activityDetailView.js` | FA-ACT-02: Detailansicht (Modal) - Leistungs-/Puls-/Kadenz-Verlauf, MPA und W'bal (per `signatureAtDate`), Belastungsanteile (Strain Low/High/Peak), Kennzahlen. Alle Verlaufsgrafiken teilen sich EINEN Hover: synchroner Crosshair ueber alle Charts + ein Tooltip mit Zeit im Training und allen an diesem Zeitpunkt verfuegbaren Werten (Leistung/MPA/W'bal/Herzfrequenz/Kadenz), plus Achsbeschriftung je Grafik (gemeinsame Y-Skala fuer Leistung+MPA statt unabhaengig normiert). Rechnet direkt im Hauptfenster, kein Worker (eine Aktivitaet ist klein genug) |
@@ -39,10 +39,10 @@ selbst wird vor jedem Deploy nach `web/vendor/core/src` kopiert (siehe
 | `src/powerCurveView.js` | FA-ACT-03: Leistungskurve/persoenliche Bestwerte, waehlbarer Zeitraum, optional W/kg. `buildPowerCurveChart` zeichnet zusaetzlich zur Tabelle eine Grafik mit log-Dauer-Achse (1s bis mehrere Stunden auf einer Skala) |
 | `src/pmcView.js` | FA-TP-06: Performance Management Chart. `computePmcSeries` einmal berechnen, `renderPmcChart` (Verlaufschart mit Achsbeschriftung + Sekundaerachse fuer TSB, Hover-Tooltip mit Datum + CTL/ATL/TSB, Zeitraum-Buttons 42/90/365 Tage/dieses Jahr fuer den ANZEIGE-Ausschnitt - CTL/ATL werden immer ueber die volle Historie berechnet, nur die Darstellung wird eingeschraenkt) und `renderMetricsSidebar` (Fatigue/Fitness/Form-Kacheln + Ramp Rates, rechte Spalte) teilen sich das Ergebnis |
 | `src/pmcMath.js` | Reine Ramp-Rate-Berechnung (CTL-Veraenderung ueber 7/28/90/365 Tage) und `sliceSeriesForRange` (Anzeige-Ausschnitt des PMC-Charts) - ohne Browser-Abhaengigkeit, testbar mit `node:test` |
-| `src/dashboardExtras.js` | Uebersicht-Redesign (TrainingPeaks-Vorbild): "Letzte Aktivitaet" (inkl. Distanz), "Diese Woche", "Neueste Breakthroughs" - reine Zusammenfassungen bereits vorhandener Daten |
+| `src/dashboardExtras.js` | Uebersicht-Redesign (TrainingPeaks-Vorbild): "Letzte Aktivitaet" (inkl. Distanz), "Sportart-Schwellen" (FA-TP-03/04, `renderSportThresholds` - Lauf-/Schwimm-Pace, Rad-HF, HF je sonstiger Sportart, mit Datum als Schaetzung gekennzeichnet), "Diese Woche", "Neueste Breakthroughs" - reine Zusammenfassungen bereits vorhandener Daten |
 | `src/theme.js` | Hell-/Dunkelmodus zentral (localStorage je Geraet) - von main.js (Anwenden beim Start) und settingsView.js (Umschalten) geteilt |
 | `src/settingsView.js` | FA-SET-01: Einstellungen-Modal (bisher Erscheinungsbild Hell/Dunkel, als Ausbaupunkt fuer spaetere Einstellungen angelegt) |
-| `src/glossaryView.js` | Glossar aller Berechnungsgrundlagen (CP/W'/Pmax, MPA/W'bal, NP/IF/TSS, CTL/ATL/TSB, Strain) in einfacher Sprache, fuer alle Nutzer zum Nachlesen |
+| `src/glossaryView.js` | Glossar aller Berechnungsgrundlagen (CP/W'/Pmax, MPA/W'bal, NP/IF/TSS, CTL/ATL/TSB, Strain, Sportart-Schwellen) in einfacher Sprache, fuer alle Nutzer zum Nachlesen |
 | `src/breakthroughView.js` | FA-SIG-07/08: Breakthrough-Uebersicht, Mehrfachauswahl zum Verwerfen, Reaktivieren |
 | `src/calendarUtils.js` | Reine Datums-/Aggregationsfunktionen fuer FA-TP-07 (Wochen-/Monats-/Tagesgruppierung) - ohne Browser-Abhaengigkeit, testbar mit `node:test` |
 | `src/weekView.js` | FA-TP-07: Monatskalender oben (Tages-TSS, Klick auf Aktivitaet oeffnet die Detailansicht), darunter Wochenuebersicht fuer die letzten 4 Wochen und eine Monatsuebersicht fuer die 12 Monate davor (TrainingPeaks-Vorbild - eine Wochenzeile je Woche ueber ein ganzes Jahr waere unuebersichtlich) mit TSS/Dauer/Distanz/Einheiten je Sportart, Zahlenspalten rechtsbuendig (`.stats-table`-CSS) - reine Aggregation der in `index.json` bereits abgelegten Kennzahlen, keine erneute Berechnung |
@@ -63,13 +63,20 @@ Neuberechnungsdauer fuer den Gesamtverlauf, nur NFA-04 fuer eine einzelne
 6h-Aktivitaet).
 
 `web/test/computePipeline.test.js` prueft die Naht Ablageformat -> core
-(RawStreamPoint[]-Form, FA-DQ-01 `deviceWatts`-Maskierung) - die
-Algorithmus-Korrektheit selbst deckt bereits `core/test/` ab (33 Tests, M1).
+(RawStreamPoint[]-Form, FA-DQ-01 `deviceWatts`-Maskierung, sowie FA-TP-02/03
+end-to-end: ein Lauf ohne Leistungsmesser bekommt ueber die volle Kette
+Pace-TSS statt eines fabrizierten `tss: 0`) - die Algorithmus-Korrektheit
+selbst deckt bereits `core/test/` ab (48 Tests, M1).
 
-**Bewusst noch nicht gebaut** (M3, spaetere Runde): automatische
-Schwellen-Schaetzung fuer HF/Pace/Schwimmen (FA-TP-03/04 - ohne die gibt es
-aktuell nur NP/IF/TSS aus Leistung, kein hrTSS/Pace-TSS),
-PP-Plausibilisierung (FA-SIG-13), Einstellungen-UI (FA-SET-01-04).
+Automatische Schwellen-Schaetzung fuer HF/Pace/Schwimmen (FA-TP-02/03/04/05:
+hrTSS/Pace-TSS fuer Aktivitaeten ohne Leistung, inkl. "≈"-Kennzeichnung in
+der Aktivitaetsliste und einer "Sportart-Schwellen"-Karte in der Uebersicht)
+ist seit 2026-09-18 gebaut, siehe `core/README.md` Abschnitt
+"Sportart-Schwellen-Schaetzung" fuer die Methodik.
+
+**Bewusst noch nicht gebaut** (M3, spaetere Runde): PP-Plausibilisierung
+(FA-SIG-13), Einstellungen-UI ueber das Erscheinungsbild hinaus
+(FA-SET-02-04).
 
 ## Ablageformat der Streams (`streams/YYYY-MM.bin`)
 

@@ -8,16 +8,19 @@ export const DEFAULT_GRID = [
 ];
 
 /**
- * Bester gleitender Mittelwert je Dauer aus einem lueckenlosen Watt-Array
- * (z. B. ein einzelnes valides Segment). O(n) via Praefixsumme.
- * @param {ArrayLike<number>} watts
+ * Bester gleitender Mittelwert je Dauer aus einem lueckenlosen Zahlen-Array
+ * (z. B. ein einzelnes valides Segment), UNGERUNDET. O(n) via Praefixsumme.
+ * Von meanMaximalPower() (rundet fuer die Watt-Anzeige) UND pace.js (Pace/HF,
+ * wo eine Rundung auf ganze Einheiten viel zu grob waere) gemeinsam genutzt.
+ * @param {ArrayLike<number>} values
  * @param {number[]} grid
+ * @returns {{t: number, value: number}[]}
  */
-export function meanMaximalPower(watts, grid = DEFAULT_GRID) {
-  if (!watts || watts.length === 0) return [];
-  const n = watts.length;
+export function bestMeanOverWindows(values, grid = DEFAULT_GRID) {
+  if (!values || values.length === 0) return [];
+  const n = values.length;
   const prefix = new Float64Array(n + 1);
-  for (let i = 0; i < n; i++) prefix[i + 1] = prefix[i] + (watts[i] || 0);
+  for (let i = 0; i < n; i++) prefix[i + 1] = prefix[i] + (values[i] || 0);
 
   const out = [];
   for (const t of grid) {
@@ -27,9 +30,19 @@ export function meanMaximalPower(watts, grid = DEFAULT_GRID) {
       const avg = (prefix[i + t] - prefix[i]) / t;
       if (avg > best) best = avg;
     }
-    out.push({ t, watts: Math.round(best) });
+    out.push({ t, value: best });
   }
   return out;
+}
+
+/**
+ * Bester gleitender Mittelwert je Dauer aus einem lueckenlosen Watt-Array
+ * (z. B. ein einzelnes valides Segment), auf ganze Watt gerundet (Anzeige).
+ * @param {ArrayLike<number>} watts
+ * @param {number[]} grid
+ */
+export function meanMaximalPower(watts, grid = DEFAULT_GRID) {
+  return bestMeanOverWindows(watts, grid).map((p) => ({ t: p.t, watts: Math.round(p.value) }));
 }
 
 /**

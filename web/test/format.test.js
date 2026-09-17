@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatDuration, formatDistance } from '../src/format.js';
+import { formatDuration, formatDistance, formatPacePerKm, formatPacePer100m } from '../src/format.js';
 
 test('formatDuration: leer/0/null ergibt "-"', () => {
   assert.equal(formatDuration(0), '-');
@@ -26,4 +26,15 @@ test('formatDistance: leer/0/null ergibt "-", sonst km mit einer Nachkommastelle
   assert.equal(formatDistance(0), '-');
   assert.equal(formatDistance(null), '-');
   assert.equal(formatDistance(50300), '50.3 km');
+});
+
+test('formatPacePerKm: m/s in min/km, leer/0/null ergibt "-"', () => {
+  assert.equal(formatPacePerKm(1000 / 240), '4:00 min/km'); // 4min/km
+  assert.equal(formatPacePerKm(0), '-');
+  assert.equal(formatPacePerKm(null), '-');
+});
+
+test('formatPacePer100m: m/s in min/100m, leer/0/null ergibt "-"', () => {
+  assert.equal(formatPacePer100m(100 / 90), '1:30 min/100m');
+  assert.equal(formatPacePer100m(0), '-');
 });

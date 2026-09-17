@@ -13,13 +13,13 @@
 // das dortige "Today"-Workout-Widget.
 
 import { loadIndex } from './sync.js';
-import { loadModelState, recomputeAll } from './compute.js';
+import { loadModelState, loadThresholds, recomputeAll } from './compute.js';
 import { renderActivityList } from './activityListView.js';
 import { computePmcSeries, renderMetricsSidebar, renderPmcChart } from './pmcView.js';
 import { renderBreakthroughs } from './breakthroughView.js';
 import { renderPowerCurve } from './powerCurveView.js';
 import { renderWeekOverview } from './weekView.js';
-import { renderRecentActivity, renderThisWeekSummary, renderRecentBreakthroughs } from './dashboardExtras.js';
+import { renderRecentActivity, renderThisWeekSummary, renderRecentBreakthroughs, renderSportThresholds } from './dashboardExtras.js';
 
 export async function renderDashboard({ overviewContainer, activitiesContainer, weeksContainer, powerCurveContainer, breakthroughsContainer }) {
   overviewContainer.innerHTML = '';
@@ -57,8 +57,10 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
   grid.appendChild(rightCol);
 
   const signatureContainer = document.createElement('div');
+  const thresholdsContainer = document.createElement('div');
   const thisWeekContainer = document.createElement('div');
   leftCol.appendChild(signatureContainer);
+  leftCol.appendChild(thresholdsContainer);
   leftCol.appendChild(thisWeekContainer);
 
   const recentActivityContainer = document.createElement('div');
@@ -80,6 +82,7 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
     statusP.textContent = uncomputed > 0 ? `${uncomputed} Aktivität(en) noch ohne berechnete Kennzahlen - "Kennzahlen neu berechnen" klicken.` : 'Alle Aktivitäten sind berechnet.';
 
     renderSignatureTiles(signatureContainer, modelState);
+    renderSportThresholds(thresholdsContainer, await loadThresholds());
     renderThisWeekSummary(thisWeekContainer, index);
     renderRecentActivity(recentActivityContainer, index);
     const pmcSeries = computePmcSeries(index, modelState);

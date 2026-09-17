@@ -9,7 +9,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { activityBundleFromStravaStreams, pointsFromActivityBundle } from '../src/streamCodec.js';
-import { prepareActivity, computeSignatureHistory, DEFAULT_SETTINGS } from '../../core/src/index.js';
+import { prepareActivity, computeSignatureHistory, estimateThresholds, applySportSpecificTss, mergeSettings, DEFAULT_SETTINGS } from '../../core/src/index.js';
 
 function makeStravaStreams(durationSec, wattsFn) {
   const time = Array.from({ length: durationSec }, (_, i) => i);
@@ -59,4 +59,27 @@ test('computeSignatureHistory ueber mehrere per Ablageformat gereichte Aktivitae
   for (const r of result.activityResults) {
     assert.equal(typeof r.hasSignature, 'boolean');
   }
+});
+
+test('FA-TP-02/03: ein Lauf (kein Leistungsmesser) bekommt ueber die volle Kette Pace-TSS statt eines fabrizierten tss:0', () => {
+  const settings = mergeSettings({ thresholdEffortSeconds: 60 });
+  const runStreams = (durationSec, speedMs) => ({ time: { data: Array.from({ length: durationSec }, (_, i) => i) }, velocity_smooth: { data: new Array(durationSec).fill(speedMs) } });
+
+  const acts = [];
+  for (const [id, date, speed] of [
+    ['r0', '2026-01-01', 3.0],
+    ['r1', '2026-01-08', 3.0],
+  ]) {
+    const bundle = activityBundleFromStravaStreams(runStreams(1800, speed), { startTime: `${date}T10:00:00Z`, deviceWatts: false });
+    const points = pointsFromActivityBundle(bundle);
+    acts.push(prepareActivity({ id, date, startTime: `${date}T10:00:00Z`, type: 'Run', points }, settings));
+  }
+
+  const result = computeSignatureHistory(acts, { settings });
+  const thresholds = estimateThresholds(acts, result.history, settings);
+  applySportSpecificTss(result.activityResults, acts, thresholds);
+
+  const r1 = result.activityResults.find((r) => r.id === 'r1');
+  assert.equal(r1.tssSource, 'pace');
+  assert.ok(r1.tss > 0);
 });

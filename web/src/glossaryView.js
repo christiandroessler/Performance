@@ -21,8 +21,17 @@ const GLOSSARY = [
       { term: 'W\'bal', def: 'Der sekündliche Füllstand der anaeroben Reserve W\' während einer Aktivität (Skiba-2015-Modell) - 0 bedeutet vollständig erschöpft.' },
       { term: 'NP (Normalized Power)', def: 'Eine um kurzfristige Leistungsspitzen gewichtete Durchschnittsleistung, bildet die physiologische Belastung besser ab als der reine Mittelwert.' },
       { term: 'IF (Intensity Factor)', def: 'NP geteilt durch die zum Aktivitätsdatum gültige Schwelle (CP) - Maß für die relative Intensität einer Einheit.' },
-      { term: 'TSS (Training Stress Score)', def: 'Belastungspunktzahl einer Aktivität aus Dauer, NP und IF. Eine Stunde bei genau CP-Leistung ergibt 100 TSS.' },
+      { term: 'TSS (Training Stress Score)', def: 'Belastungspunktzahl einer Aktivität aus Dauer, NP und IF. Eine Stunde bei genau CP-Leistung ergibt 100 TSS. Bei Rad-Aktivitäten ohne Leistungsmesser bzw. bei Laufen/Schwimmen wird stattdessen hrTSS bzw. Pace-TSS aus der geschätzten Sportart-Schwelle berechnet (in der Aktivitätsliste mit "≈" markiert) - fehlt auch das, gibt es keinen TSS.' },
       { term: 'Strain Score', def: 'Belastung aufgeteilt in Low (unterhalb CP), High (zwischen CP und Pmax) und Peak (nahe Pmax) - zeigt, welcher Belastungsbereich dominierte.' },
+    ],
+  },
+  {
+    group: 'Sportart-Schwellen (für Laufen/Schwimmen/Rad ohne Leistungsmesser)',
+    terms: [
+      { term: 'Schwellenpace (Lauf/Schwimm)', def: 'Die schnellste Pace, die über ca. 20 Minuten gehalten werden kann - automatisch aus der besten Anstrengung der letzten 180 Tage geschätzt. Grundlage für Pace-TSS bei Läufen/Schwimmeinheiten ohne Leistungsmesser.' },
+      { term: 'Rad-Schwellen-HF', def: 'Die durchschnittliche Herzfrequenz während Radabschnitten mit Leistung nahe der aktuellen CP - genauer als eine reine HF-Schätzung, weil sie an eine bereits leistungsbasiert bestätigte Schwelle gekoppelt ist. Für Radfahrten ohne Leistungsmesser (z. B. Indoor-Spinning).' },
+      { term: 'Schwellen-HF (sonstige Sportarten)', def: 'Für Sportarten ohne Pace-Konzept (z. B. Wandern, Krafttraining) wird ebenfalls die beste ca. 20-Minuten-Herzfrequenz der letzten 180 Tage als Schwelle geschätzt, getrennt je Sportart.' },
+      { term: '"Geschätzt"-Kennzeichnung', def: 'Alle Sportart-Schwellen sind Schätzungen aus eigenen Trainingsdaten (keine Laborwerte) und werden entsprechend datiert angezeigt - sie können sich mit neuen Bestleistungen ändern und "verjähren", wenn 180 Tage lang keine bessere Anstrengung mehr vorkam.' },
     ],
   },
   {

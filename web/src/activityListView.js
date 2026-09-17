@@ -9,6 +9,7 @@ import { filterActivities } from './activityFilter.js';
 import { formatDuration, formatDistance } from './format.js';
 
 const MEDAL_LABEL = { bronze: '🥉', silver: '🥈', gold: '🥇' };
+const TSS_SOURCE_LABEL = { power: 'aus Leistung', hr: 'geschätzt aus Herzfrequenz (Sportart-Schwelle)', pace: 'geschätzt aus Pace (Sportart-Schwelle)' };
 
 export function renderActivityList(container, index) {
   container.innerHTML = '';
@@ -148,13 +149,20 @@ export function renderActivityList(container, index) {
         a.type,
         formatDuration(a.movingTimeSec),
         formatDistance(a.distanceM),
-        a.tss != null ? String(a.tss) : '-',
+        // FA-TP-05: TSS aus HF/Pace ist eine Schaetzung (Sportart-Schwelle) - Tilde + Tooltip kennzeichnen das,
+        // "-" bleibt fuer "kein TSS ermittelbar" (weder Leistung noch schaetzbare Schwelle).
+        { text: a.tss != null ? `${a.tssSource && a.tssSource !== 'power' ? '≈' : ''}${a.tss}` : '-', title: a.tssSource ? TSS_SOURCE_LABEL[a.tssSource] : undefined },
         a.strain != null && a.strain.total != null ? String(Math.round(a.strain.total)) : '-',
         a.breakthrough ? `${MEDAL_LABEL[a.breakthrough.medal] || ''}${a.breakthrough.discarded ? ' (verworfen)' : ''}` : '-',
       ];
       for (const c of cells) {
         const td = document.createElement('td');
-        td.textContent = c;
+        if (typeof c === 'object' && c !== null) {
+          td.textContent = c.text;
+          if (c.title) td.title = c.title;
+        } else {
+          td.textContent = c;
+        }
         row.appendChild(td);
       }
       tbody.appendChild(row);

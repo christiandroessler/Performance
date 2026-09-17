@@ -384,6 +384,12 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .breakthrough-mini-row:last-child { border-bottom: none; padding-bottom: 0; }
 .breakthrough-mini-date { font-variant-numeric: tabular-nums; color: var(--text-muted); }
 
+.threshold-list { display: flex; flex-direction: column; gap: 0.55rem; }
+.threshold-row { display: flex; align-items: baseline; gap: 0.5rem; font-size: 0.85rem; padding-bottom: 0.55rem; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.threshold-row:last-child { border-bottom: none; padding-bottom: 0; }
+.threshold-row > span:first-child { flex: 1; min-width: 140px; color: var(--text); }
+.threshold-value { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--accent-text); }
+
 .pmc-range-row { margin-bottom: 0.75rem; }
 .pmc-chart-wrapper { position: relative; }
 .pmc-tooltip {

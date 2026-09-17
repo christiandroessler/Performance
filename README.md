@@ -148,10 +148,14 @@ einem Web Worker (NFA-04), gefuettert mit den in M2 abgelegten Rohdaten:
 - "Mehr Historie laden" (Backfill, s. u. Sync-Ablauf) loest den Fall, dass
   ein Erstimport mit kurzem Fenster nie die 90-Tage-Startsignatur-Schwelle
   erreicht.
-- Absichtlich noch offen: automatische Schwellen-Schaetzung fuer
-  HF/Pace/Schwimmen (FA-TP-03/04 - ohne die gibt es aktuell kein
-  hrTSS/Pace-TSS, nur NP/IF/TSS aus Leistung), PP-Plausibilisierung
-  (FA-SIG-13), Einstellungen-UI (FA-SET-01-04).
+- Automatische Sportart-Schwellen-Schaetzung (2026-09-18, FA-TP-02/03/04/05):
+  Lauf-/Schwimm-Schwellenpace, Rad-Schwellen-HF aus Leistung nahe TP,
+  Schwellen-HF je sonstiger Sportart - schaltet hrTSS/Pace-TSS fuer
+  Aktivitaeten ohne (nutzbare) Leistung frei, statt eines vorher fabrizierten
+  `tss: 0`. In der Uebersicht als eigene Karte, in der Aktivitaetsliste mit
+  "≈" gekennzeichnet, Methodik in `core/README.md` dokumentiert.
+- Absichtlich noch offen: PP-Plausibilisierung (FA-SIG-13), Einstellungen-UI
+  ueber das Erscheinungsbild hinaus (FA-SET-02-04).
 - `web/test/computePipeline.test.js` prueft die Naht Ablageformat -> core
   (RawStreamPoint[]-Form, FA-DQ-01 deviceWatts-Maskierung); die
   Algorithmus-Korrektheit selbst deckt bereits `core/test/` ab (M1).

@@ -10,6 +10,7 @@ import { meanMaximalPowerForActivity } from './mmp.js';
  * @param {string} raw.id
  * @param {string} raw.date - YYYY-MM-DD (Kalendertag, fuer die chronologische Signatur-Zuordnung)
  * @param {string} raw.startTime - ISO-8601-Zeitstempel (fuer W'bal-Kontinuitaet zwischen Aktivitaeten)
+ * @param {string} [raw.type] - Strava-Sportart (z. B. "Ride", "Run", "Swim") - nur fuer thresholds.js (FA-TP-03/04) gebraucht, sonst unbenutzt
  * @param {import('./types.js').RawStreamPoint[]} raw.points
  * @param {import('./types.js').ModelSettings} settings
  */
@@ -26,6 +27,7 @@ export function prepareActivity(raw, settings) {
     date: raw.date,
     startTime: raw.startTime,
     endTime,
+    type: raw.type ?? null,
     stream,
     mask,
     recoveryWatts,

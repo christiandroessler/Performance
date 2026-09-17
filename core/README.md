@@ -10,7 +10,8 @@ Browser und in einem Web Worker (NFA-04).
 Diese Version deckt den **M1-Umfang** ab (Kap. 10):
 
 - Datenqualitaet: 1-Hz-Resampling, Luecken-Markierung, Ausreisserfilter (FA-DQ-01 bis 04)
-- NP/IF/TSS, hrTSS, Pace-TSS (Kap. 6.6/FA-TP)
+- NP/IF/TSS, hrTSS, Pace-TSS **inkl. automatischer Sportart-Schwellen-Schaetzung**
+  (Kap. 6.6/FA-TP-01 bis 05, siehe M1-Festlegung "Sportart-Schwellen-Schaetzung" unten)
 - Mean-Maximal-Power, 2- und 3-Parameter-CP-Fit (Morton) mit robuster IRLS-Regression
 - MPA (Kap. 7.2), W'bal nach Skiba 2015 (Kap. 7.3)
 - Breakthrough-Erkennung und Refit mit Umverteilung, Absenkbremse, Medaillen (Kap. 7.4/7.5)
@@ -25,7 +26,7 @@ Kalibrierung Kap. 7.8 → M4) und das Stoffwechselmodell (Kap. 7.9 → M5).
 
 ## Stand der Verifikation
 
-Alle 33 automatisierten Tests laufen gruen (`npm test` im `core`-Ordner).
+Alle 48 automatisierten Tests laufen gruen (`npm test` im `core`-Ordner).
 Zusaetzlich wurde der komplette Aktivitaetsbestand eines echten Nutzers
 (1977 Rad-Aktivitaeten mit Leistung, 2017–2026, aus der bestehenden
 `strava-dashboard`-Datenbank, siehe `scripts/run-legacy-db.js`) mehrfach
@@ -264,6 +265,64 @@ Leistungssekunden (`validPowerMask`-Summe) verwendet, nicht die reine
 Aufzeichnungsdauer. Vereinfachung fuer M1; eine feinere Trennung
 "angehalten vs. rollend ohne Leistungsdaten" folgt bei Bedarf in M3.
 
+### Sportart-Schwellen-Schaetzung (FA-TP-03/04, Kap. 12, offene Methodik)
+
+Das Lastenheft schreibt vor, DASS Schwellen-HF je Sportart sowie Lauf-/Schwimm-
+Schwellenpace automatisch aus eigenen Daten geschaetzt werden ("als Schaetzung
+gekennzeichnet und mit Datum versioniert"), legt aber bewusst keine konkrete
+Methode fest (anders als z. B. die CP-Regression in Kap. 7.1). `src/pace.js`
+(pro Aktivitaet) + `src/thresholds.js` (Chronologie ueber alle Aktivitaeten)
+treffen dafuer folgende Festlegungen:
+
+- **"Beste Anstrengung" je Aktivitaet** = bester gleitender Mittelwert (Pace
+  bzw. HF) ueber `thresholdEffortSeconds` (Standard 1200s/20 Min) - dieselbe
+  Praefixsummen-Technik wie fuer die Mean-Maximal-Power (`mmp.js`), nur auf
+  Geschwindigkeit/Herzfrequenz statt Watt angewandt. Dafuer wurde die
+  Rundung aus `meanMaximalPower` (auf ganze Watt, fuer die Anzeige gedacht)
+  in eine eigene ungerundete Funktion `mmp.js#bestMeanOverWindows`
+  ausgelagert - eine Rundung auf ganze m/s waere bei typischen Lauf-
+  geschwindigkeiten (2-6 m/s) viel zu grob gewesen (im ersten Testlauf
+  schnappte dadurch jede Pace-Schaetzung auf einen ganzzahligen m/s-Wert).
+- **Rollierendes Fenster** (`thresholdEstimationWindowDays`, Standard 180
+  Tage): die Schwelle ist das Maximum der besten Anstrengungen aller
+  Aktivitaeten der Sportart in diesem Fenster, zum jeweiligen
+  Aktivitaetsdatum neu ausgewertet (FA-TP-08: chronologisch gueltige
+  Schwelle je Datum, analog zu `signatureAtDate`/`thresholdAtDate`). Anders
+  als bei CP gibt es keinen Breakthrough-/Refit-Mechanismus - das
+  rollierende Fenster uebernimmt dessen Rolle: eine Bestleistung "verjaehrt"
+  nach `thresholdEstimationWindowDays`, statt fuer immer als Schwelle stehen
+  zu bleiben, obwohl sich die Form laengst veraendert hat.
+- **Neuer Historien-Eintrag** nur bei einer Aenderung >= `thresholdChangeEpsilon`
+  (Standard 2%) gegenueber dem vorherigen Wert - sonst waechst die Historie
+  mit jeder Aktivitaet der Sportart, ohne neue Information zu tragen.
+- **Kein Mindest-Datenumfang** (anders als FA-SIG-03s "mind. 4
+  Envelope-Stuetzpunkte" fuer die Startsignatur): eine einzelne echte
+  20-Minuten-Anstrengung ist bereits eine legitime erste Schaetzung
+  (besser als gar keine, und korrekt als Schaetzung datiert) - eine
+  kuenstliche Mindestanzahl ist im Lastenheft nicht gefordert.
+- **Rad-Schwellen-HF (FA-TP-04) ist methodisch die Ausnahme**: statt "beste
+  Anstrengung" wird die mittlere Herzfrequenz aller Sekunden verwendet, an
+  denen die Leistung innerhalb von `thresholdCyclingPowerTolerance`
+  (Standard 5%) um die TP der Signatur zum Aktivitaetsdatum lag - exakte
+  Lastenheft-Vorgabe ("aus Radeinheiten mit Leistung nahe der TP"). Das ist
+  praeziser als die generische Methode, weil sie an eine bereits
+  leistungsbasiert verifizierte Schwelle gekoppelt ist, und dient explizit
+  Radfahrten OHNE Leistungsmesser (z. B. Indoor-Spinning) als hrTSS-Basis.
+- **`computeSignatureHistory` selbst bleibt unveraendert.** Ohne
+  Sonderbehandlung durchlaeuft eine Aktivitaet ohne Leistung dort die
+  leistungszentrierte Pipeline inert (alle Watt-Werte 0 -> leere MMP-Kurve,
+  keine Breakthrough-Fenster) und bekommt ein fabriziertes `tss: 0`/`np: 0`.
+  `applySportSpecificTss` laeuft als bewusst getrennter ZWEITER Durchlauf
+  danach: erkennt anhand der validen Leistungsmaske (nicht anhand des
+  TSS-Werts selbst, sonst waere eine echte, aber zufaellig winzige
+  Leistungs-Aktivitaet betroffen), ob eine Aktivitaet echte Leistungsdaten
+  hat, und ersetzt sonst das fabrizierte Ergebnis durch Pace-TSS (Lauf,
+  Schwimmen - hrTSS als Fallback, falls keine Pace-Schwelle schaetzbar ist)
+  bzw. hrTSS (alle anderen Sportarten inkl. leistungsloser Radfahrten). Bleibt
+  auch das erfolglos, wird `tss` explizit `null` (FA-TP-05), statt bei der
+  irrefuehrenden `0` zu bleiben. Diese Trennung haelt die bereits gegen den
+  7-Jahres-Datensatz verifizierte CP-/Breakthrough-Pipeline unangetastet.
+
 ## Bekannte offene Punkte / Risiken
 
 - **FIT-Parser (`src/importers/fit.js`) ist inzwischen gegen eine echte
@@ -288,6 +347,14 @@ Aufzeichnungsdauer. Vereinfachung fuer M1; eine feinere Trennung
   NFA-04 fordert nur die Neuberechnung einer einzelnen 6h-Aktivitaet ≤ 2s,
   nicht die Gesamthistorie. Bei Bedarf (grosse Gruppen-Historien) spaeter
   Memoisierung der Envelope-Berechnung ergaenzen.
+- **Sportart-Schwellen-Schaetzung (FA-TP-03/04)** ist mit synthetischen
+  Testdaten verifiziert (`pace.test.js`, `thresholds.test.js`,
+  `computePipeline.test.js`), aber NICHT gegen einen echten Datensatz mit
+  Lauf-/Schwimm-/HF-only-Aktivitaeten wie die CP-Pipeline (siehe "Stand der
+  Verifikation" oben, 1977 Rad-Aktivitaeten). Die Rolling-Window-Suche selbst
+  ist zudem nicht auf grosse Sportart-Historien optimiert (O(n * Fenstergroesse)
+  je Sportart, siehe "M1-Festlegung" oben) - fuer eine einzelne Sportart mit
+  vielen hundert Aktivitaeten voraussichtlich unproblematisch, aber ungemessen.
 
 ## Verwendung
 
@@ -315,6 +382,18 @@ const withoutOne = computeSignatureHistory(activities, {
 });
 ```
 
+Sportart-Schwellen (FA-TP-03/04) + hrTSS/Pace-TSS-Fallback (FA-TP-02/05) laufen
+als zweiter, unabhaengiger Durchlauf NACH `computeSignatureHistory` (`raw.type`
+= Strava-Sportart, z. B. `"Run"`, muss dafuer an `prepareActivity` durchgereicht
+werden):
+
+```js
+const thresholds = estimateThresholds(activities, history.history, settings);
+applySportSpecificTss(history.activityResults, activities, thresholds);
+// history.activityResults[i].tss/.tssSource jetzt auch fuer Aktivitaeten ohne
+// Leistung gefuellt (tssSource: 'power'|'hr'|'pace'), sonst tss:null (FA-TP-05)
+```
+
 ## Tests
 
 ```bash
@@ -324,5 +403,7 @@ node --test test/
 Deckt ab: Strain-Score-Testvektoren (Kap. 7.6), W'bal-Linearitaet/Asymptotik
 (Kap. 10 Abnahme), CP-Fit-Rekonstruktion und Robustheit gegen Ausreisser,
 Breakthrough-Erkennung (Schwellen, Mindestdauer, Datenqualitaets-Ausschluss),
-NP/TSS/hrTSS/paceTSS-Formeln, Determinismus des gesamten Signaturverlaufs,
-sowie die Text-/FIT-Importer.
+NP/TSS/hrTSS/paceTSS-Formeln, Sportart-Schwellen-Schaetzung und
+hrTSS/Pace-TSS-Routing inkl. FA-TP-05-Kennzeichnung (`pace.test.js`,
+`thresholds.test.js`), Determinismus des gesamten Signaturverlaufs, sowie die
+Text-/FIT-Importer.

@@ -55,6 +55,19 @@
  * @property {number} outlierMaxWatts - Standard 2500 (absolute Plausibilitaetsgrenze)
  * @property {number} outlierMaxJumpWatts - Standard 1800 (Sprung ggue. beiden Nachbarn)
  * @property {number} maxGapSecondsForWbalContinuity - Standard 1800 (30 Min); danach W'bal-Reset auf voll
+ * @property {number} thresholdEstimationWindowDays - Standard 180 (FA-TP-03/04): rollierendes Fenster fuer Sportart-Schwellen-Schaetzung
+ * @property {number} thresholdEffortSeconds - Standard 1200 (20 Min, FA-TP-03): Zieldauer der "besten Anstrengung" fuer Pace-/HF-Schwellen
+ * @property {number} thresholdCyclingPowerTolerance - Standard 0.05 (FA-TP-04): Toleranzband um TP fuer die Rad-Schwellen-HF-Schaetzung
+ * @property {number} thresholdChangeEpsilon - Standard 0.02 (FA-TP-03/04): neuer Historien-Eintrag erst ab dieser relativen Aenderung
+ */
+
+/**
+ * Ein Eintrag in einer Sportart-Schwellen-Historie (FA-TP-03/04), analog zu Signature
+ * (date/source), siehe thresholds.js.
+ * @typedef {Object} ThresholdEntry
+ * @property {string} date - gueltig ab (YYYY-MM-DD)
+ * @property {number} value - Geschwindigkeit in m/s (pace) bzw. Herzfrequenz in bpm (hr)
+ * @property {'estimated'} source
  */
 
 export {};

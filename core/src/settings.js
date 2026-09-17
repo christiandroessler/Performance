@@ -17,6 +17,10 @@ export const DEFAULT_SETTINGS = {
   maxGapSecondsForWbalContinuity: 1800, // M1-Festlegung, siehe core/README.md
   ctlTau: 42,
   atlTau: 7,
+  thresholdEstimationWindowDays: 180, // M1-Festlegung, siehe core/README.md (FA-TP-03/04)
+  thresholdEffortSeconds: 1200, // M1-Festlegung, siehe core/README.md (FA-TP-03/04)
+  thresholdCyclingPowerTolerance: 0.05, // M1-Festlegung, siehe core/README.md (FA-TP-04)
+  thresholdChangeEpsilon: 0.02, // M1-Festlegung, siehe core/README.md (FA-TP-03/04)
 };
 
 /** @returns {import('./types.js').ModelSettings} */
