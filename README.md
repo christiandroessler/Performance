@@ -45,25 +45,52 @@ KV - server- und clientseitig verifiziert).
 
 IndexedDB-Cache und der inkrementelle/mehrtaegige Sync-Ablauf (Kap. 5.3,
 FA-SYNC-01 bis 05) sind jetzt ebenfalls implementiert (`web/src/idb.js`,
-`storage.js`, `streamCodec.js`, `sync.js`, `syncView.js` - siehe
-`web/README.md` fuer Ablageformat und Ablauf). Bewusst **nicht** Teil dieser
-M2-Runde: die eigentliche Modellberechnung (Signaturverlauf, Breakthroughs,
+`storage.js`, `streamCodec.js`, `syncEngine.js`, `sync.js`, `syncView.js` -
+siehe `web/README.md` fuer Ablageformat und Ablauf) und live erfolgreich
+getestet: Erstimport von 33 Aktivitaeten (30-Tage-Fenster), inkl. einer
+zwischendurch unterbrochenen und danach korrekt fortgesetzten Session ohne
+Doppelimporte (server- und clientseitig in Cloudflare KV verifiziert). Die
+Zustandsmaschine (`syncEngine.js`) ist zusaetzlich mit `node:test` gegen
+In-Memory-Fakes abgesichert, u. a. genau dieses Abbruch-/Fortsetzen-Szenario
+(`web/test/syncEngine.test.js`). Bewusst **nicht** Teil dieser M2-Runde: die
+eigentliche Modellberechnung (Signaturverlauf, Breakthroughs,
 `model/*.json`) haengt noch nicht am Sync - das ist M3-Scope, dort auch
 gegen die M1-Ergebnisse verifiziert; keines der M2-Abnahmekriterien
 verlangt berechnete Kennzahlen.
 
 **Noch offen, bevor M2 als abgenommen gelten kann** (siehe
 `worker/README.md` fuer die Einrichtungsschritte):
-- Cloudflare Pages + Worker mit Auto-Deploy an dieses GitHub-Repo anbinden
-  (aktuell manuelles `wrangler deploy` / `wrangler pages deploy`).
-- Der neue Sync-Code ist bisher nur durch `web/test/streamCodec.test.js`
-  (reine Logik) automatisiert getestet, `sync.js`/`storage.js`/`idb.js`
-  noch nicht im echten Browser gegen ein Konto mit Trainingshistorie
+- **Cloudflare Auto-Deploy an dieses GitHub-Repo anbinden** (aktuell
+  manuelles `wrangler deploy` je Verzeichnis). Das laeuft ausschliesslich
+  ueber das Cloudflare-Dashboard (OAuth-Zustimmung fuer die Cloudflare-
+  GitHub-App) - es gibt keinen `wrangler`-Befehl dafuer, das muss der
+  Auftraggeber selbst tun:
+  1. dash.cloudflare.com -> **Workers & Pages** -> Projekt
+     `performance-app-worker` oeffnen -> **Settings** -> **Builds** ->
+     **Connect to Git** -> Repo `christiandroessler/Performance`
+     auswaehlen, GitHub-App-Zugriff erlauben.
+  2. Build-Konfiguration: **Root directory** = `performance-app/worker`,
+     Build-Befehl leer lassen (kein Bundling noetig), Deploy-Befehl
+     `npx wrangler deploy` (Standard).
+  3. Gleiches Vorgehen fuer Projekt `performance-app-web`, **Root
+     directory** = `performance-app/web`.
+  4. Nach dem Verbinden: Secrets (`STRAVA_CLIENT_SECRET`,
+     `TOKEN_ENCRYPTION_KEY`) sind bereits per `wrangler secret put` auf dem
+     Worker gesetzt und bleiben bei Git-Deploys erhalten (Secrets sind nicht
+     Teil des Repos/Builds).
+  5. Test: einen Commit auf `main` pushen, in **Builds** pruefen, dass ein
+     Deploy automatisch angestossen wird.
+- Der Sync-Code ist inzwischen gut automatisiert getestet
+  (`streamCodec.test.js`, `syncEngine.test.js`), aber `storage.js`/`idb.js`
+  selbst (die duennen Adapter auf IndexedDB/Drive) noch nicht gegen ein
+  Konto mit mehrjaehriger Trainingshistorie
   durchgespielt.
 - Verbleibende M2-Abnahmekriterien noch zu pruefen: "Kein Strava-Token im
-  Browser" (Entwicklerwerkzeuge), Erstimport-Fortsetzung ohne Doppelimport
-  nach Browser-Neustart, Pause/Fortsetzung bei erschoepftem Tageskontingent,
-  vollstaendige Drive-Wiederherstellbarkeit nach Cache-Loeschung.
+  Browser" (Entwicklerwerkzeuge), Pause/Fortsetzung bei tatsaechlich
+  erschoepftem Tageskontingent (bisher nur die 15-Minuten-Drosselung
+  simuliert/getestet, nicht das echte Tageslimit), vollstaendige
+  Drive-Wiederherstellbarkeit nach Cache-Loeschung. Erstimport-Fortsetzung
+  ohne Doppelimport nach Unterbrechung ist bereits live verifiziert (s. o.).
 
 ## Ausgangslage
 
