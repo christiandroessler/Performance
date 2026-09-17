@@ -46,20 +46,42 @@ KV - server- und clientseitig verifiziert).
 IndexedDB-Cache und der inkrementelle/mehrtaegige Sync-Ablauf (Kap. 5.3,
 FA-SYNC-01 bis 05) sind jetzt ebenfalls implementiert (`web/src/idb.js`,
 `storage.js`, `streamCodec.js`, `syncEngine.js`, `sync.js`, `syncView.js` -
-siehe `web/README.md` fuer Ablageformat und Ablauf) und live erfolgreich
-getestet: Erstimport von 33 Aktivitaeten (30-Tage-Fenster), inkl. einer
-zwischendurch unterbrochenen und danach korrekt fortgesetzten Session ohne
-Doppelimporte (server- und clientseitig in Cloudflare KV verifiziert). Die
-Zustandsmaschine (`syncEngine.js`) ist zusaetzlich mit `node:test` gegen
-In-Memory-Fakes abgesichert, u. a. genau dieses Abbruch-/Fortsetzen-Szenario
+siehe `web/README.md` fuer Ablageformat und Ablauf). Die Zustandsmaschine
+(`syncEngine.js`) ist mit `node:test` gegen In-Memory-Fakes abgesichert
 (`web/test/syncEngine.test.js`). Bewusst **nicht** Teil dieser M2-Runde: die
 eigentliche Modellberechnung (Signaturverlauf, Breakthroughs,
 `model/*.json`) haengt noch nicht am Sync - das ist M3-Scope, dort auch
 gegen die M1-Ergebnisse verifiziert; keines der M2-Abnahmekriterien
 verlangt berechnete Kennzahlen.
 
-**Noch offen, bevor M2 als abgenommen gelten kann** (siehe
-`worker/README.md` fuer die Einrichtungsschritte):
+**M2-Abnahmekriterien (Lastenheft Kap. 10) - Stand 2026-09-17:**
+- [x] Onboarding eines frischen Kontos Ende-zu-Ende gemaess FA-AUTH-02 -
+      live gegen echte Google-/Cloudflare-/Strava-Dienste verifiziert
+      (Admin-Self-Bootstrap, Statusuebergaenge, verschluesseltes Token in KV).
+- [x] Im Browser ist kein Strava-Token vorhanden - live per
+      Entwicklerwerkzeuge bestaetigt: alle Strava-Netzwerk-Anfragen laufen
+      ausschliesslich ueber `performance-app-worker...workers.dev`, nie
+      direkt zu `strava.com`, Antworten ohne Token-Feld, Local Storage leer;
+      zusaetzlich per Code-Pruefung abgesichert (kein `strava.com`-Aufruf im
+      Frontend-Code).
+- [x] Der Erstimport setzt nach Schliessen des Browsers korrekt fort, ohne
+      Doppelimporte - live erlebt (33 Aktivitaeten, 30-Tage-Fenster,
+      zwischendurch unterbrochen und korrekt fortgesetzt) und als
+      Regressionstest abgesichert (`syncEngine.test.js`, deckt genau den
+      Absturz-Fall "saveIndex lief durch, Fortschritt noch nicht" ab).
+- [ ] Ist das Tageskontingent erreicht, pausiert der Import und laeuft am
+      Folgetag weiter - Code/Logik vorhanden und fuer die
+      15-Minuten-Drosselung getestet, das echte Tageslimit (4000/Tag) aber
+      noch nicht live ausgereizt (praktisch aufwendig zu erzwingen).
+- [x] Drive-Inhalte sind nach Loeschen des Browser-Caches vollstaendig
+      wiederherstellbar - live bestaetigt: nach "Clear site data" (Local
+      Storage, IndexedDB, Cookies) kamen alle 33 Aktivitaeten korrekt aus dem
+      Google-Drive-App-Ordner zurueck, ohne erneuten Erstimport-Dialog.
+- [x] Die Basis-URL ist konfigurierbar, Tokens werden nur im Header gesendet
+      (`STRAVA_AUTH_BASE_URL`/`STRAVA_API_BASE_URL` in `worker/wrangler.toml`,
+      `worker/src/strava.js`).
+
+**Noch offen, bevor M2 vollstaendig abgenommen ist:**
 - **Cloudflare Auto-Deploy an dieses GitHub-Repo anbinden** (aktuell
   manuelles `wrangler deploy` je Verzeichnis). Das laeuft ausschliesslich
   ueber das Cloudflare-Dashboard (OAuth-Zustimmung fuer die Cloudflare-
@@ -80,22 +102,9 @@ verlangt berechnete Kennzahlen.
      Teil des Repos/Builds).
   5. Test: einen Commit auf `main` pushen, in **Builds** pruefen, dass ein
      Deploy automatisch angestossen wird.
-- Der Sync-Code ist inzwischen gut automatisiert getestet
-  (`streamCodec.test.js`, `syncEngine.test.js`), aber `storage.js`/`idb.js`
-  selbst (die duennen Adapter auf IndexedDB/Drive) noch nicht gegen ein
-  Konto mit mehrjaehriger Trainingshistorie
-  durchgespielt.
-- Verbleibende M2-Abnahmekriterien noch zu pruefen: Pause/Fortsetzung bei
-  tatsaechlich erschoepftem Tageskontingent (bisher nur die
-  15-Minuten-Drosselung simuliert/getestet, nicht das echte Tageslimit),
-  vollstaendige Drive-Wiederherstellbarkeit nach Cache-Loeschung.
-  "Kein Strava-Token im Browser" ist am 2026-09-17 live per Entwicklerwerkzeuge
-  bestaetigt: alle Strava-bezogenen Netzwerk-Anfragen laufen ausschliesslich
-  ueber `performance-app-worker...workers.dev` (nie direkt zu `strava.com`),
-  Antworten enthalten kein Token-Feld, Local Storage ist leer - zusammen mit
-  der Code-Pruefung (kein `strava.com`-Aufruf im Frontend-Code) erfuellt.
-  Erstimport-Fortsetzung
-  ohne Doppelimport nach Unterbrechung ist bereits live verifiziert (s. o.).
+- Echtes Tageskontingent-Pause/Resume (s. o., eher ein theoretischer Punkt).
+- `storage.js`/`idb.js` noch nicht gegen ein Konto mit mehrjaehriger
+  Trainingshistorie durchgespielt (nur 30-Tage-Fenster bisher getestet).
 
 ## Ausgangslage
 
