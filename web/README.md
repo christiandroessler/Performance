@@ -16,7 +16,8 @@ Rohdaten-Sync (5.3, FA-SYNC-01 bis 05) ab.
 | `src/idb.js` | Generischer IndexedDB-Key-Value-Store (lokaler Cache) |
 | `src/storage.js` | Speicherschicht ueber `drive.js` + `idb.js`: schreibt zuerst nach Drive (fuehrend), spiegelt in den Cache; liest zuerst aus dem Cache, faellt sonst auf Drive zurueck und fuellt den Cache nach - macht "Drive-Inhalte nach Cache-Loeschung wiederherstellbar" automatisch wahr |
 | `src/streamCodec.js` | Ablageformat fuer `streams/YYYY-MM.bin` (M2-Festlegung, siehe unten) |
-| `src/sync.js` | Sync-Orchestrierung: Listing-Phase + Streams-Phase, Drosselungs-Pause/Resume, Fortschritt beim Worker |
+| `src/syncEngine.js` | Reine Sync-Zustandsmaschine (kein `window`/IndexedDB/Fetch) - Listing-Phase, Streams-Phase, Drosselungs-Pause/Resume, Dedup. Mit `node:test`+In-Memory-Fakes getestet (`test/syncEngine.test.js`) |
+| `src/sync.js` | Duenner Adapter: verdrahtet `syncEngine.js` mit `api.js`/`storage.js`/`streamCodec.js`/`window` |
 | `src/syncView.js` | UI: Erstimport-Zeitfenster waehlen, Fortschritt anzeigen, Drosselung/Fortsetzen |
 | `src/api.js` | Client fuer die Worker-API (sendet das ID-Token im Header) |
 | `src/onboarding.js` | Die 5 festen Onboarding-Schritte (FA-AUTH-02) |
@@ -75,17 +76,23 @@ Ablage, fuer Reproduzierbarkeit.
 
 ## Tests
 
-Reine Logik ohne Browser-APIs (`streamCodec.js`) ist mit `node:test`
-abgedeckt (Node 18+ hat `CompressionStream`/`DecompressionStream` bereits als
-globale Klassen, keine Extra-Pakete noetig):
+Reine Logik ohne Browser-APIs ist mit `node:test` abgedeckt (Node 18+ hat
+`CompressionStream`/`DecompressionStream` bereits als globale Klassen, keine
+Extra-Pakete noetig): `streamCodec.js` (Ablageformat) und `syncEngine.js`
+(Listing/Streams-Phasen, Drosselungs-Pause/Resume, Dedup-Schutz gegen
+Doppelimporte - inkl. eines Tests fuer genau den Absturz-Fall "saveIndex lief
+durch, Fortschritt noch nicht", der beim ersten echten Erstimport live
+aufgetreten ist):
 
 ```bash
 cd web && npm test
 ```
 
-`storage.js`/`sync.js`/`idb.js` brauchen echte Browser-APIs (IndexedDB,
-`fetch`, Drive-/Worker-Zugriff) und sind bisher nur manuell im Browser
-verifiziert, nicht automatisiert getestet.
+`storage.js`/`sync.js`/`idb.js` selbst sind nur duenne Adapter auf echte
+Browser-APIs (IndexedDB, `fetch`, Drive-/Worker-Zugriff, `window`) und bisher
+nur manuell im Browser verifiziert (erster Erstimport am 2026-09-17 erfolgreich:
+33 Aktivitaeten der letzten 30 Tage importiert, inkl. einer unterbrochenen und
+danach fortgesetzten Session ohne Duplikate).
 
 ## Lokal testen
 
