@@ -310,6 +310,14 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .calendar-day-activity { margin-top: 0.15rem; color: var(--text-faint); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .calendar-day-activity:hover { color: var(--accent-text); }
 
+/* Wochen-/Monatsuebersicht: TSS/Dauer/Distanz rechtsbuendig, damit die Zahlen sauber untereinander stehen
+   (unterschiedliche Ziffernzahl je Zeile sieht linksbuendig sonst "zerrissen" aus). */
+.stats-table th:nth-child(2), .stats-table td:nth-child(2),
+.stats-table th:nth-child(3), .stats-table td:nth-child(3),
+.stats-table th:nth-child(4), .stats-table td:nth-child(4) {
+  text-align: right;
+}
+
 /* ---------- Uebersicht: 3-Spalten-Dashboard (TrainingPeaks-Vorbild) ---------- */
 
 .dashboard-grid { display: grid; grid-template-columns: minmax(240px, 0.9fr) minmax(0, 1.8fr) minmax(260px, 1fr); gap: 1.25rem; align-items: start; }

@@ -26,17 +26,18 @@ export function monthsAgo(dateStr, n) {
   return d.toISOString().slice(0, 10);
 }
 
-/** Aktivitaeten nach ISO-Woche gruppiert, neueste zuerst. TSS/Dauer summiert, Anzahl je Sportart. */
+/** Aktivitaeten nach ISO-Woche gruppiert, neueste zuerst. TSS/Dauer/Distanz summiert, Anzahl je Sportart. */
 export function groupByWeek(activities) {
   const weeks = new Map();
   for (const a of activities) {
     const weekStart = mondayOf(a.date);
     if (!weeks.has(weekStart)) {
-      weeks.set(weekStart, { weekStart, weekEnd: addDays(weekStart, 6), totalTss: 0, totalDurationSec: 0, countsByType: {}, activities: [] });
+      weeks.set(weekStart, { weekStart, weekEnd: addDays(weekStart, 6), totalTss: 0, totalDurationSec: 0, totalDistanceM: 0, countsByType: {}, activities: [] });
     }
     const w = weeks.get(weekStart);
     w.totalTss += a.tss || 0;
     w.totalDurationSec += a.movingTimeSec || 0;
+    w.totalDistanceM += a.distanceM || 0;
     w.countsByType[a.type] = (w.countsByType[a.type] || 0) + 1;
     w.activities.push(a);
   }
@@ -49,11 +50,12 @@ export function groupByMonth(activities) {
   for (const a of activities) {
     const monthKey = a.date.slice(0, 7);
     if (!months.has(monthKey)) {
-      months.set(monthKey, { month: monthKey, totalTss: 0, totalDurationSec: 0, countsByType: {}, activities: [] });
+      months.set(monthKey, { month: monthKey, totalTss: 0, totalDurationSec: 0, totalDistanceM: 0, countsByType: {}, activities: [] });
     }
     const m = months.get(monthKey);
     m.totalTss += a.tss || 0;
     m.totalDurationSec += a.movingTimeSec || 0;
+    m.totalDistanceM += a.distanceM || 0;
     m.countsByType[a.type] = (m.countsByType[a.type] || 0) + 1;
     m.activities.push(a);
   }

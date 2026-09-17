@@ -4,16 +4,10 @@
 
 import { openActivityDetail } from './activityDetailView.js';
 import { groupByWeek, mondayOf } from './calendarUtils.js';
+import { formatDuration } from './format.js';
 
 const MEDAL_LABEL = { bronze: '🥉', silver: '🥈', gold: '🥇' };
 const PARAM_LABEL = { cp: 'TP', wPrimeJ: 'HIE', pMax: 'PP' };
-
-function formatDuration(sec) {
-  if (!sec) return '-';
-  const h = Math.floor(sec / 3600);
-  const m = Math.round((sec % 3600) / 60);
-  return h > 0 ? `${h}h ${m}min` : `${m}min`;
-}
 
 /** "Heute"-Karte (TrainingPeaks-Vorbild): die zuletzt importierte Aktivitaet, da wir keine geplanten Workouts haben. */
 export function renderRecentActivity(container, index) {

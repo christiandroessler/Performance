@@ -10,20 +10,9 @@ import { loadModelState } from './compute.js';
 import { readFile, readJson } from './storage.js';
 import { decodeBundle, streamFileName, pointsFromActivityBundle } from './streamCodec.js';
 import { downsample, downsampledBucketSize } from './chartUtils.js';
+import { formatDuration, formatDistance } from './format.js';
 
 const MEDAL_LABEL = { bronze: '🥉 Bronze', silver: '🥈 Silber', gold: '🥇 Gold' };
-
-function formatDuration(sec) {
-  if (!sec) return '-';
-  const h = Math.floor(sec / 3600);
-  const m = Math.round((sec % 3600) / 60);
-  return h > 0 ? `${h}h ${m}min` : `${m}min`;
-}
-
-function formatDistance(m) {
-  if (!m) return '-';
-  return `${(m / 1000).toFixed(1)} km`;
-}
 
 /** "1:23:45" bzw. "23:45" - Zeit im Training seit Start (nicht Uhrzeit). */
 function formatElapsed(sec) {

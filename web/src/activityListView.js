@@ -6,20 +6,9 @@
 
 import { openActivityDetail } from './activityDetailView.js';
 import { filterActivities } from './activityFilter.js';
+import { formatDuration, formatDistance } from './format.js';
 
 const MEDAL_LABEL = { bronze: '🥉', silver: '🥈', gold: '🥇' };
-
-function formatDuration(sec) {
-  if (!sec) return '-';
-  const h = Math.floor(sec / 3600);
-  const m = Math.round((sec % 3600) / 60);
-  return h > 0 ? `${h}h ${m}min` : `${m}min`;
-}
-
-function formatDistance(m) {
-  if (!m) return '-';
-  return `${(m / 1000).toFixed(1)} km`;
-}
 
 export function renderActivityList(container, index) {
   container.innerHTML = '';

@@ -5,16 +5,10 @@
 
 import { groupByWeek, groupByMonth, groupByDay, mondayOf, addDays, monthsAgo } from './calendarUtils.js';
 import { openActivityDetail } from './activityDetailView.js';
+import { formatDuration, formatDistance } from './format.js';
 
 const WEEKS_IN_DETAIL = 4;
 const MONTHS_BACK = 12;
-
-function formatDuration(sec) {
-  if (!sec) return '-';
-  const h = Math.floor(sec / 3600);
-  const m = Math.round((sec % 3600) / 60);
-  return h > 0 ? `${h}h ${m}min` : `${m}min`;
-}
 
 function formatWeekRange(weekStart, weekEnd) {
   const fmt = (dateStr) => new Date(`${dateStr}T00:00:00Z`).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
@@ -57,32 +51,33 @@ export function renderWeekOverview(container, index) {
   renderMonthTable(container, olderActivities);
 }
 
-function renderWeekTable(container, activities) {
+/** Gemeinsamer Tabellenaufbau fuer Wochen-/Monatsuebersicht - identische Spalten (Zeitraum, TSS, Dauer,
+ *  Distanz, Einheiten je Sportart), nur die Gruppierung (Woche vs. Monat) unterscheidet sich. */
+function renderStatsTable(container, { title, labelHeader, rows, emptyText }) {
   const box = document.createElement('div');
   box.className = 'card';
   container.appendChild(box);
 
   const header = document.createElement('div');
   header.className = 'card-header';
-  header.innerHTML = `<h2>Wochenübersicht (letzte ${WEEKS_IN_DETAIL} Wochen)</h2>`;
+  header.innerHTML = `<h2>${title}</h2>`;
   box.appendChild(header);
 
-  const weeks = groupByWeek(activities);
-  if (weeks.length === 0) {
+  if (rows.length === 0) {
     const p = document.createElement('p');
     p.className = 'hint';
-    p.textContent = 'Keine Aktivitäten in den letzten 4 Wochen.';
+    p.textContent = emptyText;
     box.appendChild(p);
     return;
   }
 
   const table = document.createElement('table');
-  table.className = 'data-table';
-  table.innerHTML = '<thead><tr><th>Woche</th><th>TSS</th><th>Dauer</th><th>Einheiten je Sportart</th></tr></thead>';
+  table.className = 'data-table stats-table';
+  table.innerHTML = `<thead><tr><th>${labelHeader}</th><th>TSS</th><th>Dauer</th><th>Distanz</th><th>Einheiten je Sportart</th></tr></thead>`;
   const tbody = document.createElement('tbody');
-  for (const w of weeks) {
+  for (const r of rows) {
     const tr = document.createElement('tr');
-    const cells = [formatWeekRange(w.weekStart, w.weekEnd), String(Math.round(w.totalTss)), formatDuration(w.totalDurationSec), sportSummaryOf(w.countsByType)];
+    const cells = [r.label, String(Math.round(r.totalTss)), formatDuration(r.totalDurationSec), formatDistance(r.totalDistanceM), sportSummaryOf(r.countsByType)];
     for (const c of cells) {
       const td = document.createElement('td');
       td.textContent = c;
@@ -94,41 +89,24 @@ function renderWeekTable(container, activities) {
   box.appendChild(table);
 }
 
+function renderWeekTable(container, activities) {
+  const weeks = groupByWeek(activities);
+  renderStatsTable(container, {
+    title: `Wochenübersicht (letzte ${WEEKS_IN_DETAIL} Wochen)`,
+    labelHeader: 'Woche',
+    rows: weeks.map((w) => ({ label: formatWeekRange(w.weekStart, w.weekEnd), totalTss: w.totalTss, totalDurationSec: w.totalDurationSec, totalDistanceM: w.totalDistanceM, countsByType: w.countsByType })),
+    emptyText: 'Keine Aktivitäten in den letzten 4 Wochen.',
+  });
+}
+
 function renderMonthTable(container, activities) {
-  const box = document.createElement('div');
-  box.className = 'card';
-  container.appendChild(box);
-
-  const header = document.createElement('div');
-  header.className = 'card-header';
-  header.innerHTML = `<h2>Monatsübersicht (bis ${MONTHS_BACK} Monate zurück)</h2>`;
-  box.appendChild(header);
-
   const months = groupByMonth(activities);
-  if (months.length === 0) {
-    const p = document.createElement('p');
-    p.className = 'hint';
-    p.textContent = 'Keine älteren Aktivitäten in diesem Zeitraum.';
-    box.appendChild(p);
-    return;
-  }
-
-  const table = document.createElement('table');
-  table.className = 'data-table';
-  table.innerHTML = '<thead><tr><th>Monat</th><th>TSS</th><th>Dauer</th><th>Einheiten je Sportart</th></tr></thead>';
-  const tbody = document.createElement('tbody');
-  for (const m of months) {
-    const tr = document.createElement('tr');
-    const cells = [formatMonthLabel(m.month), String(Math.round(m.totalTss)), formatDuration(m.totalDurationSec), sportSummaryOf(m.countsByType)];
-    for (const c of cells) {
-      const td = document.createElement('td');
-      td.textContent = c;
-      tr.appendChild(td);
-    }
-    tbody.appendChild(tr);
-  }
-  table.appendChild(tbody);
-  box.appendChild(table);
+  renderStatsTable(container, {
+    title: `Monatsübersicht (bis ${MONTHS_BACK} Monate zurück)`,
+    labelHeader: 'Monat',
+    rows: months.map((m) => ({ label: formatMonthLabel(m.month), totalTss: m.totalTss, totalDurationSec: m.totalDurationSec, totalDistanceM: m.totalDistanceM, countsByType: m.countsByType })),
+    emptyText: 'Keine älteren Aktivitäten in diesem Zeitraum.',
+  });
 }
 
 function renderMonthCalendar(container, activities) {
