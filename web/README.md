@@ -31,7 +31,8 @@ selbst wird vor jedem Deploy nach `web/vendor/core/src` kopiert (siehe
 | `scripts/sync-core.mjs` | Kopiert `core/src` nach `web/vendor/core/src` (`npm run sync-core`, laeuft automatisch vor `npm test`/`npm run dev`/`npm run deploy`) |
 | `src/calcWorker.js` | Web Worker (NFA-04): ruft `core/prepareActivity` + `computeSignatureHistory` unveraendert auf, liefert nur aggregierte Ergebnisse zurueck (keine Sekunden-Streams) |
 | `src/compute.js` | Laedt alle Rohdaten (index.json + streams/\*.bin), schickt sie an den Worker, schreibt `model/signature-history.json` + `model/mmp-curves.json`, schreibt Kennzahlen in `index.json` zurueck. `discardBreakthrough`/`reactivateBreakthrough` (FA-SIG-07) |
-| `src/activityListView.js` | FA-ACT-01: Aktivitaetsliste, sortier-/filterbar, Klick auf Zeile oeffnet die Detailansicht |
+| `src/activityListView.js` | FA-ACT-01: Aktivitaetsliste, sortierbar, Suche (Name) + Filter (Sportart, Zeitraum von/bis), Klick auf Zeile oeffnet die Detailansicht |
+| `src/activityFilter.js` | Reine Filterlogik fuer die Aktivitaetsliste (Suche/Sportart/Zeitraum) - ohne Browser-Abhaengigkeit, testbar mit `node:test` |
 | `src/activityDetailView.js` | FA-ACT-02: Detailansicht (Modal) - Leistungs-/Puls-/Kadenz-Verlauf, MPA und W'bal (per `signatureAtDate`), Belastungsanteile (Strain Low/High/Peak), Kennzahlen. Rechnet direkt im Hauptfenster, kein Worker (eine Aktivitaet ist klein genug) |
 | `src/chartUtils.js` | Reine Chart-Hilfsfunktionen (Downsampling fuer lange Sekunden-Arrays) - bewusst von `activityDetailView.js` getrennt, damit ohne Browser-Abhaengigkeit mit `node:test` testbar |
 | `src/powerCurveView.js` | FA-ACT-03: Leistungskurve/persoenliche Bestwerte, waehlbarer Zeitraum, optional W/kg |

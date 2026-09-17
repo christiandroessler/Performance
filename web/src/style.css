@@ -205,6 +205,11 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .btn-row { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; }
 
+.filter-row { margin-bottom: 0.5rem; }
+.filter-row input[type='search'] { min-width: 220px; flex: 1 1 220px; }
+.filter-date-label { flex-direction: row; align-items: center; gap: 0.4rem; margin-bottom: 0; font-size: 0.78rem; color: var(--text-muted); }
+.filter-date-label input[type='date'] { min-height: 40px; }
+
 /* ---------- Tabellen ---------- */
 
 .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }

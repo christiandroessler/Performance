@@ -5,6 +5,7 @@
 // Anzeigen. Klick auf eine Zeile oeffnet die Detailansicht (FA-ACT-02).
 
 import { openActivityDetail } from './activityDetailView.js';
+import { filterActivities } from './activityFilter.js';
 
 const MEDAL_LABEL = { bronze: '🥉', silver: '🥈', gold: '🥇' };
 
@@ -41,7 +42,13 @@ export function renderActivityList(container, index) {
 
   const sportTypes = [...new Set(index.activities.map((a) => a.type))].sort();
   const controls = document.createElement('div');
-  controls.style.marginBottom = '0.75rem';
+  controls.className = 'btn-row filter-row';
+
+  const searchInput = document.createElement('input');
+  searchInput.type = 'search';
+  searchInput.placeholder = 'Suche nach Name...';
+  controls.appendChild(searchInput);
+
   const sportSelect = document.createElement('select');
   const allOption = document.createElement('option');
   allOption.value = '';
@@ -54,7 +61,40 @@ export function renderActivityList(container, index) {
     sportSelect.appendChild(opt);
   }
   controls.appendChild(sportSelect);
+
+  const fromLabel = document.createElement('label');
+  fromLabel.className = 'filter-date-label';
+  fromLabel.textContent = 'von';
+  const fromInput = document.createElement('input');
+  fromInput.type = 'date';
+  fromLabel.appendChild(fromInput);
+  controls.appendChild(fromLabel);
+
+  const toLabel = document.createElement('label');
+  toLabel.className = 'filter-date-label';
+  toLabel.textContent = 'bis';
+  const toInput = document.createElement('input');
+  toInput.type = 'date';
+  toLabel.appendChild(toInput);
+  controls.appendChild(toLabel);
+
+  const resetBtn = document.createElement('button');
+  resetBtn.className = 'btn-ghost';
+  resetBtn.textContent = 'Filter zuruecksetzen';
+  resetBtn.onclick = () => {
+    searchInput.value = '';
+    sportSelect.value = '';
+    fromInput.value = '';
+    toInput.value = '';
+    render();
+  };
+  controls.appendChild(resetBtn);
+
   box.appendChild(controls);
+
+  const resultCount = document.createElement('p');
+  resultCount.className = 'hint';
+  box.appendChild(resultCount);
 
   const table = document.createElement('table');
   table.className = 'data-table';
@@ -94,7 +134,13 @@ export function renderActivityList(container, index) {
     thead.appendChild(tr);
     table.appendChild(thead);
 
-    const filtered = sportSelect.value ? index.activities.filter((a) => a.type === sportSelect.value) : index.activities.slice();
+    const filtered = filterActivities(index.activities, {
+      query: searchInput.value,
+      type: sportSelect.value,
+      fromDate: fromInput.value,
+      toDate: toInput.value,
+    });
+    resultCount.textContent = `${filtered.length} von ${index.activities.length} Aktivitäten`;
     filtered.sort((a, b) => {
       const av = a[sortKey] ?? -Infinity;
       const bv = b[sortKey] ?? -Infinity;
@@ -128,5 +174,8 @@ export function renderActivityList(container, index) {
   }
 
   sportSelect.onchange = render;
+  searchInput.oninput = render;
+  fromInput.onchange = render;
+  toInput.onchange = render;
   render();
 }
