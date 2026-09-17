@@ -136,6 +136,15 @@ einem Web Worker (NFA-04), gefuettert mit den in M2 abgelegten Rohdaten:
   Lexxi-App des Auftraggebers), Kopfzeile mit angemeldetem Nutzer, Tab-
   Navigation statt einer langen Scroll-Seite, Leistungssignatur-Kacheln
   (CP/W'/Pmax) in der Uebersicht.
+- Uebersicht als 3-Spalten-Dashboard nach TrainingPeaks-Vorbild
+  (2026-09-18, Screenshot-Abgleich mit dem TP-Account des Auftraggebers):
+  links Leistungssignatur + Wochen-Zusammenfassung, Mitte letzte Aktivitaet
+  + PMC-Chart, rechts Performance-Metrics-Kacheln (Fatigue/Fitness/Form) +
+  Fitness Ramp Rates (7/28/90/365 Tage) + neueste Breakthroughs. Kein
+  Pendant zu TPs geplanten Workouts, da wir keine Trainingsplanung haben -
+  "Letzte Aktivitaet" ersetzt das dortige "Today"-Widget. Zusaetzlich ein
+  Hell-/Dunkelmodus-Umschalter in der Kopfzeile (je Geraet in
+  `localStorage` gemerkt).
 - "Mehr Historie laden" (Backfill, s. u. Sync-Ablauf) loest den Fall, dass
   ein Erstimport mit kurzem Fenster nie die 90-Tage-Startsignatur-Schwelle
   erreicht.

@@ -4,16 +4,26 @@
 // jedem Seitenaufruf automatisch wiederholt (kann bei langer Historie
 // spuerbar dauern) - nur beim allerersten Mal (noch kein model-File) und auf
 // Knopfdruck (z. B. nach einem Sync mit neuen Aktivitaeten).
+//
+// Uebersicht-Redesign 2026-09: 3-Spalten-Layout nach TrainingPeaks-Vorbild
+// (Screenshot des Auftraggebers) - links Signatur/Wochen-Zusammenfassung,
+// Mitte letzte Aktivitaet + PMC-Chart, rechts Performance-Metrics-Kacheln +
+// Ramp Rates + neueste Breakthroughs. Da wir keine geplanten Workouts haben
+// (kein TrainingPeaks-Import dafuer vorgesehen), ersetzt "Letzte Aktivitaet"
+// das dortige "Today"-Workout-Widget.
 
 import { loadIndex } from './sync.js';
 import { loadModelState, recomputeAll } from './compute.js';
 import { renderActivityList } from './activityListView.js';
-import { renderPmc } from './pmcView.js';
+import { computePmcSeries, renderMetricsSidebar, renderPmcChart } from './pmcView.js';
 import { renderBreakthroughs } from './breakthroughView.js';
 import { renderPowerCurve } from './powerCurveView.js';
 import { renderWeekOverview } from './weekView.js';
+import { renderRecentActivity, renderThisWeekSummary, renderRecentBreakthroughs } from './dashboardExtras.js';
 
 export async function renderDashboard({ overviewContainer, activitiesContainer, weeksContainer, powerCurveContainer, breakthroughsContainer }) {
+  overviewContainer.innerHTML = '';
+
   const statusCard = document.createElement('div');
   statusCard.className = 'card';
   overviewContainer.appendChild(statusCard);
@@ -32,11 +42,34 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
   const statusP = document.createElement('p');
   statusCard.appendChild(statusP);
 
-  const signatureContainer = document.createElement('div');
-  overviewContainer.appendChild(signatureContainer);
+  const grid = document.createElement('div');
+  grid.className = 'dashboard-grid';
+  overviewContainer.appendChild(grid);
 
-  const pmcContainer = document.createElement('div');
-  overviewContainer.appendChild(pmcContainer);
+  const leftCol = document.createElement('div');
+  leftCol.className = 'dashboard-col';
+  const middleCol = document.createElement('div');
+  middleCol.className = 'dashboard-col dashboard-col-main';
+  const rightCol = document.createElement('div');
+  rightCol.className = 'dashboard-col';
+  grid.appendChild(leftCol);
+  grid.appendChild(middleCol);
+  grid.appendChild(rightCol);
+
+  const signatureContainer = document.createElement('div');
+  const thisWeekContainer = document.createElement('div');
+  leftCol.appendChild(signatureContainer);
+  leftCol.appendChild(thisWeekContainer);
+
+  const recentActivityContainer = document.createElement('div');
+  const pmcChartContainer = document.createElement('div');
+  middleCol.appendChild(recentActivityContainer);
+  middleCol.appendChild(pmcChartContainer);
+
+  const metricsSidebarContainer = document.createElement('div');
+  const recentBreakthroughsContainer = document.createElement('div');
+  rightCol.appendChild(metricsSidebarContainer);
+  rightCol.appendChild(recentBreakthroughsContainer);
 
   async function refresh() {
     const index = await loadIndex();
@@ -47,7 +80,12 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
     statusP.textContent = uncomputed > 0 ? `${uncomputed} Aktivität(en) noch ohne berechnete Kennzahlen - "Kennzahlen neu berechnen" klicken.` : 'Alle Aktivitäten sind berechnet.';
 
     renderSignatureTiles(signatureContainer, modelState);
-    renderPmc(pmcContainer, index, modelState);
+    renderThisWeekSummary(thisWeekContainer, index);
+    renderRecentActivity(recentActivityContainer, index);
+    const pmcSeries = computePmcSeries(index, modelState);
+    renderPmcChart(pmcChartContainer, pmcSeries);
+    renderMetricsSidebar(metricsSidebarContainer, pmcSeries);
+    renderRecentBreakthroughs(recentBreakthroughsContainer, modelState);
     renderActivityList(activitiesContainer, index);
     renderWeekOverview(weeksContainer, index);
     await renderPowerCurve(powerCurveContainer);

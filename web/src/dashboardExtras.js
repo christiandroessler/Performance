@@ -1,0 +1,129 @@
+// Uebersicht-Redesign 2026-09 (TrainingPeaks-Vorbild): kleinere Karten fuer
+// die Uebersicht-Seite, die bereits vorhandene Daten (index.json, modelState)
+// nur zusammenfassend darstellen - keine eigene Berechnung.
+
+import { openActivityDetail } from './activityDetailView.js';
+import { groupByWeek, mondayOf } from './calendarUtils.js';
+
+const MEDAL_LABEL = { bronze: '🥉', silver: '🥈', gold: '🥇' };
+const PARAM_LABEL = { cp: 'TP', wPrimeJ: 'HIE', pMax: 'PP' };
+
+function formatDuration(sec) {
+  if (!sec) return '-';
+  const h = Math.floor(sec / 3600);
+  const m = Math.round((sec % 3600) / 60);
+  return h > 0 ? `${h}h ${m}min` : `${m}min`;
+}
+
+/** "Heute"-Karte (TrainingPeaks-Vorbild): die zuletzt importierte Aktivitaet, da wir keine geplanten Workouts haben. */
+export function renderRecentActivity(container, index) {
+  container.innerHTML = '';
+  const box = document.createElement('div');
+  box.className = 'card';
+  container.appendChild(box);
+
+  const header = document.createElement('div');
+  header.className = 'card-header';
+  header.innerHTML = '<h2>Letzte Aktivität</h2>';
+  box.appendChild(header);
+
+  if (index.activities.length === 0) {
+    const p = document.createElement('p');
+    p.textContent = 'Noch keine Aktivitäten importiert.';
+    box.appendChild(p);
+    return;
+  }
+
+  const a = index.activities[index.activities.length - 1]; // index.json ist chronologisch aufsteigend sortiert
+  const title = document.createElement('p');
+  title.className = 'lede';
+  title.textContent = `${a.name || a.type} · ${a.date}`;
+  box.appendChild(title);
+
+  const grid = document.createElement('div');
+  grid.className = 'stat-grid';
+  grid.innerHTML = `
+    <div class="stat-tile"><span class="stat-tile-label">Sportart</span><span class="stat-tile-value">${a.type}</span></div>
+    <div class="stat-tile"><span class="stat-tile-label">Dauer</span><span class="stat-tile-value">${formatDuration(a.movingTimeSec)}</span></div>
+    ${a.tss != null ? `<div class="stat-tile accent"><span class="stat-tile-label">TSS</span><span class="stat-tile-value">${a.tss}</span></div>` : ''}
+  `;
+  box.appendChild(grid);
+
+  const link = document.createElement('button');
+  link.className = 'btn-ghost';
+  link.style.marginTop = '0.75rem';
+  link.textContent = 'Details ansehen →';
+  link.onclick = () => openActivityDetail(a.id);
+  box.appendChild(link);
+}
+
+/** "Diese Woche"-Karte: kompakte Zusammenfassung der laufenden ISO-Woche (wiederverwendet calendarUtils#groupByWeek). */
+export function renderThisWeekSummary(container, index) {
+  container.innerHTML = '';
+  const box = document.createElement('div');
+  box.className = 'card';
+  container.appendChild(box);
+
+  const header = document.createElement('div');
+  header.className = 'card-header';
+  header.innerHTML = '<h2>Diese Woche</h2>';
+  box.appendChild(header);
+
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const currentWeekStart = mondayOf(todayIso);
+  const week = groupByWeek(index.activities).find((w) => w.weekStart === currentWeekStart);
+
+  const sportSummary = week
+    ? Object.entries(week.countsByType)
+        .sort((a, b) => b[1] - a[1])
+        .map(([type, count]) => `${type} ${count}`)
+        .join(' · ')
+    : 'Noch keine Einheiten diese Woche';
+
+  const grid = document.createElement('div');
+  grid.className = 'stat-grid';
+  grid.innerHTML = `
+    <div class="stat-tile accent"><span class="stat-tile-label">TSS</span><span class="stat-tile-value">${week ? Math.round(week.totalTss) : 0}</span></div>
+    <div class="stat-tile"><span class="stat-tile-label">Dauer</span><span class="stat-tile-value">${formatDuration(week ? week.totalDurationSec : 0)}</span></div>
+  `;
+  box.appendChild(grid);
+
+  const p = document.createElement('p');
+  p.className = 'hint';
+  p.style.marginTop = '0.5rem';
+  p.textContent = sportSummary;
+  box.appendChild(p);
+}
+
+/** Rechte-Spalte-Karte, TrainingPeaks-"Peak Performances"-Vorbild: hier die zuletzt erreichten Signatur-Breakthroughs (Medaillen). */
+export function renderRecentBreakthroughs(container, modelState) {
+  container.innerHTML = '';
+  const box = document.createElement('div');
+  box.className = 'card';
+  container.appendChild(box);
+
+  const header = document.createElement('div');
+  header.className = 'card-header';
+  header.innerHTML = '<h2>Neueste Breakthroughs</h2>';
+  box.appendChild(header);
+
+  const active = (modelState.breakthroughs || []).filter((bt) => !bt.discarded && bt.medal);
+  if (active.length === 0) {
+    const p = document.createElement('p');
+    p.className = 'hint';
+    p.textContent = 'Bisher keine Breakthroughs erkannt.';
+    box.appendChild(p);
+    return;
+  }
+
+  const list = document.createElement('div');
+  list.className = 'breakthrough-mini-list';
+  for (const bt of [...active].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5)) {
+    const row = document.createElement('div');
+    row.className = 'breakthrough-mini-row';
+    const risenLabels = bt.risen.map((k) => PARAM_LABEL[k] || k).join(', ');
+    row.innerHTML = `<span>${MEDAL_LABEL[bt.medal]}</span><span class="breakthrough-mini-date">${bt.date}</span><span class="hint">${risenLabels} gestiegen</span>`;
+    list.appendChild(row);
+  }
+  box.appendChild(list);
+}

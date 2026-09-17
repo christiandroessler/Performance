@@ -10,7 +10,29 @@ import { renderDashboard } from './dashboardView.js';
 
 const app = document.getElementById('app');
 
+applyStoredTheme(); // vor dem ersten Render, damit kein kurzes Dunkel-Aufblitzen im Hellmodus entsteht
+
 main().catch(showFatalError);
+
+/** Heller/dunkler Modus ist eine reine Anzeigepraeferenz je Geraet, daher localStorage statt Drive/Settings. */
+function applyStoredTheme() {
+  try {
+    if (localStorage.getItem('theme') === 'light') document.documentElement.dataset.theme = 'light';
+  } catch {
+    // localStorage kann in seltenen Faellen (privater Modus etc.) fehlschlagen - dann bleibt es beim Dunkelmodus.
+  }
+}
+
+function toggleTheme() {
+  const isLight = document.documentElement.dataset.theme === 'light';
+  if (isLight) delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = 'light';
+  try {
+    localStorage.setItem('theme', isLight ? 'dark' : 'light');
+  } catch {
+    // s. o.
+  }
+}
 
 async function main() {
   renderSignIn();
@@ -182,6 +204,19 @@ function buildHeader() {
       <span class="user-status"><span class="status-dot"></span>Angemeldet</span>
     </div>
   `;
+  const themeBtn = document.createElement('button');
+  themeBtn.className = 'btn-ghost theme-toggle-btn';
+  const setThemeBtnLabel = () => {
+    themeBtn.textContent = document.documentElement.dataset.theme === 'light' ? '🌙' : '☀️';
+    themeBtn.title = document.documentElement.dataset.theme === 'light' ? 'Dunkler Modus' : 'Heller Modus';
+  };
+  setThemeBtnLabel();
+  themeBtn.onclick = () => {
+    toggleTheme();
+    setThemeBtnLabel();
+  };
+  chip.appendChild(themeBtn);
+
   const signOutBtn = document.createElement('button');
   signOutBtn.className = 'btn-ghost';
   signOutBtn.textContent = 'Abmelden';
