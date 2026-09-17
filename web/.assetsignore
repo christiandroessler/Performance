@@ -3,4 +3,5 @@ wrangler.jsonc
 README.md
 package.json
 test/
+scripts/
 node_modules/

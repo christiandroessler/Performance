@@ -5,6 +5,7 @@ import { signInWithGoogle, getSignedInEmail } from './auth.js';
 import { fetchSession } from './api.js';
 import { renderOnboarding, loadOrInitSettings } from './onboarding.js';
 import { renderSyncView } from './syncView.js';
+import { renderDashboard } from './dashboardView.js';
 
 const app = document.getElementById('app');
 
@@ -85,9 +86,13 @@ function renderAppShell(settings) {
   h.textContent = `Willkommen, ${getSignedInEmail() || ''}`;
   app.appendChild(h);
   const p = document.createElement('p');
-  p.textContent = `Gewicht: ${settings.weightKg} kg. Kennzahlen/Diagramme folgen in M3.`;
+  p.textContent = `Gewicht: ${settings.weightKg} kg.`;
   app.appendChild(p);
   renderSyncView(app).catch(showFatalError);
+
+  const dashboardContainer = document.createElement('div');
+  app.appendChild(dashboardContainer);
+  renderDashboard(dashboardContainer).catch(showFatalError);
 }
 
 function showFatalError(err) {
