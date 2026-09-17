@@ -86,25 +86,26 @@ verlangt berechnete Kennzahlen.
   Projekte (`performance-app-worker`, `performance-app-web`) sind seit
   2026-09-17 im Cloudflare-Dashboard mit dem GitHub-Repo verbunden
   (Settings -> Builds -> Connect to Git), inkl. korrekter Root-directory/
-  Deploy-command je Projekt (siehe unten). Stolperstein beim Einrichten:
-  Cloudflare setzt **Root directory** standardmaessig auf `/` (Repo-Root)
-  vor - dort liegt aber kein `package.json`, der erste Build schlug deshalb
-  fehl, bis das Feld manuell auf `performance-app/worker` bzw.
-  `performance-app/web` korrigiert wurde. Ausserdem baut Cloudflare nur bei
-  einem **neuen** Push nach dem Verbinden - ein bereits vor dem Verbinden
-  vorhandener Commit auf `main` loest keinen Build aus.
+  Deploy-command je Projekt (siehe unten). Zwei Stolpersteine beim
+  Einrichten: (1) Cloudflare setzt **Root directory** standardmaessig auf
+  `/` (Repo-Root) vor - dort liegt aber kein `package.json`, der erste
+  Build schlug deshalb fehl. (2) Das GitHub-Repo hat `performance-app`
+  selbst als Wurzel (nicht als Unterordner darin) - `worker`/`web` liegen
+  direkt im Repo-Root, **ohne** `performance-app/`-Praefix. Ausserdem baut
+  Cloudflare nur bei einem **neuen** Push nach dem Verbinden - ein bereits
+  vor dem Verbinden vorhandener Commit auf `main` loest keinen Build aus.
   1. dash.cloudflare.com -> **Workers & Pages** -> Projekt
      `performance-app-worker` oeffnen -> **Settings** -> **Builds** ->
      **Connect to Git** -> Repo `christiandroessler/Performance`
      auswaehlen, GitHub-App-Zugriff erlauben.
-  2. Build-Konfiguration: **Root directory** = `performance-app/worker`
-     (nicht `/` stehen lassen!), Build-Befehl leer lassen (kein Bundling
+  2. Build-Konfiguration: **Root directory** = `worker` (nicht `/`, nicht
+     `performance-app/worker`!), Build-Befehl leer lassen (kein Bundling
      noetig), Deploy-Befehl `npx wrangler deploy` (Standard).
   3. Gleiches Vorgehen fuer Projekt `performance-app-web`, **Root
-     directory** = `performance-app/web` (nicht `/`), Deploy-Befehl
-     **`npm run deploy`** (nicht `npx wrangler deploy` direkt) - das synct
-     vorher `core/src` (M1) nach `web/vendor/core/src`, siehe
-     `web/README.md`.
+     directory** = `web` (nicht `/`, nicht `performance-app/web`),
+     Deploy-Befehl **`npm run deploy`** (nicht `npx wrangler deploy`
+     direkt) - das synct vorher `core/src` (M1) nach `web/vendor/core/src`,
+     siehe `web/README.md`.
   4. Nach dem Verbinden: Secrets (`STRAVA_CLIENT_SECRET`,
      `TOKEN_ENCRYPTION_KEY`) sind bereits per `wrangler secret put` auf dem
      Worker gesetzt und bleiben bei Git-Deploys erhalten (Secrets sind nicht

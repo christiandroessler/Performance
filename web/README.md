@@ -141,12 +141,12 @@ erscheint), aber die eigentliche Anmeldung schlaegt fehl - dafuer muss
 
 ## Deployment
 
-Aktuell manuell: `cd web && npm run deploy` (synct zuerst `core/src` nach
-`vendor/`, dann `wrangler deploy`). Geplant: Cloudflare Workers Builds mit
-diesem GitHub-Repo verbinden (Auto-Deploy) - Root-Verzeichnis
-`performance-app/web`, Deploy-Befehl `npm run deploy` (nicht
-`npx wrangler deploy` direkt, sonst fehlt ggf. der `vendor/`-Sync), siehe
-Anleitung im Root-`README.md`.
+Seit 2026-09-17 per Cloudflare Workers Builds an dieses GitHub-Repo
+angebunden (Auto-Deploy bei jedem Push auf `main`) - Root-Verzeichnis
+`web` (nicht `performance-app/web`, das Repo hat `performance-app` selbst
+als Wurzel), Deploy-Befehl `npm run deploy` (nicht `npx wrangler deploy`
+direkt, sonst fehlt der `vendor/`-Sync). Manuell geht weiterhin
+`cd web && npm run deploy`. Siehe Anleitung im Root-`README.md`.
 
 ## Sicherheitsmodell
 
