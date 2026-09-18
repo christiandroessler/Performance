@@ -69,8 +69,13 @@ test('Nebenbedingungs-Korrektur laeuft bei unerfuellbaren Daten nicht unbegrenzt
   // MPA = Pmax - (Pmax-CP)*1 = CP). Die Korrektur hebt in diesem Fall CP an
   // (nicht Pmax) - bei einem echten Datenfehler mit 2600 W dauerhaft nach
   // Entladung muesste CP auf > 2500 W steigen, weit ueber jede plausible
-  // Grenze, also greift die CP-Obergrenze genauso wie zuvor die Pmax-Grenze
-  // (Pmax lief im echten Datensatz vor diesem Fix auf 65147 W hoch).
+  // Grenze. Seit der relativen Korrekturgrenze (`maxMpaCorrectionPct`,
+  // eingefuehrt nach einem zweiten realen Ueberschaetzungs-Fall, siehe
+  // core/README.md "Relative Korrekturgrenze") greift hier bereits die
+  // ENGERE relative Grenze (250*1.2=300W) statt der absoluten
+  // maxPlausibleCp=600W - das Endergebnis bleibt trotzdem klar erkennbar
+  // unplausibel/`constraintUnsatisfied`, nur naeher an den echten Daten
+  // (Pmax lief im echten Datensatz vor dem urspruenglichen Fix auf 65147 W hoch).
   const settings = mergeSettings();
   const n = 3600; // 1h konstant weit ueber CP -> W'bal vollstaendig entladen, bleibt dort
   const watts = new Float64Array(n).fill(2600);
@@ -97,11 +102,16 @@ test('Nebenbedingungs-Korrektur laeuft bei unerfuellbaren Daten nicht unbegrenzt
     settings,
   });
 
+  const expectedCpCeiling = Math.min(settings.maxPlausibleCp, activeSignature.cp * (1 + settings.maxMpaCorrectionPct));
+  const expectedPMaxCeiling = Math.min(settings.maxPlausiblePMax, activeSignature.pMax * (1 + settings.maxMpaCorrectionPct));
   assert.equal(result.constraintUnsatisfied, true);
-  assert.equal(result.signature.cp, settings.maxPlausibleCp);
-  assert.equal(result.signature.pMax, settings.maxPlausiblePMax);
-  assert.ok(result.signature.pMax <= settings.maxPlausiblePMax);
-  assert.ok(result.signature.cp <= settings.maxPlausibleCp);
+  assert.equal(result.signature.cp, expectedCpCeiling, `cp sollte exakt an der (engeren) relativen Grenze ${expectedCpCeiling} stehen bleiben`);
+  // pMax muss die relative Grenze nicht zwingend AUSSCHOEPFEN (die Schleife kann vorher mit
+  // konstantem cp an der Grenze abbrechen, sobald der cp-Hebel selbst ausgereizt ist und der
+  // pMax-Hebel bei voller Entladung ohnehin kaum noch wirkt) - entscheidend ist, dass sie NICHT
+  // die alte absolute Grenze (3000W) erreicht.
+  assert.ok(result.signature.pMax <= expectedPMaxCeiling + 1, `pMax=${result.signature.pMax} sollte die relative Grenze ${expectedPMaxCeiling} nicht ueberschreiten`);
+  assert.ok(result.signature.pMax < settings.maxPlausiblePMax, `pMax=${result.signature.pMax} sollte klar unter der alten absoluten Grenze bleiben`);
 
   // Transparenz-Ergaenzung (siehe signature.js#rawFit, breakthroughView.js#correctionNote):
   // das rohe Regressionsergebnis (result.fit, unveraendert von fitMortonRobust) bleibt deutlich
@@ -187,4 +197,48 @@ test('Nebenbedingung hebt CP (nicht nur Pmax) an, wenn ein Breakthrough-Fenster 
   assert.equal(result.constraintUnsatisfied, false);
   assert.ok(result.signature.cp > 255, `cp=${result.signature.cp} sollte spuerbar ueber der alten CP=250 liegen`);
   assert.ok(result.signature.cp < 400, `cp=${result.signature.cp} sollte plausibel bleiben`);
+});
+
+test('maxMpaCorrectionPct: eine Pmax-Korrektur weit ueber 20% wird gekappt und als constraintUnsatisfied markiert, statt bis zur absoluten Grenze durchzulaufen (echter PP-Ueberschaetzungs-Fall, siehe core/README.md)', () => {
+  // Frisches W'bal (keine volle Entladung) mit einem kurzen, isolierten
+  // Spitzenwert weit ueber dem, was der eigentliche Fit hergibt - der
+  // Pmax-Hebel muesste weit ueber 20 % Anstieg gehen, um die Bedingung zu
+  // erfuellen. Vor maxMpaCorrectionPct waere das (absolute Grenze 3000W)
+  // klaglos durchgelaufen und constraintUnsatisfied waere false geblieben -
+  // genau der Mechanismus, der am echten Datensatz des Auftraggebers Pmax
+  // wiederholt auf 150-570% ueber den rohen Fit trieb (core/README.md,
+  // "Relative Korrekturgrenze"). Die Stuetzpunkte hier ergeben einen Fit
+  // klar UNTER der aktiven Signatur, die Absenkbremse greift zuerst (auf
+  // 950W, 5 % unter der aktiven Pmax=1000W mangels Stuetzung) - die
+  // Korrekturgrenze gilt relativ zu DIESEM gebremsten Wert (950*1,2=1140W),
+  // nicht zur urspruenglichen aktiven Signatur.
+  const settings = mergeSettings();
+  const n = 600;
+  const watts = new Float64Array(n).fill(150); // meiste Zeit weit unter CP, W'bal bleibt fast voll
+  for (let i = 0; i < 5; i++) watts[i] = 2500; // kurzer, aber sehr hoher Spitzenwert direkt zu Beginn (W'bal ~voll)
+  const mask = new Uint8Array(n).fill(1);
+
+  const activeSignature = { cp: 250, wPrimeJ: 20000, pMax: 1000 };
+  const nearMpaPts = [
+    { t: 60, watts: 300 },
+    { t: 300, watts: 270 },
+    { t: 600, watts: 255 },
+    { t: 1200, watts: 250 },
+  ];
+
+  const result = refitSignature({
+    activeSignature,
+    nearMpaPts,
+    envelopePts: [],
+    breakthroughWatts: watts,
+    breakthroughMask: mask,
+    breakthroughWindows: [{ start: 0, end: 5 }],
+    settings,
+  });
+
+  const brakedPMax = activeSignature.pMax * (1 - settings.maxDropPerBreakthrough); // Absenkbremse greift zuerst, siehe oben
+  const pMaxCeiling = brakedPMax * (1 + settings.maxMpaCorrectionPct);
+  assert.equal(result.constraintUnsatisfied, true, 'die Korrektur sollte an der relativen Grenze aufgeben, nicht beliebig weit durchlaufen');
+  assert.ok(Math.abs(result.signature.pMax - pMaxCeiling) < 1, `pMax=${result.signature.pMax} sollte an der 20%-Grenze ueber dem gebremsten Wert (${pMaxCeiling}) stehen bleiben`);
+  assert.ok(result.signature.pMax < settings.maxPlausiblePMax, 'pMax sollte weit unter der alten absoluten Grenze (3000W) bleiben');
 });

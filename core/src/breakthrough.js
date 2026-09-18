@@ -159,13 +159,17 @@ function applyDropBrake(active, proposed, maxDrop, enoughSupport, droppedOut) {
  *   NUR eine CP-Erhoehung - Pmax hat praktisch keinen Einfluss mehr.
  * - Bei noch vorhandenem W'bal (frisch bis maessig ermuedet) wirkt Pmax wie
  *   gewohnt als direkter Hebel auf die MPA-Kurve.
- * Beide Hebel sind nach oben begrenzt (`settings.maxPlausiblePMax`,
- * `settings.maxPlausibleCp` - physiologische Plausibilitaetsgrenzen) als
- * Schutz gegen unentdeckte, dauerhaft zu hohe Leistungswerte (z. B. ein
- * fehlerhafter Smart-Trainer). Werden beide Grenzen erreicht, ohne dass die
- * Bedingung erfuellt ist, markiert `constraintUnsatisfied: true` den
- * Breakthrough als pruefungsbeduerftig, statt eine unplausible Signatur
- * unbemerkt zu uebernehmen.
+ * Beide Hebel sind nach oben begrenzt - und zwar durch das ENGERE der zwei
+ * folgenden Daecher, nicht nur durch die absolute Plausibilitaetsgrenze:
+ * - `settings.maxPlausiblePMax`/`maxPlausibleCp` (absolute physiologische
+ *   Grenzen, wie bisher).
+ * - `settings.maxMpaCorrectionPct` relativ zum Wert, mit dem diese Funktion
+ *   aufgerufen wurde (dem rohen, bereits Absenkbremse-korrigierten Fit) -
+ *   siehe "Relative Korrekturgrenze" in core/README.md fuer die Herleitung.
+ * Wird eine der beiden Grenzen erreicht, ohne dass die Bedingung erfuellt
+ * ist, markiert `constraintUnsatisfied: true` den Breakthrough als
+ * pruefungsbeduerftig, statt eine unplausible Signatur unbemerkt zu
+ * uebernehmen.
  *
  * Nur-Pmax-Korrekturen liefen in ~70% der Faelle im echten 7-Jahres-Datensatz
  * (`scripts/run-legacy-db.js`) ins Leere, weil lange/harte Breakthrough-
@@ -173,9 +177,11 @@ function applyDropBrake(active, proposed, maxDrop, enoughSupport, droppedOut) {
  * nur eine CP-Erhoehung loesen kann.
  */
 function enforceMpaConstraint(sig, watts, mask, windows, settings) {
-  const { breakthroughEpsilon, mpaExponent, maxPlausiblePMax, maxPlausibleCp } = settings;
+  const { breakthroughEpsilon, mpaExponent, maxPlausiblePMax, maxPlausibleCp, maxMpaCorrectionPct } = settings;
   let cp = sig.cp;
   let pMax = sig.pMax;
+  const cpCeiling = Math.min(maxPlausibleCp, sig.cp * (1 + maxMpaCorrectionPct));
+  const pMaxCeiling = Math.min(maxPlausiblePMax, sig.pMax * (1 + maxMpaCorrectionPct));
   const maxIterations = 500;
 
   const check = () => {
@@ -198,14 +204,14 @@ function enforceMpaConstraint(sig, watts, mask, windows, settings) {
   let iter = 0;
   while (state.violated && iter < maxIterations) {
     const nearFullDepletion = state.worstExhaustionFrac > 0.98;
-    if (nearFullDepletion && cp < maxPlausibleCp) {
-      cp = Math.min(cp * 1.01, maxPlausibleCp);
-    } else if (pMax < maxPlausiblePMax) {
-      pMax = Math.min(pMax * 1.01, maxPlausiblePMax);
-    } else if (cp < maxPlausibleCp) {
-      cp = Math.min(cp * 1.01, maxPlausibleCp);
+    if (nearFullDepletion && cp < cpCeiling) {
+      cp = Math.min(cp * 1.01, cpCeiling);
+    } else if (pMax < pMaxCeiling) {
+      pMax = Math.min(pMax * 1.01, pMaxCeiling);
+    } else if (cp < cpCeiling) {
+      cp = Math.min(cp * 1.01, cpCeiling);
     } else {
-      break; // beide Plausibilitaetsgrenzen erreicht
+      break; // beide Korrekturgrenzen erreicht
     }
     state = check();
     iter++;

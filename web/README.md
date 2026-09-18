@@ -172,11 +172,19 @@ Fallback-Regel per Test abgesichert, Abschlag-Startwert aus dem Backtesting).
 Ein echter Abgleich am Konto des Auftraggebers (insbesondere ob die
 kalibrierten Werte dort plausibel wirken) steht noch aus.
 
-**Bewusst noch offen**: der Nutzer hat unabhaengig davon gemeldet, dass sein
-Pmax seit laengerem zu hoch wirkt (nicht auf einen einzelnen Breakthrough
-zurueckzufuehren) - das ist eine Frage der CP-Fit-/Refit-Korrektheit
-(`core/src/cpFit.js`/`breakthrough.js`), keine Kalibrierungsfrage, und auf
-Nutzerwunsch zurueckgestellt.
+**PP/HIE-Ueberschaetzung (2026-09-18, behoben in `core/src/breakthrough.js`,
+Details in `core/README.md` "Relative Korrekturgrenze"):** der Nutzer hatte
+unabhaengig von M4 gemeldet, dass sein Pmax seit laengerem zu hoch wirkt -
+Ursache war die Nebenbedingungs-Korrektur (Kap. 7.5), die cp/pMax bis zur
+absoluten Plausibilitaetsgrenze anheben durfte, egal wie weit das vom
+eigentlichen Regressionsergebnis entfernt war. Neue Einstellung
+`maxMpaCorrectionPct` (Standard 20 %, jetzt auch in den Einstellungen unter
+"Nebenbedingungs-Korrektur", zusammen mit den bis dahin dort fehlenden
+`maxPlausiblePMax`/`maxPlausibleCp`) begrenzt die Korrektur zusaetzlich
+relativ zum rohen Fit. Live-Bestaetigung durch den Nutzer steht noch aus -
+dafuer muss einmal neu gerechnet werden (Einstellungen speichern oder einen
+Breakthrough verwerfen/reaktivieren), damit `model/signature-history.json`
+den neuen Code-Stand widerspiegelt.
 
 ## Ablageformat der Streams (`streams/YYYY-MM.bin`)
 

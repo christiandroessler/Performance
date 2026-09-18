@@ -233,6 +233,52 @@ zeigt der vollstaendige 7-Jahres-Datensatz **0 von 14** Breakthroughs mit
 `constraintUnsatisfied: true` (siehe "Stand der Verifikation" oben) - die
 Nebenbedingung gilt damit als verifiziert abgeschlossen fuer M1.
 
+**Relative Korrekturgrenze (2026-09-18, M1-Festlegung, `maxMpaCorrectionPct`):**
+Die `rawFit`-Transparenz-Ergaenzung (unten) hat den tatsaechlichen
+Mechanismus hinter der gemeldeten PP/HIE-Ueberschaetzung des Auftraggebers
+bestaetigt: `enforceMpaConstraint` durfte cp/pMax bis zur ABSOLUTEN
+Plausibilitaetsgrenze (Standard 3000 W/600 W) anheben, ohne rueckzukoppeln,
+WIE WEIT das vom eigentlichen Regressionsergebnis entfernt ist. Gegen den
+echten Datensatz (7 Jahre, `run-legacy-db.js`-Muster, lokal, nie committet -
+NFA-06) zeigten 12 von 14 Breakthroughs eine Korrektur >= 2 %, mehrere davon
++150 % bis +567 % gegenueber dem rohen Fit, zweimal bis zur vollen
+3000-W-Grenze (`constraintUnsatisfied` blieb dabei `false`, weil die
+Korrektur GENAU an der Grenze noch reichte - ein Erkennungsluecke fuer sich).
+Auf das letzte (tatsaechlich synchronisierte) Jahr eingegrenzt: derselbe
+Effekt, aktuelle Signatur landete bei pMax=1500 W/wPrimeJ=45 kJ (beides exakt
+an einer Kappungsgrenze), obwohl der rohe Fit staerker gestuetzte Werte um
+450-900 W lieferte - und **961 W bei 1 s Dauer, mit 4 unabhaengigen
+Aktivitaeten reproduziert**, deckt sich fast exakt mit der vom Auftraggeber
+selbst geschaetzten Bestleistung (~900 W bei 5 s).
+
+Neue Einstellung `maxMpaCorrectionPct` (Standard 0,2 = 20 %): die Korrektur
+darf cp/pMax jetzt nur noch bis zum ENGEREN der zwei Daecher anheben - der
+bisherigen absoluten Grenze ODER `(1 + maxMpaCorrectionPct)` mal dem Wert,
+mit dem die Funktion aufgerufen wurde (dem rohen, bereits
+Absenkbremse-korrigierten Fit). Der Wert 20 % ist so gewaehlt, dass er den
+einzigen bekannten LEGITIMEN Korrekturfall (der Kap.-7.5-Testfall "W'bal
+entlaedt sich mitten im Fenster", ca. +7,6 % cp) klar durchlaesst, aber jede
+der am echten Datensatz beobachteten Ueberschaetzungen (>= 28 %) zuverlaessig
+gestoppt und als `constraintUnsatisfied: true` markiert. Damit tauscht die
+Korrektur "unbemerkt beliebig hoch" gegen "sichtbar und begrenzt" - konsistent
+mit Kap. 7.5s eigener Begruendung fuer die absolute Grenze ("statt eine
+unplausible Signatur unbemerkt zu uebernehmen"), nur konsequenter angewendet.
+
+Verifiziert erneut gegen den echten Datensatz (Standard-Grenzen, nicht die
+vom Nutzer manuell abgesenkten): die aktuelle Signatur (letztes Jahr) landet
+jetzt bei cp=278 W, pMax=922 W - beides ohne jede manuelle Anpassung der
+absoluten Grenzen, direkt aus der neuen relativen Korrekturgrenze, und sehr
+nah an der eigenen Einschaetzung des Auftraggebers (~900 W gemessen,
+~1200 W als plausibler Sprintwert). Nebenwirkung, bewusst in Kauf genommen:
+die Zahl der erkannten Breakthroughs steigt spuerbar (7 statt vorher 2-3 im
+letzten Jahr, 140 statt 14 ueber 7 Jahre) - die MPA wird nicht mehr
+kuenstlich so weit aufgeblaeht, dass folgende Anstrengungen lange keine
+Ueberschreitung mehr ausloesen. Noch nicht verifiziert: ob 140/7
+Breakthroughs in der Praxis (Breakthrough-Liste, FA-SIG-08) als zu viele
+empfunden werden - falls ja, waere das ein UX-Thema fuer die Liste selbst
+(z. B. Zusammenfassen dicht aufeinanderfolgender Eintraege), nicht ein Grund,
+die Korrekturgrenze wieder zu lockern.
+
 **Transparenz-Ergaenzung (2026-09-18, NFA-11):** `constraintUnsatisfied`
 zeigt nur den Fall, dass SELBST die Plausibilitaetsgrenzen die Bedingung
 nicht erfuellen - der haeufigere Fall, dass die Korrektur cp/pMax spuerbar
@@ -471,20 +517,28 @@ bereits verifizierten CP-/Breakthrough-Pipeline.
   begruendet, aber experimentell nicht validiert" (Kap. 7.7) - auch mit
   vollstaendiger Kalibrierung ist der Signaturverlauf ein datengestuetzter
   Trend, keine wissenschaftlich validierte Vorhersage.
-- **Gemeldete PP/HIE-Ueberschaetzung (2026-09-18, laufende Untersuchung):**
-  der Auftraggeber berichtet, das modellierte PP liege dauerhaft ueber der
-  gemessenen besten 5-s-Leistung UND ueber dem eigenen, per `outlierMaxWatts`
-  personalisierten Plausibilitaetsdach - auch HIE wirkt zu hoch. Arbeitshypothese
-  (aus Code-Analyse, noch nicht am echten Datensatz bestaetigt): das
-  3-Parameter-Modell extrapoliert `pMax` als t→0-Asymptote aus nur 1-Hz-Daten
-  (kuerzeste Stuetzstelle 1 s) - dieser Bereich ist strukturell schlecht
-  bestimmt, ein einzelner "bester 1-s-Wert je Fenster" (`detectMaximalEfforts`,
-  ohne Gewichtung nach `support`) hat unverhaeltnismaessig viel Hebelwirkung
-  auf die Kruemmung nahe t=0. Zusaetzlich kann die Nebenbedingungs-Korrektur
-  (siehe oben) `cp`/`pMax` weit ueber den rohen Regressionswert anheben, ohne
-  dass das je Breakthrough sichtbar war. Als ersten Schritt jetzt `rawFit`
-  ergaenzt (siehe oben), um am echten Konto zu sehen, WELCHER Mechanismus
-  ueberwiegt, bevor am Fit-/Korrektur-Verfahren selbst etwas geaendert wird.
+- **Gemeldete PP/HIE-Ueberschaetzung (2026-09-18, behoben, siehe
+  "Relative Korrekturgrenze" oben; live-Bestaetigung durch den Auftraggeber
+  steht noch aus):** der Auftraggeber berichtete, das modellierte PP liege
+  dauerhaft ueber der gemessenen besten 5-s-Leistung UND ueber dem eigenen,
+  per `outlierMaxWatts` personalisierten Plausibilitaetsdach - auch HIE
+  wirkte zu hoch. Ursache am echten Datensatz bestaetigt: die
+  Nebenbedingungs-Korrektur (Kap. 7.5) durfte cp/pMax bis zur absoluten
+  Plausibilitaetsgrenze anheben, unabhaengig davon, wie weit das vom rohen
+  Fit entfernt war - jetzt zusaetzlich durch `maxMpaCorrectionPct` (relativ
+  zum rohen Fit) begrenzt. Zwei Nebenbefunde bleiben offen: (1) `wPrimeJ`
+  landete im rohen Fit mehrfach exakt auf 45000 J, dem internen
+  LM-Optimierungs-Clamp in `cpFit.js` (numerische Stabilitaetsgrenze, keine
+  Plausibilitaetsgrenze) - unklar, ob der Fit ohne diesen Clamp noch hoeher
+  gelaufen waere; noch nicht separat untersucht. (2) Die Haeufung stark
+  korrekturbeduerftiger Breakthroughs in dicht aufeinanderfolgenden
+  Trainingsbloecken deutet auf Wiederholungssprint-/Intervall-Einheiten hin,
+  bei denen ein einzelnes statisches 3-Parameter-Modell strukturell an seine
+  Grenzen kommt (W'bal-Erholungsdynamik zwischen Efforts, Kap. 9 "Individuelle
+  Kalibrierung der W′-Erholung" ist explizit Nicht-Ziel V1) - dafuer gibt es
+  keinen weiteren Fix in dieser Runde, nur die jetzt sichtbare
+  `constraintUnsatisfied`-Markierung statt einer stillschweigenden
+  Ueberschaetzung.
 
 ## Verwendung
 

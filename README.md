@@ -204,11 +204,15 @@ Jetzt auf eine feste Bandbreite (0,2-5) gekappt, mit Kennzeichnung im UI, wenn
 das greift. Details siehe `web/README.md` Abschnitt "M4-Status im Detail".
 Ein Abgleich am echten Konto des Auftraggebers steht noch aus.
 
-**Bewusst noch offen** (unabhaengig von FA-SIG-10/12): der Nutzer hat
-gemeldet, dass sein Pmax seit laengerem zu hoch wirkt, nicht auf einen
-einzelnen Breakthrough zurueckzufuehren - das ist eine CP-Fit-/
-Refit-Korrektheitsfrage, keine Kalibrierungsfrage, und auf Nutzerwunsch
-zurueckgestellt.
+**PP/HIE-Ueberschaetzung (2026-09-18, behoben, M1-Scope):** der Nutzer hatte
+unabhaengig von FA-SIG-10/12 gemeldet, dass sein Pmax seit laengerem zu hoch
+wirkt, nicht auf einen einzelnen Breakthrough zurueckzufuehren. Am echten
+7-Jahres-Datensatz bestaetigt: die Nebenbedingungs-Korrektur (Kap. 7.5)
+durfte cp/pMax bis zur absoluten Plausibilitaetsgrenze anheben, unabhaengig
+davon, wie weit das vom rohen Regressionsergebnis entfernt war. Neue,
+zusaetzliche relative Korrekturgrenze (`maxMpaCorrectionPct`, Standard 20 %)
+behoben - Details in `core/README.md` Abschnitt "Relative Korrekturgrenze".
+Live-Bestaetigung durch den Nutzer steht noch aus.
 
 ## Ausgangslage
 

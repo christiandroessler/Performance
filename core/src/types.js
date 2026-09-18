@@ -55,12 +55,15 @@
  * @property {number} outlierMaxWatts - Standard 2500 (absolute Plausibilitaetsgrenze)
  * @property {number} outlierMaxJumpWatts - Standard 1800 (Sprung ggue. beiden Nachbarn)
  * @property {number} maxGapSecondsForWbalContinuity - Standard 1800 (30 Min); danach W'bal-Reset auf voll
+ * @property {number} maxPlausiblePMax - Standard 3000 (W, absolute Plausibilitaetsgrenze fuer die Nebenbedingungs-Korrektur)
+ * @property {number} maxPlausibleCp - Standard 600 (W, absolute Plausibilitaetsgrenze fuer die Nebenbedingungs-Korrektur)
+ * @property {number} maxMpaCorrectionPct - Standard 0.2 (20%): relative Obergrenze fuer die Nebenbedingungs-Korrektur gegenueber dem rohen Fit, siehe core/README.md
  * @property {number} thresholdEstimationWindowDays - Standard 180 (FA-TP-03/04): rollierendes Fenster fuer Sportart-Schwellen-Schaetzung
  * @property {number} thresholdEffortSeconds - Standard 1200 (20 Min, FA-TP-03): Zieldauer der "besten Anstrengung" fuer Pace-/HF-Schwellen
  * @property {number} thresholdCyclingPowerTolerance - Standard 0.05 (FA-TP-04): Toleranzband um TP fuer die Rad-Schwellen-HF-Schaetzung
  * @property {number} thresholdChangeEpsilon - Standard 0.02 (FA-TP-03/04): neuer Historien-Eintrag erst ab dieser relativen Aenderung
- * @property {number} loadResponseTau1Days - Standard 42 (FA-SIG-10, Kap. 7.7/12): Zeitkonstante tau1 (schnelle EWMA g)
- * @property {number} loadResponseTau2Days - Standard 7 (FA-SIG-10, Kap. 7.7/12): Zeitkonstante tau2 (langsame EWMA h)
+ * @property {number} loadResponseTau1Days - Standard 42 (FA-SIG-10, Kap. 7.7/12): Zeitkonstante tau1 (langsame EWMA g, wie CTL)
+ * @property {number} loadResponseTau2Days - Standard 7 (FA-SIG-10, Kap. 7.7/12): Zeitkonstante tau2 (schnelle EWMA h, wie ATL)
  * @property {number} loadResponseMinBreakthroughsForFit - Standard 3 (FA-SIG-12 Phase 1): Mindestanzahl Breakthroughs fuer den k1-Least-Squares-Fit, sonst Neutralwert 1
  * @property {number} loadResponseDisplayDiscountPct - Standard 0 (FA-SIG-10 Anzeige-Abschlag, %): Startwert erst mit FA-SIG-12/Backtesting sinnvoll belegbar
  * @property {number} loadResponseHoldOutMonths - Standard 6 (FA-SIG-12, Kap. 12): Hold-out-Zeitraum fuer den Backtesting-Bericht

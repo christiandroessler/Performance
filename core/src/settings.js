@@ -14,6 +14,7 @@ export const DEFAULT_SETTINGS = {
   outlierMaxJumpWatts: 1800, // M1-Festlegung, siehe core/README.md
   maxPlausiblePMax: 3000, // M1-Festlegung, siehe core/README.md (Nebenbedingungs-Korrektur)
   maxPlausibleCp: 600, // M1-Festlegung, siehe core/README.md (Nebenbedingungs-Korrektur)
+  maxMpaCorrectionPct: 0.2, // M1-Festlegung, siehe core/README.md (Nebenbedingungs-Korrektur, relative Grenze)
   maxGapSecondsForWbalContinuity: 1800, // M1-Festlegung, siehe core/README.md
   ctlTau: 42,
   atlTau: 7,

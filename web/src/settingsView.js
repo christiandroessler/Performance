@@ -38,6 +38,14 @@ const PARAM_GROUPS = [
     ],
   },
   {
+    title: 'Nebenbedingungs-Korrektur (Plausibilitätsgrenzen)',
+    params: [
+      { key: 'maxPlausiblePMax', label: 'Absolute Plausibilitätsgrenze PP', unit: 'W', min: 400, max: 3000, step: 10, ...identity, hint: 'Kap. 7.5, individuell anpassen!' },
+      { key: 'maxPlausibleCp', label: 'Absolute Plausibilitätsgrenze TP', unit: 'W', min: 100, max: 600, step: 5, ...identity, hint: 'Kap. 7.5, individuell anpassen!' },
+      { key: 'maxMpaCorrectionPct', label: 'Max. Korrektur je Breakthrough (relativ)', unit: '%', min: 5, max: 100, step: 1, ...pct, hint: 'M1-Festlegung, core/README.md' },
+    ],
+  },
+  {
     title: 'Ausreißerfilter (Leistung)',
     params: [
       { key: 'outlierMaxWatts', label: 'Max. plausible Leistung', unit: 'W', min: 200, max: 5000, step: 10, ...identity, hint: 'M1-Festlegung, Ausreißerregel' },
