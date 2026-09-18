@@ -202,13 +202,13 @@ kalibrierten Werte dort plausibel wirken) steht noch aus.
 Alle neuen Einstellungen sind jetzt in den Einstellungen unter
 "Nebenbedingungs-Korrektur" bzw. "PP-Stabilität" editierbar (zusammen mit
 den bis dahin dort komplett fehlenden `maxPlausiblePMax`/`maxPlausibleCp`).
-Live-Bestaetigung durch den Nutzer nach Runde 2 steht noch aus - dafuer muss
-einmal neu gerechnet werden (Einstellungen speichern oder einen Breakthrough
-verwerfen/reaktivieren), damit `model/signature-history.json` den neuen
-Code-Stand widerspiegelt. Ebenfalls noch offen: HIE (wPrimeJ) zeigt denselben
-Instabilitaets-Verdacht (rohe Fits landen wiederholt exakt auf einem
-internen Sicherheits-Clamp, 45000 J) - noch nicht untersucht, ob eine
-aehnliche Evidenz-/Traegheits-Behandlung sinnvoll waere (core/README.md).
+**Live vom Nutzer bestaetigt (2026-09-18):** PP zeigt nach Neuberechnung
+1060 W - "passt erstmal". Das PP-Problem gilt als abgeschlossen. HIE
+(wPrimeJ) bleibt auf Wunsch des Nutzers zurueckgestellt ("machen wir
+später") - zeigt denselben Instabilitaets-Verdacht (rohe Fits landen
+wiederholt exakt auf einem internen Sicherheits-Clamp, 45000 J), noch nicht
+untersucht, ob eine aehnliche Evidenz-/Traegheits-Behandlung sinnvoll waere
+(core/README.md).
 
 ## Ablageformat der Streams (`streams/YYYY-MM.bin`)
 

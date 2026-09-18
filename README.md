@@ -217,7 +217,8 @@ nur noch bei echter Sprint-Evidenz neu geschaetzt, dann zusaetzlich per
 Traegheitsbremse gedaempft (max. 15 % Aenderung je Breakthrough) - am echten
 Datensatz verifiziert: PP steigt jetzt glatt von 898W auf 1114W statt
 zwischen 450-1500W zu springen. Details in `core/README.md` Abschnitt
-"Pmax-Stabilitaet". Live-Bestaetigung durch den Nutzer steht noch aus.
+"Pmax-Stabilitaet". **Live vom Nutzer bestaetigt (2026-09-18): PP=1060W,
+passt.** HIE bleibt auf Nutzerwunsch zurueckgestellt.
 
 ## Ausgangslage
 

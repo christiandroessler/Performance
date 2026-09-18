@@ -374,6 +374,11 @@ Korrekturgrenze (oben, 7 statt 2-3 im letzten Jahr) ist damit ebenfalls
 behoben, weil die MPA nicht mehr durch einen ploetzlich eingebrochenen
 Pmax-Wert kuenstlich zu niedrig wird.
 
+**Live vom Auftraggeber bestaetigt (2026-09-18):** nach Neuberechnung zeigt
+PP 1060 W - "sieht jetzt besser aus ... passt erstmal". Das PP-Problem gilt
+damit als abgeschlossen. HIE (wPrimeJ) bleibt auf Wunsch des Auftraggebers
+bewusst zurueckgestellt ("machen wir spaeter") - siehe der Absatz unten.
+
 **Noch offen** (separat von PP, nicht Teil dieser Anfrage): `wPrimeJ` (HIE)
 landet im rohen Fit ebenfalls mehrfach exakt auf 45000 J - dem internen
 LM-Optimierungs-Clamp in `cpFit.js` (`CLAMP[1]`), einer numerischen
