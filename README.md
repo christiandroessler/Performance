@@ -10,9 +10,9 @@ Rechenkern zuerst, getestet mit dem Strava-Datenexport.
 | Meilenstein | Inhalt | Status |
 |---|---|---|
 | **M1** | Rechenkern (Bibliothek) | abgeschlossen, siehe [`core/`](core/) |
-| **M2** | Fundament (Cloudflare, Google-Login, Strava-OAuth, Drive-Ablage) | in Arbeit (nur GitHub-Auto-Deploy offen), siehe [`worker/`](worker/) und [`web/`](web/) |
-| **M3** | Oberfläche TrainingPeaks/Strava/XERT | in Arbeit, siehe [`web/README.md`](web/README.md) |
-| M4 | 3D-Modell und Kalibrierung | offen |
+| **M2** | Fundament (Cloudflare, Google-Login, Strava-OAuth, Drive-Ablage) | in Arbeit (nur das theoretische Tageskontingent-Pause/Resume offen), siehe [`worker/`](worker/) und [`web/`](web/) |
+| **M3** | Oberfläche TrainingPeaks/Strava/XERT | fertig gebaut, siehe [`web/README.md`](web/README.md) Abschnitt "M3-Abnahme" |
+| **M4** | 3D-Modell und Kalibrierung | Phase 1 begonnen (FA-SIG-10/11), siehe [`web/README.md`](web/README.md) Abschnitt "M4-Status im Detail" |
 | M5 | Stoffwechselmodell | offen |
 | M6 | Gruppe, Datenschutz, PWA | offen |
 
@@ -169,7 +169,7 @@ einem Web Worker (NFA-04), gefuettert mit den in M2 abgelegten Rohdaten:
   gehoeren laut Lastenheft-Abschnitt "Inhalt" ohnehin zu M4.
 - `web/test/computePipeline.test.js` prueft die Naht Ablageformat -> core
   (RawStreamPoint[]-Form, FA-DQ-01 deviceWatts-Maskierung); die
-  Algorithmus-Korrektheit selbst deckt bereits `core/test/` ab (M1, 51 Tests).
+  Algorithmus-Korrektheit selbst deckt bereits `core/test/` ab (M1, 61 Tests).
 - M3-Abnahme (2026-09-18, Kap. 10) gegen die 4 Abnahmekriterien durchgegangen:
   fuer die beiden bis dahin ungetesteten Kriterien ("Breakthrough
   verwerfen/reaktivieren", "Schwelle zum Aktivitaetsdatum mit Breakthrough
@@ -180,6 +180,24 @@ einem Web Worker (NFA-04), gefuettert mit den in M2 abgelegten Rohdaten:
   jetzt mit erklaerendem Tooltip (`activityListView.js`). Details und die
   verbleibenden, nur live pruefbaren Punkte (echtes Konto, kein Test-Ersatz
   moeglich) siehe `web/README.md` Abschnitt "M3-Abnahme".
+
+## M4-Status im Detail
+
+Phase 1 begonnen (2026-09-18, FA-SIG-10 + FA-SIG-11 - Lastenheft Kap. 7.7):
+belastungsgekoppelter Signaturverlauf zwischen Breakthroughs, eigener Tab
+"Belastung" mit 3 Charts (Low/CP, High/W', Peak/Pmax). Da das Lastenheft
+selbst sagt, dass fuer die systemspezifischen Parameter (k1/k2) "keine
+veroeffentlichten Daten" existieren, ist nur k1,s in dieser Phase per
+Least-Squares gegen die eigenen bestaetigten Breakthroughs kalibriert - bei
+zu wenigen Breakthroughs zeigt jede Karte deutlich einen Fallback-Hinweis
+statt eine unbelegte Zahl als fertig kalibriert zu tarnen. Alle
+Design-Entscheidungen sind in `core/README.md` Abschnitt
+"Belastungsgekoppelter Signaturverlauf, Phase 1" dokumentiert. `core/`:
+61 Tests (10 neu, `loadResponse.test.js`).
+
+**Bewusst noch nicht gebaut** (Phase 2/FA-SIG-12, separate spaetere Runde):
+die volle Kalibrierung (zusaetzlich tau1,s per Suche geschaetzt), der
+Hold-out-Backtesting-Bericht, und die Verfeinerung des Anzeige-Abschlags.
 
 ## Ausgangslage
 

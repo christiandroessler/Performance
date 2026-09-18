@@ -29,8 +29,8 @@ selbst wird vor jedem Deploy nach `web/vendor/core/src` kopiert (siehe
 | Datei | Zweck |
 |---|---|
 | `scripts/sync-core.mjs` | Kopiert `core/src` nach `web/vendor/core/src` (`npm run sync-core`, laeuft automatisch vor `npm test`/`npm run dev`/`npm run deploy`) |
-| `src/calcWorker.js` | Web Worker (NFA-04): ruft `core/prepareActivity` + `computeSignatureHistory` unveraendert auf, danach FA-TP-03/04 `estimateThresholds` + `applySportSpecificTss` (Sportart-Schwellen, hrTSS/Pace-TSS-Fallback) als zweiter Durchlauf, liefert nur aggregierte Ergebnisse zurueck (keine Sekunden-Streams) |
-| `src/compute.js` | Laedt alle Rohdaten (index.json + streams/\*.bin) inkl. Sportart (`type`), schickt sie an den Worker, schreibt `model/signature-history.json` + `model/mmp-curves.json` + `model/thresholds.json` (FA-TP-03/04, `loadThresholds()`), schreibt Kennzahlen (inkl. `tssSource`: `power`/`hr`/`pace`/`null`) in `index.json` zurueck. `discardBreakthrough`/`reactivateBreakthrough` (FA-SIG-07). `recomputeAll` laedt ohne explizit uebergebene `settingsOverrides` automatisch die in `settings.json#modelSettings` hinterlegten Nutzer-Parameter (FA-SET-03) - wirkt so unabhaengig vom Aufrufer (Knopfdruck, Breakthrough-Aktion, Einstellungen-Speichern). Aktivitaeten ganz ohne Stream-Bundle (z. B. Strava-404) bekommen explizit `hasSignature: false`/`tss: null` statt `undefined` zu bleiben - sonst zaehlte der "noch nicht berechnet"-Status in dashboardView.js sie fuer immer mit, egal wie oft neu berechnet wird |
+| `src/calcWorker.js` | Web Worker (NFA-04): ruft `core/prepareActivity` + `computeSignatureHistory` unveraendert auf, danach FA-TP-03/04 `estimateThresholds` + `applySportSpecificTss` (Sportart-Schwellen, hrTSS/Pace-TSS-Fallback) und FA-SIG-10 `dailyStrainSums`/`loadResponseSeries`/`calibrateK1` (belastungsgekoppelter Signaturverlauf, M4 Phase 1) als zwei weitere, unabhaengige Durchlaeufe, liefert nur aggregierte Ergebnisse zurueck (keine Sekunden-Streams) |
+| `src/compute.js` | Laedt alle Rohdaten (index.json + streams/\*.bin) inkl. Sportart (`type`), schickt sie an den Worker, schreibt `model/signature-history.json` + `model/mmp-curves.json` + `model/thresholds.json` (FA-TP-03/04, `loadThresholds()`) + `model/load-response.json` (FA-SIG-10, `loadLoadResponse()`), schreibt Kennzahlen (inkl. `tssSource`: `power`/`hr`/`pace`/`null`) in `index.json` zurueck. `discardBreakthrough`/`reactivateBreakthrough` (FA-SIG-07). `recomputeAll` laedt ohne explizit uebergebene `settingsOverrides` automatisch die in `settings.json#modelSettings` hinterlegten Nutzer-Parameter (FA-SET-03) - wirkt so unabhaengig vom Aufrufer (Knopfdruck, Breakthrough-Aktion, Einstellungen-Speichern). Aktivitaeten ganz ohne Stream-Bundle (z. B. Strava-404) bekommen explizit `hasSignature: false`/`tss: null` statt `undefined` zu bleiben - sonst zaehlte der "noch nicht berechnet"-Status in dashboardView.js sie fuer immer mit, egal wie oft neu berechnet wird |
 | `src/activityListView.js` | FA-ACT-01: Aktivitaetsliste, sortierbar, Suche (Name) + Filter (Sportart, Zeitraum von/bis), Klick auf Zeile oeffnet die Detailansicht. TSS aus HF/Pace (statt Leistung) ist mit "≈" + Tooltip gekennzeichnet (FA-TP-05) |
 | `src/activityFilter.js` | Reine Filterlogik fuer die Aktivitaetsliste (Suche/Sportart/Zeitraum) - ohne Browser-Abhaengigkeit, testbar mit `node:test` |
 | `src/format.js` | Gemeinsame Dauer-/Distanz-Formatierung (`formatDuration`, `formatDistance`), bisher in mehreren Views dupliziert - u. a. behebt das hier zusammengefuehrte `formatDuration` einen Rundungsfehler ("Xh 60min" statt "(X+1)h 0min" bei z. B. 3599s) |
@@ -41,9 +41,10 @@ selbst wird vor jedem Deploy nach `web/vendor/core/src` kopiert (siehe
 | `src/pmcMath.js` | Reine Ramp-Rate-Berechnung (CTL-Veraenderung ueber 7/28/90/365 Tage) und `sliceSeriesForRange` (Anzeige-Ausschnitt des PMC-Charts) - ohne Browser-Abhaengigkeit, testbar mit `node:test` |
 | `src/dashboardExtras.js` | Uebersicht-Redesign (TrainingPeaks-Vorbild): "Letzte Aktivitaet" (inkl. Distanz), "Sportart-Schwellen" (FA-TP-03/04, `renderSportThresholds` - Lauf-/Schwimm-Pace, Rad-HF, HF je sonstiger Sportart, mit Datum als Schaetzung gekennzeichnet), "Diese Woche", "Neueste Breakthroughs" - reine Zusammenfassungen bereits vorhandener Daten |
 | `src/ppCheck.js` | FA-SIG-13: vergleicht das Modell-Pmax der aktuellen Signatur mit der bis dahin gemessenen besten 5-s-Leistung (`aggregateMMP` aus `core/`, ueber `model/mmp-curves.json`) - reine Anzeige der Abweichung unter den Leistungssignatur-Kacheln, korrigiert das Modell nicht |
+| `src/loadResponseView.js` | FA-SIG-11 (M4 Phase 1): eigener Tab "Belastung" mit 3 Charts (Low/CP, High/W', Peak/Pmax) aus `model/load-response.json` (`compute.js#loadLoadResponse`) - g/h/p-Verlauf je System, Breakthrough-Reset als senkrechte Markierung, klare Kennzeichnung ob k1 fuer dieses System echt gefittet oder Fallback ist. Eigener, einfacherer SVG-Chart-Baustein als `pmcView.js#buildChart` (nur eine Skala statt zwei), teilt sich aber dieselben CSS-Klassen |
 | `src/theme.js` | Hell-/Dunkelmodus zentral (localStorage je Geraet) - von main.js (Anwenden beim Start) und settingsView.js (Umschalten) geteilt |
 | `src/settingsView.js` | FA-SET-01 bis 04: Einstellungen-Modal - Erscheinungsbild, Gewichtsverlauf mit Datum (FA-SET-01), alle in `core/src/settings.js` implementierten Kap.-12-Parameter gruppiert einsehbar/aenderbar (FA-SET-02), Speichern loest `recomputeAll` mit protokollierter Aenderung aus (FA-SET-03), Reset auf Startwerte (FA-SET-04 - "Kalibrierungswerte" faellt bis M4 mit "Literaturwerte" zusammen) |
-| `src/glossaryView.js` | Glossar aller Berechnungsgrundlagen (CP/W'/Pmax, MPA/W'bal, NP/IF/TSS, CTL/ATL/TSB, Strain, Sportart-Schwellen) in einfacher Sprache, fuer alle Nutzer zum Nachlesen |
+| `src/glossaryView.js` | Glossar aller Berechnungsgrundlagen (CP/W'/Pmax, MPA/W'bal, NP/IF/TSS, CTL/ATL/TSB, Strain, Sportart-Schwellen, belastungsgekoppelter Signaturverlauf) in einfacher Sprache, fuer alle Nutzer zum Nachlesen |
 | `src/breakthroughView.js` | FA-SIG-07/08: Breakthrough-Uebersicht, Mehrfachauswahl zum Verwerfen, Reaktivieren |
 | `src/calendarUtils.js` | Reine Datums-/Aggregationsfunktionen fuer FA-TP-07 (Wochen-/Monats-/Tagesgruppierung) - ohne Browser-Abhaengigkeit, testbar mit `node:test` |
 | `src/weekView.js` | FA-TP-07: Monatskalender oben (Tages-TSS, Klick auf Aktivitaet oeffnet die Detailansicht), darunter Wochenuebersicht fuer die letzten 4 Wochen und eine Monatsuebersicht fuer die 12 Monate davor (TrainingPeaks-Vorbild - eine Wochenzeile je Woche ueber ein ganzes Jahr waere unuebersichtlich) mit TSS/Dauer/Distanz/Einheiten je Sportart, Zahlenspalten rechtsbuendig (`.stats-table`-CSS) - reine Aggregation der in `index.json` bereits abgelegten Kennzahlen, keine erneute Berechnung |
@@ -67,7 +68,7 @@ Neuberechnungsdauer fuer den Gesamtverlauf, nur NFA-04 fuer eine einzelne
 (RawStreamPoint[]-Form, FA-DQ-01 `deviceWatts`-Maskierung, sowie FA-TP-02/03
 end-to-end: ein Lauf ohne Leistungsmesser bekommt ueber die volle Kette
 Pace-TSS statt eines fabrizierten `tss: 0`) - die Algorithmus-Korrektheit
-selbst deckt bereits `core/test/` ab (51 Tests, M1).
+selbst deckt bereits `core/test/` ab (61 Tests, M1).
 
 Automatische Schwellen-Schaetzung fuer HF/Pace/Schwimmen (FA-TP-02/03/04/05:
 hrTSS/Pace-TSS fuer Aktivitaeten ohne Leistung, inkl. "≈"-Kennzeichnung in
@@ -137,6 +138,25 @@ Breakthroughs-Uebersicht verwerfen -> pruefen, dass sich TSS/PMC ab diesem
 Datum sichtbar aendern -> reaktivieren -> pruefen, dass exakt die vorherigen
 Werte wiederkehren; und ob eine echte Nicht-Rad-Aktivitaet ohne schaetzbare
 Schwelle (z. B. ganz am Anfang der Historie) den neuen Tooltip zeigt.
+
+## M4-Status im Detail
+
+Phase 1 (2026-09-18, FA-SIG-10 + FA-SIG-11 - siehe `core/README.md`
+Abschnitt "Belastungsgekoppelter Signaturverlauf, Phase 1" fuer die volle
+Methodik/M4-Festlegungen): belastungsgekoppelter Signaturverlauf zwischen
+Breakthroughs, im Rechenkern als weiterer unabhaengiger Durchlauf nach
+`computeSignatureHistory` gebaut (`core/src/loadResponse.js`), im Frontend als
+eigener Tab "Belastung" mit 3 Charts (`src/loadResponseView.js`). Nur k1,s ist
+in dieser Phase per Least-Squares gegen die eigenen bestaetigten Breakthroughs
+kalibriert; die Charts zeigen bei zu wenigen Breakthroughs deutlich den
+"Fallback"-Hinweis statt eine unbelegte Zahl als fertig kalibriert zu tarnen.
+
+**Bewusst noch nicht gebaut** (Phase 2/FA-SIG-12, separate spaetere Runde):
+die volle Kalibrierung (zusaetzlich tau1,s per Suche/Optimierung geschaetzt,
+nicht nur k1,s), der Hold-out-Backtesting-Bericht (Kalibrierung bis
+Stichtag, Vorhersage der letzten 6 Monate, mittlere Abweichung je Parameter,
+"pro Nutzer einsehbar"), und die Verfeinerung des Anzeige-Abschlags anhand
+dieses Berichts.
 
 ## Ablageformat der Streams (`streams/YYYY-MM.bin`)
 

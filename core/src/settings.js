@@ -21,6 +21,10 @@ export const DEFAULT_SETTINGS = {
   thresholdEffortSeconds: 1200, // M1-Festlegung, siehe core/README.md (FA-TP-03/04)
   thresholdCyclingPowerTolerance: 0.05, // M1-Festlegung, siehe core/README.md (FA-TP-04)
   thresholdChangeEpsilon: 0.02, // M1-Festlegung, siehe core/README.md (FA-TP-03/04)
+  loadResponseTau1Days: 42, // M4-Festlegung, siehe core/README.md (FA-SIG-10, Kap. 12 Start/Fallback)
+  loadResponseTau2Days: 7, // M4-Festlegung, siehe core/README.md (FA-SIG-10, Kap. 12 fest)
+  loadResponseMinBreakthroughsForFit: 3, // M4-Festlegung, siehe core/README.md (FA-SIG-12 Fallback-Schwelle, Phase 1)
+  loadResponseDisplayDiscountPct: 0, // M4-Festlegung, siehe core/README.md (Anzeige-Abschlag, Startwert erst mit FA-SIG-12/Backtesting)
 };
 
 /** @returns {import('./types.js').ModelSettings} */

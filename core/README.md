@@ -20,13 +20,17 @@ Diese Version deckt den **M1-Umfang** ab (Kap. 10):
 - Chronologische Signatur-Orchestrierung inkl. Verwerfen/Reaktivieren von Breakthroughs
 - Parser fuer den Strava-Datenexport (activities.csv, GPX, TCX, FIT) – FA-SYNC-06, Entwicklungspfad
 - Lokale Sichtkontrollseite (`www/index.html`)
+- **Vorgezogen aus M4**: belastungsgekoppelter Signaturverlauf Phase 1
+  (FA-SIG-10, Kap. 7.7) - nur k1,s kalibriert, siehe M4-Festlegung
+  "Belastungsgekoppelter Signaturverlauf, Phase 1" unten
 
-**Nicht** in M1: das belastungsgekoppelte 3D-Impulse-Response-Modell (Kap. 7.7,
-Kalibrierung Kap. 7.8 → M4) und das Stoffwechselmodell (Kap. 7.9 → M5).
+**Nicht** in M1/dieser Runde: die volle Kalibrierung mit tau1,s-Suche und
+Hold-out-Backtesting (Kap. 7.8, FA-SIG-12) und das Stoffwechselmodell
+(Kap. 7.9 → M5).
 
 ## Stand der Verifikation
 
-Alle 51 automatisierten Tests laufen gruen (`npm test` im `core`-Ordner).
+Alle 61 automatisierten Tests laufen gruen (`npm test` im `core`-Ordner).
 Zusaetzlich wurde der komplette Aktivitaetsbestand eines echten Nutzers
 (1977 Rad-Aktivitaeten mit Leistung, 2017–2026, aus der bestehenden
 `strava-dashboard`-Datenbank, siehe `scripts/run-legacy-db.js`) mehrfach
@@ -323,6 +327,55 @@ treffen dafuer folgende Festlegungen:
   irrefuehrenden `0` zu bleiben. Diese Trennung haelt die bereits gegen den
   7-Jahres-Datensatz verifizierte CP-/Breakthrough-Pipeline unangetastet.
 
+### Belastungsgekoppelter Signaturverlauf, Phase 1 (FA-SIG-10, Kap. 7.7, M4-Festlegung)
+
+M4 ("3D-Modell und Kalibrierung") ist eigentlich ein spaeterer Meilenstein als
+M1-M3 - anders als bei den vorherigen M1-Festlegungen ist hier VOM LASTENHEFT
+SELBST offen gelassen, dass ein sinnvoller Wert fuer k1,s/k2,s ohne
+Kalibrierung gar nicht existiert ("theoretisch begruendet, aber experimentell
+nicht validiert... fuer systemspezifische Parameter existieren keine
+veroeffentlichten Daten", Kap. 7.7 "Einordnung"). `src/loadResponse.js`
+implementiert deshalb bewusst nur eine **Phase 1**:
+
+- **"Umrechnungsfaktor" (Kap. 7.7) = k1,s selbst.** Kap. 7.8 nennt genau 6
+  frei geschaetzte Parameter (tau1,s und k1,s je System) - kein zusaetzlicher
+  7. Parameter. p_s(t) = g_s(t) − h_s(t) liegt in rohen
+  Strain-Score-Tageseinheiten vor, k1,s skaliert das direkt in W (TP/PP)
+  bzw. J (HIE, intern immer Joule wie ueberall sonst im Code).
+- **Nur k1,s wird in Phase 1 kalibriert**, per Least-Squares-Fit durch den
+  Ursprung gegen die tatsaechlich bestaetigten Breakthrough-Deltas (Stand von
+  p_s am Tag VOR dem jeweiligen Breakthrough). tau1,s bleibt auf dem
+  Literatur-Startwert (42 Tage, Kap. 12). Die volle tau1,s-Suche + das
+  Hold-out-Backtesting mit Abweichungsbericht je Parameter (FA-SIG-12) ist
+  eine bewusst separate, spaetere Ausbaustufe.
+- **k2,s = 1** (fest, Kap. 7.8 verlangt "Literaturwerte", die es dafuer nicht
+  gibt) - dieselbe implizite Wahl, die der Rechenkern bereits fuer
+  TSB = CTL − ATL trifft. g und h sind beide EWMAs derselben Tagesbelastung
+  mit unterschiedlichem tau, k2,s=1 macht p_s zu einer reinen
+  "schnell-minus-langsam"-Differenz, k1,s skaliert erst danach.
+- **Exakte Exponentialform** aus Kap. 7.7
+  (`g(t)=g(t-1)*e^(-1/tau1)+w(t)*(1-e^(-1/tau1))`), bewusst NICHT die lineare
+  `value += (v-value)/tau`-Naeherung, die `npTss.js#computeEwmaSeries` fuer
+  CTL/ATL verwendet - das Lastenheft gibt hier explizit die exakte Formel vor.
+- **Reset bei Breakthrough**: g_s/h_s werden am Tag eines NICHT verworfenen
+  Breakthroughs auf 0 zurueckgesetzt (Kap. 7.7: "Breakthroughs setzen den
+  Zustand gemaess 7.5 neu"), danach laeuft dieser Tag normal (inkl. seiner
+  eigenen Belastung) weiter - sonst wuerde die im Refit bereits eingepreiste
+  Verbesserung nochmal on top addiert.
+- **Fallback-Schwelle** (`loadResponseMinBreakthroughsForFit`, Standard 3):
+  unterhalb dieser Anzahl an eigenen bestaetigten Breakthroughs bleibt k1,s
+  beim literaturfreien Neutralwert 1, klar als "Fallback" gekennzeichnet
+  (`fitted: false`) statt eine unbelegte Zahl als fertig kalibriert zu
+  tarnen (Kap. 7.8: "Fallback-Regel... wird angezeigt").
+- **Anzeige-Abschlag = 0 in Phase 1** (`loadResponseDisplayDiscountPct`,
+  Kap. 12: "Startwert wird im Backtesting bestimmt" - das ist Phase 2/FA-SIG-12).
+
+`dailyStrainSums`/`loadResponseSeries`/`calibrateK1`/`displaySignatureAtDate`
+sind als weiterer, von `computeSignatureHistory` unabhaengiger Durchlauf
+gebaut (gleiches Muster wie `estimateThresholds`/`applySportSpecificTss`) -
+liest nur bereits vorhandene Strain-Sub-Scores und die Breakthrough-Historie,
+aendert nichts an der bereits verifizierten CP-/Breakthrough-Pipeline.
+
 ## Bekannte offene Punkte / Risiken
 
 - **FIT-Parser (`src/importers/fit.js`) ist inzwischen gegen eine echte
@@ -355,6 +408,13 @@ treffen dafuer folgende Festlegungen:
   ist zudem nicht auf grosse Sportart-Historien optimiert (O(n * Fenstergroesse)
   je Sportart, siehe "M1-Festlegung" oben) - fuer eine einzelne Sportart mit
   vielen hundert Aktivitaeten voraussichtlich unproblematisch, aber ungemessen.
+- **Belastungsgekoppelter Signaturverlauf Phase 1 (FA-SIG-10)** ist nur mit
+  synthetischen Testdaten verifiziert (`loadResponse.test.js`), NICHT gegen
+  echte Breakthrough-Historien - der k1-Fit braucht dafuer echte Nutzer mit
+  genug bestaetigten Breakthroughs (Standard-Schwelle 3). Explizit KEINE
+  vollstaendige Kalibrierung (tau1,s-Suche, Hold-out-Backtesting) - siehe
+  M4-Festlegung oben. Bis FA-SIG-12 gebaut ist, ist der Signaturverlauf ein
+  Trendindikator, keine belastbare Vorhersage (im UI so gekennzeichnet).
 
 ## Verwendung
 
@@ -412,4 +472,7 @@ Breakthrough mitten in der Historie aendert die Schwelle nachweislich nur fuer
 NACHFOLGENDE Aktivitaeten (die Breakthrough-Aktivitaet selbst zaehlt noch mit
 der alten Schwelle), und Verwerfen/Reaktivieren eines Breakthroughs
 (FA-SIG-07) fuehrt zu exakt den erwarteten bzw. wiederhergestellten
-Kennzahlen.
+Kennzahlen. `loadResponse.test.js` (FA-SIG-10, M4 Phase 1) prueft die exakte
+Exponentialform gegen die Formel aus Kap. 7.7, die Konvergenz bei konstanter
+Belastung, den Reset am Breakthrough-Tag und den k1-Least-Squares-Fit
+inklusive Fallback unterhalb der Mindestanzahl.

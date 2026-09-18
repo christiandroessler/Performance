@@ -44,6 +44,16 @@ const GLOSSARY = [
       { term: 'Fitness Ramp Rate', def: 'Veränderung der CTL über ein bestimmtes Zeitfenster (7/28/90/365 Tage) - zeigt, wie schnell die Fitness aktuell steigt oder sinkt.' },
     ],
   },
+  {
+    group: 'Belastungsgekoppelter Signaturverlauf (3D-Impulse-Response, Tab "Belastung")',
+    terms: [
+      { term: 'g (schnelle Anpassung)', def: 'Gleitender Mittelwert der täglichen Belastung (Strain Score) mit kurzer Zeitkonstante (Standard 7 Tage) - reagiert schnell auf zuletzt Trainiertes.' },
+      { term: 'h (langsame Anpassung)', def: 'Wie g, aber mit langer Zeitkonstante (Standard 42 Tage) - bildet den längerfristigen Trend ab.' },
+      { term: 'p = g − h', def: 'Die eigentliche Modellgröße: positiv, wenn die jüngste Belastung stärker war als der langfristige Trend (Fitness baut sich auf), negativ bei nachlassender Belastung.' },
+      { term: 'k1 (Kalibrierung)', def: 'Rechnet p in eine physikalische Änderung von TP/HIE/PP um. Wird aus den eigenen bestätigten Breakthroughs per kleinste-Quadrate-Fit geschätzt - erst ab einer Mindestanzahl an Breakthroughs, sonst gilt ein unkalibrierter Fallback-Wert (deutlich gekennzeichnet).' },
+      { term: 'Phase 1 vs. vollständige Kalibrierung', def: 'Diese erste Ausbaustufe schätzt nur k1. Die volle Kalibrierung (zusätzlich die Zeitkonstante τ1 je System, plus ein Hold-out-Test mit Abweichungsbericht) ist laut Lastenheft explizit eine spätere, separate Ausbaustufe (FA-SIG-12) - bis dahin ist der Signaturverlauf ein Trendindikator, keine präzise kalibrierte Vorhersage.' },
+    ],
+  },
 ];
 
 export function openGlossary() {

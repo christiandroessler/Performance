@@ -8,7 +8,7 @@
     ".": "./src/index.js"
   },
   "scripts": {
-    "test": "node --test test/strain.test.js test/wbal.test.js test/cpFit.test.js test/breakthrough.test.js test/npTss.test.js test/determinism.test.js test/signature.test.js test/pace.test.js test/thresholds.test.js test/importers/fit.test.js test/importers/text.test.js",
+    "test": "node --test test/strain.test.js test/wbal.test.js test/cpFit.test.js test/breakthrough.test.js test/npTss.test.js test/determinism.test.js test/signature.test.js test/pace.test.js test/thresholds.test.js test/loadResponse.test.js test/importers/fit.test.js test/importers/text.test.js",
     "verify-fit": "node scripts/verify-fit.js"
   },
   "engines": {

@@ -108,6 +108,7 @@ const TABS = [
   { id: 'activities', label: 'Aktivitäten' },
   { id: 'weeks', label: 'Wochen/Kalender' },
   { id: 'power', label: 'Leistungskurve' },
+  { id: 'load', label: 'Belastung' },
   { id: 'breakthroughs', label: 'Breakthroughs' },
   { id: 'sync', label: 'Daten' },
 ];
@@ -159,6 +160,7 @@ function renderAppShell(settings) {
     activitiesContainer: panels.activities,
     weeksContainer: panels.weeks,
     powerCurveContainer: panels.power,
+    loadResponseContainer: panels.load,
     breakthroughsContainer: panels.breakthroughs,
     weightKg: settings.weightKg,
   }).catch(showFatalError);

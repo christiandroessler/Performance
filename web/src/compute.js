@@ -18,6 +18,7 @@ import { decodeBundle, streamFileName, pointsFromActivityBundle } from './stream
 const MODEL_FILE = 'model/signature-history.json';
 const MMP_CURVES_FILE = 'model/mmp-curves.json';
 const THRESHOLDS_FILE = 'model/thresholds.json';
+const LOAD_RESPONSE_FILE = 'model/load-response.json';
 const INDEX_FILE = 'index.json';
 const SETTINGS_FILE = 'settings.json';
 
@@ -29,11 +30,11 @@ function getWorker() {
   if (!worker) {
     worker = new Worker(new URL('./calcWorker.js', import.meta.url), { type: 'module' });
     worker.onmessage = (e) => {
-      const { requestId, ok, result, mmpCurves, thresholds, error } = e.data;
+      const { requestId, ok, result, mmpCurves, thresholds, loadResponse, error } = e.data;
       const cb = pending.get(requestId);
       if (!cb) return;
       pending.delete(requestId);
-      if (ok) cb.resolve({ result, mmpCurves, thresholds });
+      if (ok) cb.resolve({ result, mmpCurves, thresholds, loadResponse });
       else cb.reject(new Error(error));
     };
   }
@@ -92,6 +93,12 @@ export async function loadThresholds() {
   return state && state.thresholds ? state.thresholds : { pace: {}, hr: {} };
 }
 
+/** FA-SIG-10 (M4 Phase 1): taeglicher g/h/p-Verlauf je System + Phase-1-Kalibrierung (k1,s). */
+export async function loadLoadResponse() {
+  const state = await readJson(LOAD_RESPONSE_FILE);
+  return state ? { series: state.series, calibration: state.calibration } : { series: [], calibration: null };
+}
+
 /** FA-SET-02/03: je Nutzer in settings.json hinterlegte Abweichungen von den Startwerten (Kap. 12). */
 async function loadModelSettingsOverrides() {
   const settings = await readJson(SETTINGS_FILE);
@@ -109,7 +116,7 @@ export async function recomputeAll({ settingsOverrides, discardedBreakthroughIds
   // oder eine Breakthrough-Aktion (discardBreakthrough/reactivateBreakthrough) den Anstoss gibt.
   const effectiveOverrides = settingsOverrides ?? (await loadModelSettingsOverrides());
 
-  const { result, mmpCurves, thresholds } = await runInWorker({
+  const { result, mmpCurves, thresholds, loadResponse } = await runInWorker({
     rawActivities,
     settingsOverrides: effectiveOverrides,
     discardedBreakthroughIds: discardedIds,
@@ -117,6 +124,7 @@ export async function recomputeAll({ settingsOverrides, discardedBreakthroughIds
 
   await writeJson(MMP_CURVES_FILE, { schemaVersion: 1, computedAt: new Date().toISOString(), curves: mmpCurves });
   await writeJson(THRESHOLDS_FILE, { schemaVersion: 1, computedAt: new Date().toISOString(), thresholds });
+  await writeJson(LOAD_RESPONSE_FILE, { schemaVersion: 1, computedAt: new Date().toISOString(), ...loadResponse });
 
   await writeJson(MODEL_FILE, {
     schemaVersion: 1,

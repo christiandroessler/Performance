@@ -59,6 +59,10 @@
  * @property {number} thresholdEffortSeconds - Standard 1200 (20 Min, FA-TP-03): Zieldauer der "besten Anstrengung" fuer Pace-/HF-Schwellen
  * @property {number} thresholdCyclingPowerTolerance - Standard 0.05 (FA-TP-04): Toleranzband um TP fuer die Rad-Schwellen-HF-Schaetzung
  * @property {number} thresholdChangeEpsilon - Standard 0.02 (FA-TP-03/04): neuer Historien-Eintrag erst ab dieser relativen Aenderung
+ * @property {number} loadResponseTau1Days - Standard 42 (FA-SIG-10, Kap. 7.7/12): Zeitkonstante tau1 (schnelle EWMA g)
+ * @property {number} loadResponseTau2Days - Standard 7 (FA-SIG-10, Kap. 7.7/12): Zeitkonstante tau2 (langsame EWMA h)
+ * @property {number} loadResponseMinBreakthroughsForFit - Standard 3 (FA-SIG-12 Phase 1): Mindestanzahl Breakthroughs fuer den k1-Least-Squares-Fit, sonst Neutralwert 1
+ * @property {number} loadResponseDisplayDiscountPct - Standard 0 (FA-SIG-10 Anzeige-Abschlag, %): Startwert erst mit FA-SIG-12/Backtesting sinnvoll belegbar
  */
 
 /**

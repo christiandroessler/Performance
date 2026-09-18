@@ -21,8 +21,9 @@ import { renderBreakthroughs } from './breakthroughView.js';
 import { renderPowerCurve } from './powerCurveView.js';
 import { renderWeekOverview } from './weekView.js';
 import { renderRecentActivity, renderThisWeekSummary, renderRecentBreakthroughs, renderSportThresholds } from './dashboardExtras.js';
+import { renderLoadResponse } from './loadResponseView.js';
 
-export async function renderDashboard({ overviewContainer, activitiesContainer, weeksContainer, powerCurveContainer, breakthroughsContainer }) {
+export async function renderDashboard({ overviewContainer, activitiesContainer, weeksContainer, powerCurveContainer, loadResponseContainer, breakthroughsContainer }) {
   overviewContainer.innerHTML = '';
 
   const statusCard = document.createElement('div');
@@ -155,6 +156,7 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
     safeRender(activitiesContainer, 'Aktivitätenliste', () => renderActivityList(activitiesContainer, index));
     safeRender(weeksContainer, 'Wochen-/Kalenderübersicht', () => renderWeekOverview(weeksContainer, index));
     await safeRenderAsync(powerCurveContainer, 'Leistungskurve', () => renderPowerCurve(powerCurveContainer));
+    await safeRenderAsync(loadResponseContainer, 'Belastung', () => renderLoadResponse(loadResponseContainer));
     await safeRenderAsync(breakthroughsContainer, 'Breakthroughs', () => renderBreakthroughs(breakthroughsContainer, modelState, refresh));
     return { index, modelState };
   }

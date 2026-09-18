@@ -4,7 +4,16 @@
 // aggregierten Ergebnisse zurueck (keine Sekunden-Streams) - klein genug fuer
 // eine schnelle structured-clone-Uebertragung zurueck ins Hauptfenster.
 
-import { prepareActivity, computeSignatureHistory, mergeSettings, estimateThresholds, applySportSpecificTss } from '../vendor/core/src/index.js';
+import {
+  prepareActivity,
+  computeSignatureHistory,
+  mergeSettings,
+  estimateThresholds,
+  applySportSpecificTss,
+  dailyStrainSums,
+  loadResponseSeries,
+  calibrateK1,
+} from '../vendor/core/src/index.js';
 
 self.onmessage = (e) => {
   const { requestId, rawActivities, settingsOverrides, discardedBreakthroughIds } = e.data;
@@ -27,7 +36,13 @@ self.onmessage = (e) => {
     // prepareActivity() (core, unveraendert), nicht aus computeSignatureHistory -
     // die MMP-Kurve gilt unabhaengig von einer erkannten Signatur/Schwelle.
     const mmpCurves = prepared.map((p) => ({ date: p.date, activityId: p.id, mmp: p.mmp }));
-    self.postMessage({ requestId, ok: true, result, mmpCurves, thresholds });
+    // FA-SIG-10 (M4 Phase 1, siehe core/README.md): belastungsgekoppelter Signaturverlauf aus
+    // den bereits berechneten Strain-Sub-Scores - dritter, ebenfalls unabhaengiger Durchlauf.
+    const sums = dailyStrainSums(result.activityResults);
+    const series = loadResponseSeries(sums, result.breakthroughs, settings);
+    const calibration = calibrateK1(series, result.breakthroughs, settings);
+    const loadResponse = { series, calibration };
+    self.postMessage({ requestId, ok: true, result, mmpCurves, thresholds, loadResponse });
   } catch (err) {
     self.postMessage({ requestId, ok: false, error: String((err && err.message) || err) });
   }
