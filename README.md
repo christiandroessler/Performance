@@ -154,8 +154,12 @@ einem Web Worker (NFA-04), gefuettert mit den in M2 abgelegten Rohdaten:
   Aktivitaeten ohne (nutzbare) Leistung frei, statt eines vorher fabrizierten
   `tss: 0`. In der Uebersicht als eigene Karte, in der Aktivitaetsliste mit
   "≈" gekennzeichnet, Methodik in `core/README.md` dokumentiert.
-- Absichtlich noch offen: PP-Plausibilisierung (FA-SIG-13), Einstellungen-UI
-  ueber das Erscheinungsbild hinaus (FA-SET-02-04).
+- Einstellungen-UI (2026-09-18, FA-SET-01 bis 04): Gewichtsverlauf mit Datum
+  pflegbar, alle implementierten Kap.-12-Parameter gruppiert einsehbar/
+  aenderbar, Speichern loest eine protokollierte, vollstaendige
+  Neuberechnung aus, Reset auf Startwerte ("Kalibrierungswerte" faellt bis
+  zur individuellen Kalibrierung in M4 mit "Literaturwerte" zusammen).
+- Absichtlich noch offen: PP-Plausibilisierung (FA-SIG-13).
 - `web/test/computePipeline.test.js` prueft die Naht Ablageformat -> core
   (RawStreamPoint[]-Form, FA-DQ-01 deviceWatts-Maskierung); die
   Algorithmus-Korrektheit selbst deckt bereits `core/test/` ab (M1).

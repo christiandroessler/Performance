@@ -19,6 +19,7 @@ const MODEL_FILE = 'model/signature-history.json';
 const MMP_CURVES_FILE = 'model/mmp-curves.json';
 const THRESHOLDS_FILE = 'model/thresholds.json';
 const INDEX_FILE = 'index.json';
+const SETTINGS_FILE = 'settings.json';
 
 let worker = null;
 let nextRequestId = 1;
@@ -91,16 +92,26 @@ export async function loadThresholds() {
   return state && state.thresholds ? state.thresholds : { pace: {}, hr: {} };
 }
 
+/** FA-SET-02/03: je Nutzer in settings.json hinterlegte Abweichungen von den Startwerten (Kap. 12). */
+async function loadModelSettingsOverrides() {
+  const settings = await readJson(SETTINGS_FILE);
+  return (settings && settings.modelSettings) || {};
+}
+
 /** FA-SIG-07/M1: reine Funktion ueber den GESAMTEN Verlauf - kein inkrementelles Patchen. */
 export async function recomputeAll({ settingsOverrides, discardedBreakthroughIds } = {}) {
   const index = await loadIndex();
   const rawActivities = await loadRawActivities(index);
   const modelState = await loadModelState();
   const discardedIds = discardedBreakthroughIds ?? modelState.discardedBreakthroughIds;
+  // Ohne explizit uebergebene Overrides gelten die vom Nutzer in den Einstellungen gespeicherten
+  // (FA-SET-03) - so wirken sie unabhaengig davon, ob "Kennzahlen neu berechnen" (dashboardView.js)
+  // oder eine Breakthrough-Aktion (discardBreakthrough/reactivateBreakthrough) den Anstoss gibt.
+  const effectiveOverrides = settingsOverrides ?? (await loadModelSettingsOverrides());
 
   const { result, mmpCurves, thresholds } = await runInWorker({
     rawActivities,
-    settingsOverrides,
+    settingsOverrides: effectiveOverrides,
     discardedBreakthroughIds: discardedIds,
   });
 

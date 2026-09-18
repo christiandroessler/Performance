@@ -1,10 +1,81 @@
-// FA-SET-01: Einstellungen-UI - erste Runde nur Erscheinungsbild (Hell/Dunkel), bewusst als
-// eigenstaendiges Modal statt Tab angelegt, damit spaeter weitere Einstellungen (Schwellen,
-// Benachrichtigungen, ...) einfach als weitere Abschnitte dazukommen koennen (FA-SET-02-04).
+// FA-SET-01 bis 04 (Lastenheft Kap. 6.9, Kap. 12): Gewichtsverlauf mit Datum, alle
+// einstellbaren Modellparameter aus Kap. 12 einsehbar/aenderbar, jede Aenderung loest die
+// chronologische Neuberechnung (compute.js#recomputeAll) aus und wird protokolliert, Reset auf
+// die Startwerte. "Auf Kalibrierungswerte zuruecksetzen" (FA-SET-04, Prioritaet S) faellt bis zur
+// individuellen Kalibrierung (M4, FA-SIG-10/12) mit "Auf Literaturwerte zuruecksetzen" zusammen -
+// beide fuehren bis dahin auf dieselben Startwerte (core/src/settings.js#DEFAULT_SETTINGS).
 
+import { DEFAULT_SETTINGS } from '../vendor/core/src/index.js';
 import { isLightTheme, setTheme } from './theme.js';
+import { loadOrInitSettings, SETTINGS_FILE } from './onboarding.js';
+import { writeJson } from './storage.js';
+import { recomputeAll } from './compute.js';
 
-export function openSettings() {
+const pct = { toDisplay: (v) => Math.round(v * 1000) / 10, fromDisplay: (v) => v / 100 };
+const identity = { toDisplay: (v) => v, fromDisplay: (v) => v };
+
+// Gruppierung/Beschriftung/Quelle nach Lastenheft Kap. 12 ("Einstellbare Parameter (Startwerte)");
+// die vier thresholdX-Parameter sind eine M1-Festlegung fuer FA-TP-03/04 (core/README.md), im
+// Lastenheft selbst noch als "in M1 festzulegen" offen gelassen.
+const PARAM_GROUPS = [
+  {
+    title: 'Breakthrough-Erkennung',
+    params: [
+      { key: 'breakthroughEpsilon', label: 'Breakthrough-Toleranz ε', unit: '%', min: 0, max: 20, step: 0.1, ...pct, hint: 'F8, Kap. 7.4' },
+      { key: 'breakthroughMinSeconds', label: 'Breakthrough-Mindestdauer d', unit: 's', min: 1, max: 60, step: 1, ...identity, hint: 'F8, Kap. 7.4' },
+      { key: 'medalThreshold', label: 'Medaillenschwelle', unit: '%', min: 0, max: 20, step: 0.1, ...pct, hint: 'F9, Kap. 7.5' },
+    ],
+  },
+  {
+    title: 'Signatur-Refit',
+    params: [
+      { key: 'initialSignatureWindowDays', label: 'Fenster Startsignatur', unit: 'Tage', min: 7, max: 365, step: 1, ...identity, hint: 'F9, FA-SIG-03' },
+      { key: 'refitWindowDays', label: 'Refit-Fenster', unit: 'Tage', min: 7, max: 365, step: 1, ...identity, hint: 'F9, Kap. 7.5' },
+      { key: 'maxDropPerBreakthrough', label: 'Absenkbremse je Breakthrough', unit: '%', min: 0, max: 50, step: 0.5, ...pct, hint: 'F9, Kap. 7.5' },
+      { key: 'minSupportingActivitiesForDrop', label: 'Mindestanzahl stützender Aktivitäten für Absenkung', unit: '', min: 1, max: 20, step: 1, ...identity, hint: 'F9, Kap. 7.5' },
+      { key: 'refitNearMpaThreshold', label: 'Nähe zur MPA für Refit-Punkte', unit: '%', min: 0, max: 50, step: 0.5, ...pct, hint: 'M1-Festlegung' },
+      { key: 'mpaExponent', label: 'MPA-Exponent n', unit: '', options: [1, 2], ...identity, hint: 'Kontro et al. 2024/2025' },
+    ],
+  },
+  {
+    title: 'Ausreißerfilter (Leistung)',
+    params: [
+      { key: 'outlierMaxWatts', label: 'Max. plausible Leistung', unit: 'W', min: 200, max: 5000, step: 10, ...identity, hint: 'M1-Festlegung, Ausreißerregel' },
+      { key: 'outlierMaxJumpWatts', label: 'Max. plausibler Leistungssprung', unit: 'W', min: 100, max: 5000, step: 10, ...identity, hint: 'M1-Festlegung, Ausreißerregel' },
+    ],
+  },
+  {
+    title: 'Trainingsbelastung (PMC)',
+    params: [
+      { key: 'ctlTau', label: 'CTL-Zeitkonstante (Fitness)', unit: 'Tage', min: 7, max: 90, step: 1, ...identity, hint: 'gängige Praxis' },
+      { key: 'atlTau', label: 'ATL-Zeitkonstante (Ermüdung)', unit: 'Tage', min: 3, max: 30, step: 1, ...identity, hint: 'gängige Praxis' },
+    ],
+  },
+  {
+    title: 'Sportart-Schwellen (FA-TP-03/04)',
+    params: [
+      { key: 'thresholdEstimationWindowDays', label: 'Rollierendes Schätzfenster', unit: 'Tage', min: 30, max: 365, step: 5, ...identity, hint: 'M1-Festlegung' },
+      { key: 'thresholdEffortSeconds', label: 'Bewertungsdauer', unit: 's', min: 300, max: 3600, step: 60, ...identity, hint: 'M1-Festlegung' },
+      { key: 'thresholdCyclingPowerTolerance', label: 'Toleranz Rad-Leistung nahe TP', unit: '%', min: 1, max: 20, step: 0.5, ...pct, hint: 'M1-Festlegung, FA-TP-04' },
+      { key: 'thresholdChangeEpsilon', label: 'Änderungsschwelle (neuer Verlaufseintrag)', unit: '%', min: 0.5, max: 10, step: 0.5, ...pct, hint: 'M1-Festlegung' },
+    ],
+  },
+];
+
+const ALL_PARAMS = PARAM_GROUPS.flatMap((g) => g.params);
+
+function roundedDisplay(param, rawValue) {
+  return Math.round(param.toDisplay(rawValue) * 100) / 100;
+}
+
+function formatParamValue(param, rawValue) {
+  const rounded = roundedDisplay(param, rawValue);
+  return param.unit ? `${rounded} ${param.unit}` : `${rounded}`;
+}
+
+export async function openSettings() {
+  let settings = await loadOrInitSettings();
+
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.onclick = (e) => {
@@ -13,7 +84,7 @@ export function openSettings() {
   document.addEventListener('keydown', onKeydown);
 
   const panel = document.createElement('div');
-  panel.className = 'modal-panel modal-panel-narrow';
+  panel.className = 'modal-panel';
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
 
@@ -35,43 +106,304 @@ export function openSettings() {
   heading.textContent = 'Einstellungen';
   panel.appendChild(heading);
 
-  const card = document.createElement('div');
-  card.className = 'card';
-  panel.appendChild(card);
+  renderAppearanceCard();
+  renderWeightCard();
+  renderParamsCard();
+  renderChangelogCard();
 
-  const cardHeading = document.createElement('h3');
-  cardHeading.textContent = 'Erscheinungsbild';
-  card.appendChild(cardHeading);
+  // ---------- Erscheinungsbild ----------
+  function renderAppearanceCard() {
+    const card = document.createElement('div');
+    card.className = 'card';
+    panel.appendChild(card);
 
-  const row = document.createElement('div');
-  row.className = 'btn-row';
-  card.appendChild(row);
+    const h = document.createElement('h3');
+    h.textContent = 'Erscheinungsbild';
+    card.appendChild(h);
 
-  const darkBtn = document.createElement('button');
-  const lightBtn = document.createElement('button');
-  darkBtn.textContent = '🌙 Dunkel';
-  lightBtn.textContent = '☀️ Hell';
-  row.appendChild(darkBtn);
-  row.appendChild(lightBtn);
+    const row = document.createElement('div');
+    row.className = 'btn-row';
+    card.appendChild(row);
 
-  function refresh() {
-    const light = isLightTheme();
-    darkBtn.className = light ? '' : 'btn-primary';
-    lightBtn.className = light ? 'btn-primary' : '';
+    const darkBtn = document.createElement('button');
+    const lightBtn = document.createElement('button');
+    darkBtn.textContent = '🌙 Dunkel';
+    lightBtn.textContent = '☀️ Hell';
+    row.appendChild(darkBtn);
+    row.appendChild(lightBtn);
+
+    function refresh() {
+      const light = isLightTheme();
+      darkBtn.className = light ? '' : 'btn-primary';
+      lightBtn.className = light ? 'btn-primary' : '';
+    }
+    darkBtn.onclick = () => {
+      setTheme(false);
+      refresh();
+    };
+    lightBtn.onclick = () => {
+      setTheme(true);
+      refresh();
+    };
+    refresh();
   }
-  darkBtn.onclick = () => {
-    setTheme(false);
-    refresh();
-  };
-  lightBtn.onclick = () => {
-    setTheme(true);
-    refresh();
-  };
-  refresh();
 
-  const hint = document.createElement('p');
-  hint.className = 'hint';
-  hint.style.marginTop = '1.5rem';
-  hint.textContent = 'Weitere Einstellungen (Schwellenwerte, Benachrichtigungen, ...) folgen hier in einer späteren Ausbaustufe.';
-  panel.appendChild(hint);
+  // ---------- FA-SET-01: Gewichtsverlauf ----------
+  function renderWeightCard() {
+    const card = document.createElement('div');
+    card.className = 'card';
+    panel.appendChild(card);
+
+    const h = document.createElement('h3');
+    h.textContent = 'Gewichtsverlauf';
+    card.appendChild(h);
+
+    const hint = document.createElement('p');
+    hint.className = 'hint';
+    hint.textContent = 'Wird für W/kg-Kennzahlen verwendet (jeweils das zum Aktivitätsdatum gültige Gewicht) - siehe Leistungskurve.';
+    card.appendChild(hint);
+
+    const list = document.createElement('div');
+    list.className = 'threshold-list';
+    card.appendChild(list);
+
+    const addRow = document.createElement('div');
+    addRow.className = 'btn-row';
+    addRow.style.marginTop = '0.75rem';
+    const dateInput = document.createElement('input');
+    dateInput.type = 'date';
+    dateInput.value = new Date().toISOString().slice(0, 10);
+    const kgInput = document.createElement('input');
+    kgInput.type = 'number';
+    kgInput.min = '30';
+    kgInput.max = '250';
+    kgInput.step = '0.1';
+    kgInput.placeholder = 'kg';
+    kgInput.style.width = '90px';
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn-primary';
+    addBtn.textContent = 'Hinzufügen';
+    addRow.appendChild(dateInput);
+    addRow.appendChild(kgInput);
+    addRow.appendChild(addBtn);
+    card.appendChild(addRow);
+
+    addBtn.onclick = async () => {
+      const kg = Number(kgInput.value);
+      const date = dateInput.value;
+      if (!date || !kg || kg < 30 || kg > 250) return;
+      settings.weightHistory = [...(settings.weightHistory || []).filter((w) => w.date !== date), { date, kg }];
+      await persistWeight();
+      kgInput.value = '';
+      renderList();
+    };
+
+    async function persistWeight() {
+      const sorted = [...(settings.weightHistory || [])].sort((a, b) => a.date.localeCompare(b.date));
+      settings.weightKg = sorted.length ? sorted[sorted.length - 1].kg : null;
+      await writeJson(SETTINGS_FILE, settings);
+    }
+
+    function renderList() {
+      list.innerHTML = '';
+      const sorted = [...(settings.weightHistory || [])].sort((a, b) => b.date.localeCompare(a.date));
+      if (sorted.length === 0) {
+        const p = document.createElement('p');
+        p.className = 'hint';
+        p.textContent = 'Noch kein Gewicht hinterlegt.';
+        list.appendChild(p);
+        return;
+      }
+      for (const entry of sorted) {
+        const row = document.createElement('div');
+        row.className = 'threshold-row';
+        row.innerHTML = `<span>${entry.date}</span><span class="threshold-value">${entry.kg} kg</span>`;
+        const delBtn = document.createElement('button');
+        delBtn.className = 'btn-ghost';
+        delBtn.textContent = 'Entfernen';
+        delBtn.onclick = async () => {
+          settings.weightHistory = (settings.weightHistory || []).filter((w) => w.date !== entry.date);
+          await persistWeight();
+          renderList();
+        };
+        row.appendChild(delBtn);
+        list.appendChild(row);
+      }
+    }
+    renderList();
+  }
+
+  // ---------- FA-SET-02/03/04: Modellparameter ----------
+  function renderParamsCard() {
+    const card = document.createElement('div');
+    card.className = 'card';
+    panel.appendChild(card);
+
+    const h = document.createElement('h3');
+    h.textContent = 'Modellparameter';
+    card.appendChild(h);
+
+    const hint = document.createElement('p');
+    hint.className = 'hint';
+    hint.textContent = 'Aenderungen loesen nach dem Speichern eine vollstaendige chronologische Neuberechnung aus (kann bei langer Historie etwas dauern).';
+    card.appendChild(hint);
+
+    const inputs = new Map();
+    for (const group of PARAM_GROUPS) {
+      const groupHeading = document.createElement('h4');
+      groupHeading.className = 'settings-group-heading';
+      groupHeading.textContent = group.title;
+      card.appendChild(groupHeading);
+
+      const grid = document.createElement('div');
+      grid.className = 'settings-param-grid';
+      card.appendChild(grid);
+
+      for (const param of group.params) {
+        const effective = settings.modelSettings && settings.modelSettings[param.key] !== undefined ? settings.modelSettings[param.key] : DEFAULT_SETTINGS[param.key];
+
+        const wrap = document.createElement('label');
+        wrap.className = 'settings-param';
+        const labelSpan = document.createElement('span');
+        labelSpan.className = 'settings-param-label';
+        labelSpan.textContent = param.label;
+        wrap.appendChild(labelSpan);
+
+        let input;
+        if (param.options) {
+          input = document.createElement('select');
+          for (const opt of param.options) {
+            const o = document.createElement('option');
+            o.value = opt;
+            o.textContent = opt;
+            input.appendChild(o);
+          }
+          input.value = roundedDisplay(param, effective);
+        } else {
+          input = document.createElement('input');
+          input.type = 'number';
+          input.min = param.min;
+          input.max = param.max;
+          input.step = param.step;
+          input.value = roundedDisplay(param, effective);
+        }
+        wrap.appendChild(input);
+
+        if (param.unit) {
+          const unitSpan = document.createElement('span');
+          unitSpan.className = 'settings-param-unit';
+          unitSpan.textContent = param.unit;
+          wrap.appendChild(unitSpan);
+        }
+        const src = document.createElement('span');
+        src.className = 'settings-param-hint';
+        src.textContent = param.hint;
+        wrap.appendChild(src);
+
+        grid.appendChild(wrap);
+        inputs.set(param.key, input);
+      }
+    }
+
+    const actionRow = document.createElement('div');
+    actionRow.className = 'btn-row';
+    actionRow.style.marginTop = '1rem';
+    card.appendChild(actionRow);
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn-primary';
+    saveBtn.textContent = 'Speichern & neu berechnen';
+    actionRow.appendChild(saveBtn);
+
+    const resetBtn = document.createElement('button');
+    resetBtn.className = 'btn-ghost';
+    resetBtn.textContent = 'Auf Startwerte zurücksetzen';
+    actionRow.appendChild(resetBtn);
+
+    const resetHint = document.createElement('p');
+    resetHint.className = 'hint';
+    resetHint.textContent = 'Individuelle Kalibrierungswerte gibt es erst ab M4 - bis dahin identisch mit den Literatur-Startwerten.';
+    card.appendChild(resetHint);
+
+    const statusP = document.createElement('p');
+    card.appendChild(statusP);
+
+    saveBtn.onclick = async () => {
+      const next = {};
+      for (const param of ALL_PARAMS) {
+        const input = inputs.get(param.key);
+        const raw = Number(input.value);
+        if (Number.isFinite(raw)) next[param.key] = param.fromDisplay(raw);
+      }
+      await applyModelSettings(next, statusP, saveBtn, resetBtn);
+    };
+
+    resetBtn.onclick = async () => {
+      await applyModelSettings({}, statusP, saveBtn, resetBtn);
+    };
+  }
+
+  async function applyModelSettings(next, statusP, saveBtn, resetBtn) {
+    const previous = settings.modelSettings || {};
+    const changes = [];
+    for (const param of ALL_PARAMS) {
+      const before = previous[param.key] !== undefined ? previous[param.key] : DEFAULT_SETTINGS[param.key];
+      const after = next[param.key] !== undefined ? next[param.key] : DEFAULT_SETTINGS[param.key];
+      if (Math.abs(before - after) > 1e-9) {
+        changes.push({ key: param.key, label: param.label, from: formatParamValue(param, before), to: formatParamValue(param, after) });
+      }
+    }
+    if (changes.length === 0) {
+      statusP.className = 'hint';
+      statusP.textContent = 'Keine Änderungen.';
+      return;
+    }
+
+    saveBtn.disabled = true;
+    resetBtn.disabled = true;
+    statusP.className = 'hint';
+    statusP.textContent = 'Berechne Kennzahlen neu (Web Worker)...';
+
+    try {
+      settings.modelSettings = next;
+      settings.settingsChangeLog = [{ at: new Date().toISOString(), changes }, ...(settings.settingsChangeLog || [])].slice(0, 30);
+      await writeJson(SETTINGS_FILE, settings);
+      await recomputeAll({ settingsOverrides: next });
+      statusP.className = '';
+      statusP.textContent = 'Neu berechnet. Seite wird aktualisiert...';
+      window.location.reload();
+    } catch (err) {
+      statusP.className = 'error';
+      statusP.textContent = err.message;
+      saveBtn.disabled = false;
+      resetBtn.disabled = false;
+    }
+  }
+
+  // ---------- FA-SET-03: Änderungsprotokoll ----------
+  function renderChangelogCard() {
+    const log = settings.settingsChangeLog || [];
+    if (log.length === 0) return;
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    panel.appendChild(card);
+
+    const h = document.createElement('h3');
+    h.textContent = 'Änderungsprotokoll';
+    card.appendChild(h);
+
+    const list = document.createElement('div');
+    list.className = 'threshold-list';
+    card.appendChild(list);
+
+    for (const entry of log.slice(0, 10)) {
+      const row = document.createElement('div');
+      row.className = 'threshold-row';
+      const when = new Date(entry.at).toLocaleString('de-DE');
+      const summary = entry.changes.map((c) => `${c.label}: ${c.from} → ${c.to}`).join('; ');
+      row.innerHTML = `<span>${when}</span><span class="hint">${summary}</span>`;
+      list.appendChild(row);
+    }
+  }
 }

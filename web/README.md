@@ -30,7 +30,7 @@ selbst wird vor jedem Deploy nach `web/vendor/core/src` kopiert (siehe
 |---|---|
 | `scripts/sync-core.mjs` | Kopiert `core/src` nach `web/vendor/core/src` (`npm run sync-core`, laeuft automatisch vor `npm test`/`npm run dev`/`npm run deploy`) |
 | `src/calcWorker.js` | Web Worker (NFA-04): ruft `core/prepareActivity` + `computeSignatureHistory` unveraendert auf, danach FA-TP-03/04 `estimateThresholds` + `applySportSpecificTss` (Sportart-Schwellen, hrTSS/Pace-TSS-Fallback) als zweiter Durchlauf, liefert nur aggregierte Ergebnisse zurueck (keine Sekunden-Streams) |
-| `src/compute.js` | Laedt alle Rohdaten (index.json + streams/\*.bin) inkl. Sportart (`type`), schickt sie an den Worker, schreibt `model/signature-history.json` + `model/mmp-curves.json` + `model/thresholds.json` (FA-TP-03/04, `loadThresholds()`), schreibt Kennzahlen (inkl. `tssSource`: `power`/`hr`/`pace`/`null`) in `index.json` zurueck. `discardBreakthrough`/`reactivateBreakthrough` (FA-SIG-07). Aktivitaeten ganz ohne Stream-Bundle (z. B. Strava-404) bekommen explizit `hasSignature: false`/`tss: null` statt `undefined` zu bleiben - sonst zaehlte der "noch nicht berechnet"-Status in dashboardView.js sie fuer immer mit, egal wie oft neu berechnet wird |
+| `src/compute.js` | Laedt alle Rohdaten (index.json + streams/\*.bin) inkl. Sportart (`type`), schickt sie an den Worker, schreibt `model/signature-history.json` + `model/mmp-curves.json` + `model/thresholds.json` (FA-TP-03/04, `loadThresholds()`), schreibt Kennzahlen (inkl. `tssSource`: `power`/`hr`/`pace`/`null`) in `index.json` zurueck. `discardBreakthrough`/`reactivateBreakthrough` (FA-SIG-07). `recomputeAll` laedt ohne explizit uebergebene `settingsOverrides` automatisch die in `settings.json#modelSettings` hinterlegten Nutzer-Parameter (FA-SET-03) - wirkt so unabhaengig vom Aufrufer (Knopfdruck, Breakthrough-Aktion, Einstellungen-Speichern). Aktivitaeten ganz ohne Stream-Bundle (z. B. Strava-404) bekommen explizit `hasSignature: false`/`tss: null` statt `undefined` zu bleiben - sonst zaehlte der "noch nicht berechnet"-Status in dashboardView.js sie fuer immer mit, egal wie oft neu berechnet wird |
 | `src/activityListView.js` | FA-ACT-01: Aktivitaetsliste, sortierbar, Suche (Name) + Filter (Sportart, Zeitraum von/bis), Klick auf Zeile oeffnet die Detailansicht. TSS aus HF/Pace (statt Leistung) ist mit "≈" + Tooltip gekennzeichnet (FA-TP-05) |
 | `src/activityFilter.js` | Reine Filterlogik fuer die Aktivitaetsliste (Suche/Sportart/Zeitraum) - ohne Browser-Abhaengigkeit, testbar mit `node:test` |
 | `src/format.js` | Gemeinsame Dauer-/Distanz-Formatierung (`formatDuration`, `formatDistance`), bisher in mehreren Views dupliziert - u. a. behebt das hier zusammengefuehrte `formatDuration` einen Rundungsfehler ("Xh 60min" statt "(X+1)h 0min" bei z. B. 3599s) |
@@ -41,7 +41,7 @@ selbst wird vor jedem Deploy nach `web/vendor/core/src` kopiert (siehe
 | `src/pmcMath.js` | Reine Ramp-Rate-Berechnung (CTL-Veraenderung ueber 7/28/90/365 Tage) und `sliceSeriesForRange` (Anzeige-Ausschnitt des PMC-Charts) - ohne Browser-Abhaengigkeit, testbar mit `node:test` |
 | `src/dashboardExtras.js` | Uebersicht-Redesign (TrainingPeaks-Vorbild): "Letzte Aktivitaet" (inkl. Distanz), "Sportart-Schwellen" (FA-TP-03/04, `renderSportThresholds` - Lauf-/Schwimm-Pace, Rad-HF, HF je sonstiger Sportart, mit Datum als Schaetzung gekennzeichnet), "Diese Woche", "Neueste Breakthroughs" - reine Zusammenfassungen bereits vorhandener Daten |
 | `src/theme.js` | Hell-/Dunkelmodus zentral (localStorage je Geraet) - von main.js (Anwenden beim Start) und settingsView.js (Umschalten) geteilt |
-| `src/settingsView.js` | FA-SET-01: Einstellungen-Modal (bisher Erscheinungsbild Hell/Dunkel, als Ausbaupunkt fuer spaetere Einstellungen angelegt) |
+| `src/settingsView.js` | FA-SET-01 bis 04: Einstellungen-Modal - Erscheinungsbild, Gewichtsverlauf mit Datum (FA-SET-01), alle in `core/src/settings.js` implementierten Kap.-12-Parameter gruppiert einsehbar/aenderbar (FA-SET-02), Speichern loest `recomputeAll` mit protokollierter Aenderung aus (FA-SET-03), Reset auf Startwerte (FA-SET-04 - "Kalibrierungswerte" faellt bis M4 mit "Literaturwerte" zusammen) |
 | `src/glossaryView.js` | Glossar aller Berechnungsgrundlagen (CP/W'/Pmax, MPA/W'bal, NP/IF/TSS, CTL/ATL/TSB, Strain, Sportart-Schwellen) in einfacher Sprache, fuer alle Nutzer zum Nachlesen |
 | `src/breakthroughView.js` | FA-SIG-07/08: Breakthrough-Uebersicht, Mehrfachauswahl zum Verwerfen, Reaktivieren |
 | `src/calendarUtils.js` | Reine Datums-/Aggregationsfunktionen fuer FA-TP-07 (Wochen-/Monats-/Tagesgruppierung) - ohne Browser-Abhaengigkeit, testbar mit `node:test` |
@@ -74,9 +74,18 @@ der Aktivitaetsliste und einer "Sportart-Schwellen"-Karte in der Uebersicht)
 ist seit 2026-09-18 gebaut, siehe `core/README.md` Abschnitt
 "Sportart-Schwellen-Schaetzung" fuer die Methodik.
 
+Einstellungen-UI (2026-09-18, FA-SET-01 bis 04): Gewichtsverlauf mit Datum
+pflegbar (bisher nur einmalig im Onboarding gesetzt), alle in
+`core/src/settings.js` vorhandenen Kap.-12-Parameter gruppiert einsehbar und
+aenderbar, Speichern loest eine vollstaendige, protokollierte Neuberechnung
+aus (Aenderungsprotokoll im selben Modal einsehbar), Reset auf Startwerte.
+Nicht Teil dieser Runde erweiterte Parameter ohne echten Effekt in M1-M3
+(z. B. k1/k2, Anzeige-Abschlag, Hold-out-Zeitraum, aktive Muskelmasse) - die
+haengen an noch nicht gebauten Modellen (M4/M5) und waeren ohne Wirkung nur
+verwirrend.
+
 **Bewusst noch nicht gebaut** (M3, spaetere Runde): PP-Plausibilisierung
-(FA-SIG-13), Einstellungen-UI ueber das Erscheinungsbild hinaus
-(FA-SET-02-04).
+(FA-SIG-13).
 
 ## Ablageformat der Streams (`streams/YYYY-MM.bin`)
 

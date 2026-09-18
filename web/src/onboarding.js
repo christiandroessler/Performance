@@ -20,7 +20,7 @@ import { requestDriveAccess, getSignedInEmail } from './auth.js';
 import { readJson, writeJson } from './storage.js';
 import { startStravaConnect } from './api.js';
 
-const SETTINGS_FILE = 'settings.json';
+export const SETTINGS_FILE = 'settings.json';
 
 export async function loadOrInitSettings() {
   const existing = await readJson(SETTINGS_FILE);
@@ -31,6 +31,10 @@ export async function loadOrInitSettings() {
     consent: { given: false, at: null },
     weightKg: null,
     weightHistory: [],
+    // FA-SET-02/03: Abweichungen von core/src/settings.js#DEFAULT_SETTINGS je Nutzer,
+    // plus protokollierte Aenderungshistorie (settingsView.js).
+    modelSettings: {},
+    settingsChangeLog: [],
   };
 }
 
