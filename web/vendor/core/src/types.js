@@ -63,6 +63,7 @@
  * @property {number} loadResponseTau2Days - Standard 7 (FA-SIG-10, Kap. 7.7/12): Zeitkonstante tau2 (langsame EWMA h)
  * @property {number} loadResponseMinBreakthroughsForFit - Standard 3 (FA-SIG-12 Phase 1): Mindestanzahl Breakthroughs fuer den k1-Least-Squares-Fit, sonst Neutralwert 1
  * @property {number} loadResponseDisplayDiscountPct - Standard 0 (FA-SIG-10 Anzeige-Abschlag, %): Startwert erst mit FA-SIG-12/Backtesting sinnvoll belegbar
+ * @property {number} loadResponseHoldOutMonths - Standard 6 (FA-SIG-12, Kap. 12): Hold-out-Zeitraum fuer den Backtesting-Bericht
  */
 
 /**

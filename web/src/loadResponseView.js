@@ -1,8 +1,10 @@
 // FA-SIG-11: drei Belastungscharts (Low/CP, High/W', Peak/Pmax) zusaetzlich zum PMC - je
 // System der taegliche g/h/p-Verlauf aus dem belastungsgekoppelten Signaturmodell
-// (FA-SIG-10, core/src/loadResponse.js). M4 Phase 1 (siehe core/README.md): k1,s ist nur
-// dann echt gefittet, wenn genug eigene Breakthroughs vorliegen - sonst zeigt jede Karte
-// deutlich den Fallback-Hinweis statt eine unbelegte Zahl als "fertig kalibriert" zu tarnen.
+// (FA-SIG-10, core/src/loadResponse.js). tau1,s UND k1,s sind nur dann echt gefittet
+// (Grid-Search + Least-Squares, FA-SIG-12), wenn genug eigene Breakthroughs vorliegen -
+// sonst zeigt jede Karte deutlich den Fallback-Hinweis statt unbelegte Zahlen als "fertig
+// kalibriert" zu tarnen. Zusaetzlich ein Hold-out-Backtesting-Bericht (Kap. 7.8 Abnahme,
+// "pro Nutzer einsehbar") mit einer aus dem Bericht abgeleiteten Abschlag-Empfehlung.
 //
 // Eigener, einfacherer SVG-Chart-Baustein statt Wiederverwendung von pmcView.js#buildChart:
 // g/h/p teilen sich (anders als CTL/ATL vs. TSB) EINE Skala, das dortige Zwei-Achsen-Chart
@@ -40,10 +42,10 @@ export async function renderLoadResponse(container) {
   const intro = document.createElement('p');
   intro.className = 'hint';
   intro.textContent =
-    'Belastungsgekoppelter Signaturverlauf zwischen Breakthroughs (Kap. 7.7, M4 Phase 1). g = schnelle, h = langsame Anpassung an die tägliche Belastung, p = g − h. Noch keine vollständige Kalibrierung (τ1-Suche/Hold-out-Backtesting folgt in Phase 2) - siehe "Begriffe".';
+    'Belastungsgekoppelter Signaturverlauf zwischen Breakthroughs (Kap. 7.7). g = langsame, h = schnelle Anpassung an die tägliche Belastung (wie CTL/ATL), p = g − h. τ1 und k1 werden je System aus den eigenen bestätigten Breakthroughs geschätzt (FA-SIG-12) - siehe "Begriffe".';
   container.appendChild(intro);
 
-  const [{ series, calibration }, modelState] = await Promise.all([loadLoadResponse(), loadModelState()]);
+  const [{ series, calibration, holdOut }, modelState] = await Promise.all([loadLoadResponse(), loadModelState()]);
 
   if (!series || series.length === 0) {
     const p = document.createElement('p');
@@ -56,6 +58,50 @@ export async function renderLoadResponse(container) {
   for (const sys of SYSTEMS) {
     container.appendChild(renderSystemCard(sys, series, calibration ? calibration[sys.key] : null, modelState));
   }
+
+  container.appendChild(renderHoldOutCard(holdOut));
+}
+
+/** FA-SIG-12 Abnahme: Hold-out-Backtesting-Bericht, "pro Nutzer einsehbar" (Kap. 6.7). */
+function renderHoldOutCard(holdOut) {
+  const box = document.createElement('div');
+  box.className = 'card';
+
+  const header = document.createElement('div');
+  header.className = 'card-header';
+  header.innerHTML = '<h2>Kalibrierungsbericht (Hold-out-Test)</h2>';
+  box.appendChild(header);
+
+  const intro = document.createElement('p');
+  intro.className = 'hint';
+  intro.textContent =
+    'τ1/k1 werden nur mit Breakthroughs bis zum Stichtag geschätzt, dann wird geprüft, wie gut das Modell die Breakthroughs danach vorhergesagt hätte. Die Abschlag-Empfehlung ist eine reine Anzeige - sie wird nicht automatisch übernommen, sondern müsste bei Bedarf selbst in den Einstellungen eingetragen werden.';
+  box.appendChild(intro);
+
+  if (!holdOut) {
+    const p = document.createElement('p');
+    p.className = 'hint';
+    p.textContent = 'Noch kein Bericht möglich.';
+    box.appendChild(p);
+    return box;
+  }
+
+  const list = document.createElement('div');
+  list.className = 'threshold-list';
+  for (const sys of SYSTEMS) {
+    const r = holdOut[sys.key];
+    const row = document.createElement('div');
+    row.className = 'threshold-row';
+    if (!r || r.testCount === 0) {
+      row.innerHTML = `<span>${sys.label}</span><span class="hint">Nicht genug Breakthroughs nach dem Stichtag für einen Bericht.</span>`;
+    } else {
+      const physicalUnit = sys.key === 'wPrime' ? 'kJ' : 'W';
+      row.innerHTML = `<span>${sys.label}</span><span class="threshold-value">MAE ≈ ${r.mae.toFixed(1)} ${physicalUnit}</span><span class="hint">${r.testCount} Test-Breakthrough(s) · empfohlener Abschlag ≈ ${Math.round(r.suggestedDiscountPct)} %</span>`;
+    }
+    list.appendChild(row);
+  }
+  box.appendChild(list);
+  return box;
 }
 
 function renderSystemCard(sys, series, calib, modelState) {
@@ -71,10 +117,10 @@ function renderSystemCard(sys, series, calib, modelState) {
   calibP.className = 'hint';
   if (calib && calib.fitted) {
     const physicalUnit = sys.key === 'wPrime' ? 'J' : 'W';
-    calibP.textContent = `k1 aus ${calib.supportCount} eigenen Breakthroughs geschätzt (k1 ≈ ${calib.k1.toFixed(2)} ${physicalUnit} pro SS).`;
+    calibP.textContent = `τ1 ≈ ${calib.tau1} Tage, k1 ≈ ${calib.k1.toFixed(2)} ${physicalUnit} pro SS - aus ${calib.supportCount} eigenen Breakthroughs geschätzt (Grid-Search über 35-51 Tage).`;
   } else {
     const need = calib ? calib.supportCount : 0;
-    calibP.innerHTML = `<span class="badge badge-muted">Fallback</span> noch zu wenige eigene Breakthroughs für eine Schätzung (${need} vorhanden) - zeigt den unkalibrierten Trend (k1 = 1).`;
+    calibP.innerHTML = `<span class="badge badge-muted">Fallback</span> noch zu wenige eigene Breakthroughs für eine Schätzung (${need} vorhanden) - zeigt den unkalibrierten Trend (τ1 = ${calib ? calib.tau1 : 42} Tage, k1 = 1).`;
   }
   box.appendChild(calibP);
 
@@ -221,8 +267,8 @@ function buildSystemChart(series, sys, modelState) {
     const dateLabel = new Date(s.date + 'T00:00:00Z').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
     tooltip.innerHTML = `
       <strong>${dateLabel}</strong>
-      <div><span class="pmc-tooltip-dot" style="background:${G_COLOR}"></span>g (schnell): ${s[sys.key].g.toFixed(1)}</div>
-      <div><span class="pmc-tooltip-dot" style="background:${H_COLOR}"></span>h (langsam): ${s[sys.key].h.toFixed(1)}</div>
+      <div><span class="pmc-tooltip-dot" style="background:${G_COLOR}"></span>g (langsam, τ1): ${s[sys.key].g.toFixed(1)}</div>
+      <div><span class="pmc-tooltip-dot" style="background:${H_COLOR}"></span>h (schnell, τ2): ${s[sys.key].h.toFixed(1)}</div>
       <div><span class="pmc-tooltip-dot" style="background:${sys.color}"></span>p = g − h: ${s[sys.key].p.toFixed(1)} ${sys.unit}</div>
     `;
     tooltip.hidden = false;

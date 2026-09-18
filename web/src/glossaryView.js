@@ -47,11 +47,11 @@ const GLOSSARY = [
   {
     group: 'Belastungsgekoppelter Signaturverlauf (3D-Impulse-Response, Tab "Belastung")',
     terms: [
-      { term: 'g (schnelle Anpassung)', def: 'Gleitender Mittelwert der täglichen Belastung (Strain Score) mit kurzer Zeitkonstante (Standard 7 Tage) - reagiert schnell auf zuletzt Trainiertes.' },
-      { term: 'h (langsame Anpassung)', def: 'Wie g, aber mit langer Zeitkonstante (Standard 42 Tage) - bildet den längerfristigen Trend ab.' },
-      { term: 'p = g − h', def: 'Die eigentliche Modellgröße: positiv, wenn die jüngste Belastung stärker war als der langfristige Trend (Fitness baut sich auf), negativ bei nachlassender Belastung.' },
-      { term: 'k1 (Kalibrierung)', def: 'Rechnet p in eine physikalische Änderung von TP/HIE/PP um. Wird aus den eigenen bestätigten Breakthroughs per kleinste-Quadrate-Fit geschätzt - erst ab einer Mindestanzahl an Breakthroughs, sonst gilt ein unkalibrierter Fallback-Wert (deutlich gekennzeichnet).' },
-      { term: 'Phase 1 vs. vollständige Kalibrierung', def: 'Diese erste Ausbaustufe schätzt nur k1. Die volle Kalibrierung (zusätzlich die Zeitkonstante τ1 je System, plus ein Hold-out-Test mit Abweichungsbericht) ist laut Lastenheft explizit eine spätere, separate Ausbaustufe (FA-SIG-12) - bis dahin ist der Signaturverlauf ein Trendindikator, keine präzise kalibrierte Vorhersage.' },
+      { term: 'g (langsame Anpassung)', def: 'Gleitender Mittelwert der täglichen Belastung (Strain Score) mit langer Zeitkonstante τ1 (Standard/Fallback 42 Tage, wird je System geschätzt) - bildet den längerfristigen Trend ab, wie CTL beim PMC.' },
+      { term: 'h (schnelle Anpassung)', def: 'Wie g, aber mit kurzer, fester Zeitkonstante τ2 (7 Tage) - reagiert schnell auf zuletzt Trainiertes, wie ATL beim PMC.' },
+      { term: 'p = g − h', def: 'Die eigentliche Modellgröße, analog zu TSB (CTL − ATL): positiv, wenn der längerfristige Trend über der jüngsten Belastung liegt, negativ bei zuletzt intensiverem Training als üblich.' },
+      { term: 'τ1 und k1 (Kalibrierung)', def: 'τ1 bestimmt, wie träge g auf Belastung reagiert, k1 rechnet p in eine physikalische Änderung von TP/HIE/PP um. Beide werden je System aus den eigenen bestätigten Breakthroughs geschätzt (τ1 per Suche über 35-51 Tage, k1 per kleinste-Quadrate-Fit) - erst ab einer Mindestanzahl an Breakthroughs, sonst gilt ein unkalibrierter Fallback (τ1=42 Tage, k1=1, deutlich gekennzeichnet).' },
+      { term: 'Hold-out-Backtesting-Bericht', def: 'Kalibriert τ1/k1 nur mit Breakthroughs bis zu einem Stichtag (6 Monate vor dem aktuellen Datum) und prüft, wie gut das Modell die Breakthroughs danach vorhergesagt hätte (mittlere absolute Abweichung je System). Daraus leitet sich eine Empfehlung für den Anzeige-Abschlag ab - wird nur angezeigt, nicht automatisch übernommen.' },
     ],
   },
 ];

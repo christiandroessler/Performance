@@ -93,10 +93,10 @@ export async function loadThresholds() {
   return state && state.thresholds ? state.thresholds : { pace: {}, hr: {} };
 }
 
-/** FA-SIG-10 (M4 Phase 1): taeglicher g/h/p-Verlauf je System + Phase-1-Kalibrierung (k1,s). */
+/** FA-SIG-10/12 (M4): taeglicher g/h/p-Verlauf je System, Kalibrierung (tau1,s/k1,s) + Hold-out-Backtesting-Bericht. */
 export async function loadLoadResponse() {
   const state = await readJson(LOAD_RESPONSE_FILE);
-  return state ? { series: state.series, calibration: state.calibration } : { series: [], calibration: null };
+  return state ? { series: state.series, calibration: state.calibration, holdOut: state.holdOut } : { series: [], calibration: null, holdOut: null };
 }
 
 /** FA-SET-02/03: je Nutzer in settings.json hinterlegte Abweichungen von den Startwerten (Kap. 12). */

@@ -169,7 +169,7 @@ einem Web Worker (NFA-04), gefuettert mit den in M2 abgelegten Rohdaten:
   gehoeren laut Lastenheft-Abschnitt "Inhalt" ohnehin zu M4.
 - `web/test/computePipeline.test.js` prueft die Naht Ablageformat -> core
   (RawStreamPoint[]-Form, FA-DQ-01 deviceWatts-Maskierung); die
-  Algorithmus-Korrektheit selbst deckt bereits `core/test/` ab (M1, 61 Tests).
+  Algorithmus-Korrektheit selbst deckt bereits `core/test/` ab (M1, 66 Tests).
 - M3-Abnahme (2026-09-18, Kap. 10) gegen die 4 Abnahmekriterien durchgegangen:
   fuer die beiden bis dahin ungetesteten Kriterien ("Breakthrough
   verwerfen/reaktivieren", "Schwelle zum Aktivitaetsdatum mit Breakthrough
@@ -183,21 +183,24 @@ einem Web Worker (NFA-04), gefuettert mit den in M2 abgelegten Rohdaten:
 
 ## M4-Status im Detail
 
-Phase 1 begonnen (2026-09-18, FA-SIG-10 + FA-SIG-11 - Lastenheft Kap. 7.7):
-belastungsgekoppelter Signaturverlauf zwischen Breakthroughs, eigener Tab
-"Belastung" mit 3 Charts (Low/CP, High/W', Peak/Pmax). Da das Lastenheft
-selbst sagt, dass fuer die systemspezifischen Parameter (k1/k2) "keine
-veroeffentlichten Daten" existieren, ist nur k1,s in dieser Phase per
-Least-Squares gegen die eigenen bestaetigten Breakthroughs kalibriert - bei
-zu wenigen Breakthroughs zeigt jede Karte deutlich einen Fallback-Hinweis
-statt eine unbelegte Zahl als fertig kalibriert zu tarnen. Alle
-Design-Entscheidungen sind in `core/README.md` Abschnitt
-"Belastungsgekoppelter Signaturverlauf, Phase 1" dokumentiert. `core/`:
-61 Tests (10 neu, `loadResponse.test.js`).
+FA-SIG-10/11/12 (2026-09-18, Lastenheft Kap. 7.7/7.8): belastungsgekoppelter
+Signaturverlauf zwischen Breakthroughs, eigener Tab "Belastung" mit 3 Charts
+(Low/CP, High/W', Peak/Pmax) plus einem Hold-out-Backtesting-Bericht
+("pro Nutzer einsehbar", Kap. 6.7). tau1,s UND k1,s sind je System per
+Grid-Search (35-51 Tage, Kap. 7.8) + Least-Squares gegen die eigenen
+bestaetigten Breakthroughs kalibriert - bei zu wenigen Breakthroughs zeigt
+jede Karte deutlich einen Fallback-Hinweis statt unbelegte Zahlen als fertig
+kalibriert zu tarnen. Der Backtesting-Bericht liefert zusaetzlich eine
+Abschlag-Empfehlung (Kap. 12), die nur angezeigt, nicht automatisch
+uebernommen wird. Alle Design-Entscheidungen sind in `core/README.md`
+Abschnitt "Belastungsgekoppelter Signaturverlauf" dokumentiert. `core/`:
+66 Tests (15 neu, `loadResponse.test.js`).
 
-**Bewusst noch nicht gebaut** (Phase 2/FA-SIG-12, separate spaetere Runde):
-die volle Kalibrierung (zusaetzlich tau1,s per Suche geschaetzt), der
-Hold-out-Backtesting-Bericht, und die Verfeinerung des Anzeige-Abschlags.
+**Bewusst noch offen** (unabhaengig von FA-SIG-10/12): der Nutzer hat
+gemeldet, dass sein Pmax seit laengerem zu hoch wirkt, nicht auf einen
+einzelnen Breakthrough zurueckzufuehren - das ist eine CP-Fit-/
+Refit-Korrektheitsfrage, keine Kalibrierungsfrage, und auf Nutzerwunsch
+zurueckgestellt.
 
 ## Ausgangslage
 

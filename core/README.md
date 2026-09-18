@@ -20,17 +20,16 @@ Diese Version deckt den **M1-Umfang** ab (Kap. 10):
 - Chronologische Signatur-Orchestrierung inkl. Verwerfen/Reaktivieren von Breakthroughs
 - Parser fuer den Strava-Datenexport (activities.csv, GPX, TCX, FIT) – FA-SYNC-06, Entwicklungspfad
 - Lokale Sichtkontrollseite (`www/index.html`)
-- **Vorgezogen aus M4**: belastungsgekoppelter Signaturverlauf Phase 1
-  (FA-SIG-10, Kap. 7.7) - nur k1,s kalibriert, siehe M4-Festlegung
-  "Belastungsgekoppelter Signaturverlauf, Phase 1" unten
+- **Vorgezogen aus M4**: belastungsgekoppelter Signaturverlauf inkl. voller
+  Kalibrierung (FA-SIG-10/12, Kap. 7.7/7.8) - tau1,s per Grid-Search, k1,s per
+  Least-Squares je System, Hold-out-Backtesting-Bericht, siehe M4-Festlegung
+  "Belastungsgekoppelter Signaturverlauf" unten
 
-**Nicht** in M1/dieser Runde: die volle Kalibrierung mit tau1,s-Suche und
-Hold-out-Backtesting (Kap. 7.8, FA-SIG-12) und das Stoffwechselmodell
-(Kap. 7.9 → M5).
+**Nicht** in M1/dieser Runde: das Stoffwechselmodell (Kap. 7.9 → M5).
 
 ## Stand der Verifikation
 
-Alle 61 automatisierten Tests laufen gruen (`npm test` im `core`-Ordner).
+Alle 66 automatisierten Tests laufen gruen (`npm test` im `core`-Ordner).
 Zusaetzlich wurde der komplette Aktivitaetsbestand eines echten Nutzers
 (1977 Rad-Aktivitaeten mit Leistung, 2017–2026, aus der bestehenden
 `strava-dashboard`-Datenbank, siehe `scripts/run-legacy-db.js`) mehrfach
@@ -327,7 +326,7 @@ treffen dafuer folgende Festlegungen:
   irrefuehrenden `0` zu bleiben. Diese Trennung haelt die bereits gegen den
   7-Jahres-Datensatz verifizierte CP-/Breakthrough-Pipeline unangetastet.
 
-### Belastungsgekoppelter Signaturverlauf, Phase 1 (FA-SIG-10, Kap. 7.7, M4-Festlegung)
+### Belastungsgekoppelter Signaturverlauf (FA-SIG-10/12, Kap. 7.7/7.8, M4-Festlegung)
 
 M4 ("3D-Modell und Kalibrierung") ist eigentlich ein spaeterer Meilenstein als
 M1-M3 - anders als bei den vorherigen M1-Festlegungen ist hier VOM LASTENHEFT
@@ -335,24 +334,29 @@ SELBST offen gelassen, dass ein sinnvoller Wert fuer k1,s/k2,s ohne
 Kalibrierung gar nicht existiert ("theoretisch begruendet, aber experimentell
 nicht validiert... fuer systemspezifische Parameter existieren keine
 veroeffentlichten Daten", Kap. 7.7 "Einordnung"). `src/loadResponse.js`
-implementiert deshalb bewusst nur eine **Phase 1**:
+implementiert deshalb in zwei Schritten:
 
 - **"Umrechnungsfaktor" (Kap. 7.7) = k1,s selbst.** Kap. 7.8 nennt genau 6
   frei geschaetzte Parameter (tau1,s und k1,s je System) - kein zusaetzlicher
   7. Parameter. p_s(t) = g_s(t) − h_s(t) liegt in rohen
   Strain-Score-Tageseinheiten vor, k1,s skaliert das direkt in W (TP/PP)
   bzw. J (HIE, intern immer Joule wie ueberall sonst im Code).
-- **Nur k1,s wird in Phase 1 kalibriert**, per Least-Squares-Fit durch den
-  Ursprung gegen die tatsaechlich bestaetigten Breakthrough-Deltas (Stand von
-  p_s am Tag VOR dem jeweiligen Breakthrough). tau1,s bleibt auf dem
-  Literatur-Startwert (42 Tage, Kap. 12). Die volle tau1,s-Suche + das
-  Hold-out-Backtesting mit Abweichungsbericht je Parameter (FA-SIG-12) ist
-  eine bewusst separate, spaetere Ausbaustufe.
+- **tau1,s per Grid-Search ueber den Literaturbereich** (Kap. 7.8:
+  "35-51 Tage", `TAU1_MIN_DAYS`/`TAU1_MAX_DAYS`, Schrittweite 1 Tag): je
+  Kandidat wird k1,s per Least-Squares-Fit durch den Ursprung gegen die
+  tatsaechlich bestaetigten Breakthrough-Deltas geschaetzt (Stand von p_s am
+  Tag VOR dem jeweiligen Breakthrough), der Kandidat mit der kleinsten
+  Fehlerquadratsumme gewinnt (`calibrateTau1K1`).
 - **k2,s = 1** (fest, Kap. 7.8 verlangt "Literaturwerte", die es dafuer nicht
   gibt) - dieselbe implizite Wahl, die der Rechenkern bereits fuer
-  TSB = CTL − ATL trifft. g und h sind beide EWMAs derselben Tagesbelastung
-  mit unterschiedlichem tau, k2,s=1 macht p_s zu einer reinen
-  "schnell-minus-langsam"-Differenz, k1,s skaliert erst danach.
+  TSB = CTL − ATL trifft. g (tau1, lang/traege - wie CTL) und h (tau2, kurz/
+  reaktionsschnell - wie ATL) sind beide EWMAs derselben Tagesbelastung mit
+  unterschiedlichem tau, k2,s=1 macht p_s zu einer reinen
+  "langsam-minus-schnell"-Differenz (analog zu TSB), k1,s skaliert erst danach.
+  Kap. 7.8 nennt fuer tau2 zusaetzlich einen "Literaturbereich" (8-13 Tage) -
+  Widerspruch zu Kap. 12s explizitem Fixwert (7 Tage). tau2 bleibt bei 7
+  (Kap. 12s Wert), der 7.8-Bereich wird nicht verwendet, da tau2 ohnehin nicht
+  gefittet wird.
 - **Exakte Exponentialform** aus Kap. 7.7
   (`g(t)=g(t-1)*e^(-1/tau1)+w(t)*(1-e^(-1/tau1))`), bewusst NICHT die lineare
   `value += (v-value)/tau`-Naeherung, die `npTss.js#computeEwmaSeries` fuer
@@ -363,18 +367,38 @@ implementiert deshalb bewusst nur eine **Phase 1**:
   eigenen Belastung) weiter - sonst wuerde die im Refit bereits eingepreiste
   Verbesserung nochmal on top addiert.
 - **Fallback-Schwelle** (`loadResponseMinBreakthroughsForFit`, Standard 3):
-  unterhalb dieser Anzahl an eigenen bestaetigten Breakthroughs bleibt k1,s
-  beim literaturfreien Neutralwert 1, klar als "Fallback" gekennzeichnet
-  (`fitted: false`) statt eine unbelegte Zahl als fertig kalibriert zu
-  tarnen (Kap. 7.8: "Fallback-Regel... wird angezeigt").
-- **Anzeige-Abschlag = 0 in Phase 1** (`loadResponseDisplayDiscountPct`,
-  Kap. 12: "Startwert wird im Backtesting bestimmt" - das ist Phase 2/FA-SIG-12).
+  unterhalb dieser Anzahl an eigenen bestaetigten Breakthroughs bleibt es beim
+  Literatur-tau1 (42 Tage) und k1=1, klar als "Fallback" gekennzeichnet
+  (`fitted: false`) statt unbelegte Zahlen als fertig kalibriert zu tarnen
+  (Kap. 7.8: "Fallback-Regel... wird angezeigt"). Die Stuetzpunkt-Anzahl
+  haengt nicht von tau1 ab, deshalb wird sie nur einmal (mit dem
+  Literatur-Startwert) geprueft, bevor die Grid-Search ueberhaupt laeuft.
+- **Hold-out-Backtest** (`holdOutBacktest`, Kap. 7.8 Abnahme): Kalibrierung
+  NUR auf der Historie bis zu einem Stichtag (spaetestes Datum minus
+  `loadResponseHoldOutMonths`, Standard 6 - Kap. 12 listet das als eigene
+  einstellbare Groesse), Vorhersage laeuft mit dem trainierten tau1/k1 ueber
+  die volle Historie weiter. Bericht je System: mittlere absolute Abweichung
+  (MAE) zwischen vorhergesagtem und tatsaechlichem Breakthrough-Delta fuer
+  alle Breakthroughs NACH dem Stichtag, in W (TP/PP) bzw. kJ (HIE - Kap. 7.8
+  verlangt kJ fuers Reporting, intern bleibt sonst ueberall Joule). Ohne
+  Breakthroughs nach dem Stichtag: `testCount: 0`, klar im UI gekennzeichnet
+  statt einer leeren/falschen Zahl.
+- **Abschlag-Empfehlung aus dem Bericht** (Kap. 12: "Startwert wird im
+  Backtesting bestimmt"): `empfohlenerAbschlagPct = clamp(MAE / mittlere
+  |tatsaechliches Delta|, 0, 0.5) * 100` - der Abschlag entspricht der
+  relativen Groesse des typischen Vorhersagefehlers, gedeckelt bei 50%. Reine
+  ANZEIGE-EMPFEHLUNG (`suggestedDiscountPct`), wird NICHT automatisch in
+  `settings.json` geschrieben (FA-SET-03: Parameteraenderungen sind explizite
+  Nutzeraktionen) - `loadResponseDisplayDiscountPct` bleibt bei 0, bis der
+  Nutzer die empfohlene Zahl selbst in den Einstellungen eintraegt.
 
-`dailyStrainSums`/`loadResponseSeries`/`calibrateK1`/`displaySignatureAtDate`
-sind als weiterer, von `computeSignatureHistory` unabhaengiger Durchlauf
-gebaut (gleiches Muster wie `estimateThresholds`/`applySportSpecificTss`) -
-liest nur bereits vorhandene Strain-Sub-Scores und die Breakthrough-Historie,
-aendert nichts an der bereits verifizierten CP-/Breakthrough-Pipeline.
+`dailyStrainSums`/`loadResponseSeriesForSystem`/`loadResponseSeries`/
+`fitK1ThroughOrigin`/`calibrateTau1K1`/`holdOutBacktest`/
+`displaySignatureAtDate` sind als weiterer, von `computeSignatureHistory`
+unabhaengiger Durchlauf gebaut (gleiches Muster wie
+`estimateThresholds`/`applySportSpecificTss`) - lesen nur bereits vorhandene
+Strain-Sub-Scores und die Breakthrough-Historie, aendern nichts an der
+bereits verifizierten CP-/Breakthrough-Pipeline.
 
 ## Bekannte offene Punkte / Risiken
 
@@ -408,13 +432,15 @@ aendert nichts an der bereits verifizierten CP-/Breakthrough-Pipeline.
   ist zudem nicht auf grosse Sportart-Historien optimiert (O(n * Fenstergroesse)
   je Sportart, siehe "M1-Festlegung" oben) - fuer eine einzelne Sportart mit
   vielen hundert Aktivitaeten voraussichtlich unproblematisch, aber ungemessen.
-- **Belastungsgekoppelter Signaturverlauf Phase 1 (FA-SIG-10)** ist nur mit
+- **Belastungsgekoppelter Signaturverlauf (FA-SIG-10/12)** ist nur mit
   synthetischen Testdaten verifiziert (`loadResponse.test.js`), NICHT gegen
-  echte Breakthrough-Historien - der k1-Fit braucht dafuer echte Nutzer mit
-  genug bestaetigten Breakthroughs (Standard-Schwelle 3). Explizit KEINE
-  vollstaendige Kalibrierung (tau1,s-Suche, Hold-out-Backtesting) - siehe
-  M4-Festlegung oben. Bis FA-SIG-12 gebaut ist, ist der Signaturverlauf ein
-  Trendindikator, keine belastbare Vorhersage (im UI so gekennzeichnet).
+  echte Breakthrough-Historien - die Grid-Search/der k1-Fit braucht dafuer
+  echte Nutzer mit genug bestaetigten Breakthroughs (Standard-Schwelle 3 fuer
+  die Kalibrierung, der Hold-out-Bericht zusaetzlich Breakthroughs NACH dem
+  6-Monate-Stichtag). Das Modell selbst bleibt laut Lastenheft "theoretisch
+  begruendet, aber experimentell nicht validiert" (Kap. 7.7) - auch mit
+  vollstaendiger Kalibrierung ist der Signaturverlauf ein datengestuetzter
+  Trend, keine wissenschaftlich validierte Vorhersage.
 
 ## Verwendung
 
@@ -472,7 +498,9 @@ Breakthrough mitten in der Historie aendert die Schwelle nachweislich nur fuer
 NACHFOLGENDE Aktivitaeten (die Breakthrough-Aktivitaet selbst zaehlt noch mit
 der alten Schwelle), und Verwerfen/Reaktivieren eines Breakthroughs
 (FA-SIG-07) fuehrt zu exakt den erwarteten bzw. wiederhergestellten
-Kennzahlen. `loadResponse.test.js` (FA-SIG-10, M4 Phase 1) prueft die exakte
+Kennzahlen. `loadResponse.test.js` (FA-SIG-10/12) prueft die exakte
 Exponentialform gegen die Formel aus Kap. 7.7, die Konvergenz bei konstanter
-Belastung, den Reset am Breakthrough-Tag und den k1-Least-Squares-Fit
-inklusive Fallback unterhalb der Mindestanzahl.
+Belastung, den Reset am Breakthrough-Tag, den k1-Least-Squares-Fit inklusive
+Fallback unterhalb der Mindestanzahl, dass die tau1-Grid-Search ein bekanntes
+synthetisches tau1 wiederfindet, und den Hold-out-Backtest (Train/Test-Split,
+MAE-Bericht, "kein Bericht moeglich" ohne Test-Breakthroughs).

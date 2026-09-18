@@ -12,7 +12,8 @@ import {
   applySportSpecificTss,
   dailyStrainSums,
   loadResponseSeries,
-  calibrateK1,
+  calibrateTau1K1,
+  holdOutBacktest,
 } from '../vendor/core/src/index.js';
 
 self.onmessage = (e) => {
@@ -36,12 +37,17 @@ self.onmessage = (e) => {
     // prepareActivity() (core, unveraendert), nicht aus computeSignatureHistory -
     // die MMP-Kurve gilt unabhaengig von einer erkannten Signatur/Schwelle.
     const mmpCurves = prepared.map((p) => ({ date: p.date, activityId: p.id, mmp: p.mmp }));
-    // FA-SIG-10 (M4 Phase 1, siehe core/README.md): belastungsgekoppelter Signaturverlauf aus
-    // den bereits berechneten Strain-Sub-Scores - dritter, ebenfalls unabhaengiger Durchlauf.
+    // FA-SIG-10/12 (M4, siehe core/README.md): belastungsgekoppelter Signaturverlauf aus den
+    // bereits berechneten Strain-Sub-Scores - dritter, ebenfalls unabhaengiger Durchlauf.
+    // calibrateTau1K1 schaetzt tau1+k1 je System (Grid-Search + Least-Squares), holdOutBacktest
+    // ist ein eigener, unabhaengiger Kalibrierungslauf nur fuers Reporting (beeinflusst series
+    // NICHT).
     const sums = dailyStrainSums(result.activityResults);
-    const series = loadResponseSeries(sums, result.breakthroughs, settings);
-    const calibration = calibrateK1(series, result.breakthroughs, settings);
-    const loadResponse = { series, calibration };
+    const calibration = calibrateTau1K1(sums, result.breakthroughs, settings);
+    const tau1BySystem = { cp: calibration.cp.tau1, wPrime: calibration.wPrime.tau1, pMax: calibration.pMax.tau1 };
+    const series = loadResponseSeries(sums, result.breakthroughs, tau1BySystem, settings);
+    const holdOut = holdOutBacktest(sums, result.breakthroughs, settings);
+    const loadResponse = { series, calibration, holdOut };
     self.postMessage({ requestId, ok: true, result, mmpCurves, thresholds, loadResponse });
   } catch (err) {
     self.postMessage({ requestId, ok: false, error: String((err && err.message) || err) });

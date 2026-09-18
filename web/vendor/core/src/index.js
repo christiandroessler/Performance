@@ -38,7 +38,15 @@ export {
   meanHeartRateNearPower,
 } from './pace.js';
 export { sportGroup, thresholdAtDate, estimateThresholds, applySportSpecificTss } from './thresholds.js';
-export { dailyStrainSums, loadResponseSeries, calibrateK1, displaySignatureAtDate } from './loadResponse.js';
+export {
+  dailyStrainSums,
+  loadResponseSeriesForSystem,
+  loadResponseSeries,
+  fitK1ThroughOrigin,
+  calibrateTau1K1,
+  holdOutBacktest,
+  displaySignatureAtDate,
+} from './loadResponse.js';
 export {
   normalizedPower,
   normalizedPowerForActivity,

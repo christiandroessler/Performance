@@ -25,6 +25,7 @@ export const DEFAULT_SETTINGS = {
   loadResponseTau2Days: 7, // M4-Festlegung, siehe core/README.md (FA-SIG-10, Kap. 12 fest)
   loadResponseMinBreakthroughsForFit: 3, // M4-Festlegung, siehe core/README.md (FA-SIG-12 Fallback-Schwelle, Phase 1)
   loadResponseDisplayDiscountPct: 0, // M4-Festlegung, siehe core/README.md (Anzeige-Abschlag, Startwert erst mit FA-SIG-12/Backtesting)
+  loadResponseHoldOutMonths: 6, // Kap. 12 (FA-SIG-12): Hold-out-Zeitraum fuer den Backtesting-Bericht
 };
 
 /** @returns {import('./types.js').ModelSettings} */
