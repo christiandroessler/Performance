@@ -73,6 +73,47 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
   rightCol.appendChild(metricsSidebarContainer);
   rightCol.appendChild(recentBreakthroughsContainer);
 
+  // Eine einzelne Karte darf nicht mehr die gesamte Uebersicht mitreissen (genau das ist
+  // beim Einbau der Sportart-Schwellen-Karte passiert: ein Fehler dort liess PMC-Chart,
+  // Performance Metrics und alles Nachfolgende gar nicht erst rendern, weil ein einzelner
+  // Wurf in refresh() den kompletten async-Ablauf abbrach). Jede Karte bekommt daher ihren
+  // eigenen Fehler-Fang, der Rest der Uebersicht rendert trotzdem weiter.
+  function safeRender(container, label, fn) {
+    try {
+      fn();
+    } catch (err) {
+      console.error(`[Uebersicht] ${label} fehlgeschlagen:`, err);
+      if (container) {
+        container.innerHTML = '';
+        const box = document.createElement('div');
+        box.className = 'card';
+        const p = document.createElement('p');
+        p.className = 'error';
+        p.textContent = `${label}: ${err.message}`;
+        box.appendChild(p);
+        container.appendChild(box);
+      }
+    }
+  }
+
+  async function safeRenderAsync(container, label, fn) {
+    try {
+      await fn();
+    } catch (err) {
+      console.error(`[Uebersicht] ${label} fehlgeschlagen:`, err);
+      if (container) {
+        container.innerHTML = '';
+        const box = document.createElement('div');
+        box.className = 'card';
+        const p = document.createElement('p');
+        p.className = 'error';
+        p.textContent = `${label}: ${err.message}`;
+        box.appendChild(p);
+        container.appendChild(box);
+      }
+    }
+  }
+
   async function refresh() {
     const index = await loadIndex();
     const modelState = await loadModelState();
@@ -81,18 +122,28 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
     statusP.className = '';
     statusP.textContent = uncomputed > 0 ? `${uncomputed} Aktivität(en) noch ohne berechnete Kennzahlen - "Kennzahlen neu berechnen" klicken.` : 'Alle Aktivitäten sind berechnet.';
 
-    renderSignatureTiles(signatureContainer, modelState);
-    renderSportThresholds(thresholdsContainer, await loadThresholds());
-    renderThisWeekSummary(thisWeekContainer, index);
-    renderRecentActivity(recentActivityContainer, index);
-    const pmcSeries = computePmcSeries(index, modelState);
-    renderPmcChart(pmcChartContainer, pmcSeries);
-    renderMetricsSidebar(metricsSidebarContainer, pmcSeries);
-    renderRecentBreakthroughs(recentBreakthroughsContainer, modelState);
-    renderActivityList(activitiesContainer, index);
-    renderWeekOverview(weeksContainer, index);
-    await renderPowerCurve(powerCurveContainer);
-    await renderBreakthroughs(breakthroughsContainer, modelState, refresh);
+    safeRender(signatureContainer, 'Leistungssignatur', () => renderSignatureTiles(signatureContainer, modelState));
+
+    let thresholds = { pace: {}, hr: {} };
+    await safeRenderAsync(null, 'Sportart-Schwellen laden', async () => {
+      thresholds = await loadThresholds();
+    });
+    safeRender(thresholdsContainer, 'Sportart-Schwellen', () => renderSportThresholds(thresholdsContainer, thresholds));
+
+    safeRender(thisWeekContainer, 'Diese Woche', () => renderThisWeekSummary(thisWeekContainer, index));
+    safeRender(recentActivityContainer, 'Letzte Aktivität', () => renderRecentActivity(recentActivityContainer, index));
+
+    let pmcSeries = { series: null, message: 'Fehler bei der Berechnung.' };
+    safeRender(null, 'PMC-Berechnung', () => {
+      pmcSeries = computePmcSeries(index, modelState);
+    });
+    safeRender(pmcChartContainer, 'Performance Management Chart', () => renderPmcChart(pmcChartContainer, pmcSeries));
+    safeRender(metricsSidebarContainer, 'Performance Metrics', () => renderMetricsSidebar(metricsSidebarContainer, pmcSeries));
+    safeRender(recentBreakthroughsContainer, 'Neueste Breakthroughs', () => renderRecentBreakthroughs(recentBreakthroughsContainer, modelState));
+    safeRender(activitiesContainer, 'Aktivitätenliste', () => renderActivityList(activitiesContainer, index));
+    safeRender(weeksContainer, 'Wochen-/Kalenderübersicht', () => renderWeekOverview(weeksContainer, index));
+    await safeRenderAsync(powerCurveContainer, 'Leistungskurve', () => renderPowerCurve(powerCurveContainer));
+    await safeRenderAsync(breakthroughsContainer, 'Breakthroughs', () => renderBreakthroughs(breakthroughsContainer, modelState, refresh));
     return { index, modelState };
   }
 

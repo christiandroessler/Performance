@@ -88,7 +88,7 @@ export async function loadMmpCurves() {
 /** FA-TP-03/04: geschaetzte Sportart-Schwellen (Lauf-/Schwimm-Pace, Rad-HF, HF je sonstiger Sportart). */
 export async function loadThresholds() {
   const state = await readJson(THRESHOLDS_FILE);
-  return state ? state.thresholds : { pace: {}, hr: {} };
+  return state && state.thresholds ? state.thresholds : { pace: {}, hr: {} };
 }
 
 /** FA-SIG-07/M1: reine Funktion ueber den GESAMTEN Verlauf - kein inkrementelles Patchen. */

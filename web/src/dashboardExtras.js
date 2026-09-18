@@ -96,6 +96,13 @@ function latestOf(history) {
 
 /** FA-TP-03/04: geschaetzte Sportart-Schwellen (Lauf-/Schwimm-Pace, Rad-HF, HF je sonstiger Sportart), als Schaetzung datiert. */
 export function renderSportThresholds(container, thresholds) {
+  // Defensiv: darf nie werfen, egal was hereinkommt (siehe dashboardView.js#safeRender -
+  // ein kaputtes/fehlendes thresholds-Objekt soll diese Karte leer lassen, nicht die
+  // gesamte Uebersicht mitreissen).
+  const safeThresholds = thresholds && typeof thresholds === 'object' ? thresholds : {};
+  const pace = safeThresholds.pace && typeof safeThresholds.pace === 'object' ? safeThresholds.pace : {};
+  const hr = safeThresholds.hr && typeof safeThresholds.hr === 'object' ? safeThresholds.hr : {};
+
   container.innerHTML = '';
   const box = document.createElement('div');
   box.className = 'card';
@@ -107,13 +114,13 @@ export function renderSportThresholds(container, thresholds) {
   box.appendChild(header);
 
   const rows = [];
-  const runPace = latestOf(thresholds.pace && thresholds.pace.run);
+  const runPace = latestOf(pace.run);
   if (runPace) rows.push({ label: 'Lauf-Schwellenpace', value: formatPacePerKm(runPace.value), date: runPace.date });
-  const swimPace = latestOf(thresholds.pace && thresholds.pace.swim);
+  const swimPace = latestOf(pace.swim);
   if (swimPace) rows.push({ label: 'Schwimm-Schwellenpace', value: formatPacePer100m(swimPace.value), date: swimPace.date });
-  const cyclingHr = latestOf(thresholds.hr && thresholds.hr.cycling);
+  const cyclingHr = latestOf(hr.cycling);
   if (cyclingHr) rows.push({ label: 'Rad-Schwellen-HF', value: `${Math.round(cyclingHr.value)} bpm`, date: cyclingHr.date });
-  for (const [type, history] of Object.entries(thresholds.hr || {})) {
+  for (const [type, history] of Object.entries(hr)) {
     if (type === 'run' || type === 'swim' || type === 'cycling') continue;
     const latest = latestOf(history);
     if (latest) rows.push({ label: `${type} · Schwellen-HF`, value: `${Math.round(latest.value)} bpm`, date: latest.date });
