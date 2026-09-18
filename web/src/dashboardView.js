@@ -96,9 +96,16 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
     }
   }
 
+  // Selbst ein sauber gefangener Fehler nuetzt nichts, wenn ein Aufruf stattdessen einfach nie
+  // resolved/rejected (z. B. ein haengender Drive-Request) - dann wuerde "await fn()" unten fuer
+  // immer stehen bleiben und ALLES Nachfolgende in refresh() liefe nie, ganz ohne sichtbaren Fehler.
+  function withTimeout(promise, ms, label) {
+    return Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error(`${label}: Zeitlimit (${ms / 1000}s) ueberschritten`)), ms))]);
+  }
+
   async function safeRenderAsync(container, label, fn) {
     try {
-      await fn();
+      await withTimeout(fn(), 10000, label);
     } catch (err) {
       console.error(`[Uebersicht] ${label} fehlgeschlagen:`, err);
       if (container) {

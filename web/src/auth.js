@@ -95,12 +95,22 @@ export async function requestDriveAccess() {
 
   // Erst still versuchen (funktioniert oft nach einem Seiten-Neuladen, z. B.
   // nach dem Strava-Redirect, wenn der Nutzer kurz zuvor schon zugestimmt hat)
-  // - erst bei Fehlschlag den sichtbaren Consent-Dialog zeigen.
+  // - erst bei Fehlschlag/Zeitlimit den sichtbaren Consent-Dialog zeigen.
+  //
+  // Beobachtet: Browser-Tracking-Schutz kann die stille Erneuerung blockieren (Cookie-Zugriff
+  // auf accounts.google.com verweigert) - dann feuert der Callback NIE, ohne jeden Fehler, und
+  // jede Drive-Anfrage haengt fuer immer (sichtbar dadurch, dass ganze Teile der Oberflaeche
+  // nie rendern, ohne Fehlermeldung). Nur der STILLE Versuch bekommt daher ein Zeitlimit - der
+  // sichtbare Consent-Dialog braucht bewusst kein Limit, da der Nutzer dort selbst reagieren muss.
   try {
-    return await tryWithPrompt('');
+    return await withTimeout(tryWithPrompt(''), 8000, 'stille Google-Token-Erneuerung');
   } catch {
     return tryWithPrompt('consent');
   }
+}
+
+function withTimeout(promise, ms, label) {
+  return Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error(`${label}: Zeitlimit (${ms / 1000}s) ueberschritten`)), ms))]);
 }
 
 /** Liefert ein gueltiges Drive-Access-Token, erneuert es bei Bedarf still (ohne erneuten Consent-Dialog). */
