@@ -159,7 +159,14 @@ einem Web Worker (NFA-04), gefuettert mit den in M2 abgelegten Rohdaten:
   aenderbar, Speichern loest eine protokollierte, vollstaendige
   Neuberechnung aus, Reset auf Startwerte ("Kalibrierungswerte" faellt bis
   zur individuellen Kalibrierung in M4 mit "Literaturwerte" zusammen).
-- Absichtlich noch offen: PP-Plausibilisierung (FA-SIG-13).
+- PP-Plausibilisierung (2026-09-18, FA-SIG-13): Modell-Pmax gegen die bis
+  dahin gemessene beste 5-s-Leistung, Abweichung unter der
+  Leistungssignatur-Karte angezeigt, ab 10 % rot markiert. Das Modell wird
+  dadurch nicht korrigiert, nur die Abweichung sichtbar gemacht.
+- Damit ist der fuer M3 vorgesehene Funktionsumfang (Lastenheft 6.5, 6.6,
+  6.7 ohne FA-SIG-10 bis 12, 6.9) vollstaendig gebaut - FA-SIG-10/11/12
+  (belastungsgekoppelter 3D-Signaturverlauf, Backtesting/Kalibrierung)
+  gehoeren laut Lastenheft-Abschnitt "Inhalt" ohnehin zu M4.
 - `web/test/computePipeline.test.js` prueft die Naht Ablageformat -> core
   (RawStreamPoint[]-Form, FA-DQ-01 deviceWatts-Maskierung); die
   Algorithmus-Korrektheit selbst deckt bereits `core/test/` ab (M1).

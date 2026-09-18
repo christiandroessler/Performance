@@ -13,7 +13,8 @@
 // das dortige "Today"-Workout-Widget.
 
 import { loadIndex } from './sync.js';
-import { loadModelState, loadThresholds, recomputeAll } from './compute.js';
+import { loadModelState, loadThresholds, loadMmpCurves, recomputeAll } from './compute.js';
+import { ppPlausibility } from './ppCheck.js';
 import { renderActivityList } from './activityListView.js';
 import { computePmcSeries, renderMetricsSidebar, renderPmcChart } from './pmcView.js';
 import { renderBreakthroughs } from './breakthroughView.js';
@@ -129,7 +130,11 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
     statusP.className = '';
     statusP.textContent = uncomputed > 0 ? `${uncomputed} Aktivität(en) noch ohne berechnete Kennzahlen - "Kennzahlen neu berechnen" klicken.` : 'Alle Aktivitäten sind berechnet.';
 
-    safeRender(signatureContainer, 'Leistungssignatur', () => renderSignatureTiles(signatureContainer, modelState));
+    let mmpCurves = [];
+    await safeRenderAsync(null, 'Leistungskurven laden', async () => {
+      mmpCurves = await loadMmpCurves();
+    });
+    safeRender(signatureContainer, 'Leistungssignatur', () => renderSignatureTiles(signatureContainer, modelState, mmpCurves));
 
     let thresholds = { pace: {}, hr: {} };
     await safeRenderAsync(null, 'Sportart-Schwellen laden', async () => {
@@ -176,8 +181,13 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
   }
 }
 
+// FA-SIG-13: ab dieser Abweichung wird die PP-Plausibilisierung als auffaellig markiert (rot statt
+// dezent). Kein Lastenheft-Parameter (nur "Abweichungen werden angezeigt", keine Schwelle
+// vorgegeben) - bewusst als UI-Konstante statt Modellparameter, da rein die Anzeige betroffen ist.
+const PP_DEVIATION_WARN_PCT = 0.1;
+
 /** XERT-Vorbild: aktuelle Leistungssignatur (CP/W'/Pmax) prominent als Kacheln. */
-function renderSignatureTiles(container, modelState) {
+function renderSignatureTiles(container, modelState, mmpCurves) {
   container.innerHTML = '';
   if (modelState.needsMoreData || !modelState.history || modelState.history.length === 0) return;
 
@@ -213,4 +223,21 @@ function renderSignatureTiles(container, modelState) {
   caption.className = 'stat-tile-caption';
   caption.textContent = `Stand: ${latest.date}${latest.source === 'initial' ? ' (Startsignatur)' : ' (nach Breakthrough)'}`;
   box.appendChild(caption);
+
+  renderPpPlausibility(box, latest, mmpCurves);
+}
+
+/** FA-SIG-13: Modell-PP gegen die bis dahin gemessene beste 5-s-Leistung. Reine Anzeige, korrigiert das Modell nicht. */
+function renderPpPlausibility(box, latest, mmpCurves) {
+  const { measuredWatts, measuredDate, deviationWatts, deviationPct } = ppPlausibility(latest, mmpCurves || []);
+  if (measuredWatts == null) return;
+
+  const flagged = Math.abs(deviationPct) >= PP_DEVIATION_WARN_PCT;
+  const p = document.createElement('p');
+  p.className = 'stat-tile-caption';
+  p.style.marginTop = '0.4rem';
+  const sign = deviationWatts > 0 ? '+' : '';
+  const badgeClass = flagged ? 'badge-danger' : 'badge-muted';
+  p.innerHTML = `Gemessene beste 5-s-Leistung: ${Math.round(measuredWatts)} W (${measuredDate}) <span class="badge ${badgeClass}">${sign}${deviationWatts} W / ${sign}${Math.round(deviationPct * 100)} % ggü. PP</span>`;
+  box.appendChild(p);
 }

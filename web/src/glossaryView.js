@@ -12,6 +12,7 @@ const GLOSSARY = [
       { term: 'Startsignatur', def: 'CP/W\'/Pmax werden einmalig per Regression über die stärksten Anstrengungen der ersten 90 Tage der Trainingshistorie ermittelt. Erst danach gibt es überhaupt eine Schwelle für TSS/PMC.' },
       { term: 'Breakthrough', def: 'Eine Aktivität, bei der die Leistung deutlich über der aktuell gültigen MPA lag - Hinweis auf eine gestiegene Leistungsfähigkeit. Löst eine Neuberechnung (Refit) von CP/W\'/Pmax aus.' },
       { term: 'Medaillen (Bronze/Silber/Gold)', def: 'Bronze = 1 der 3 Parameter (CP/W\'/Pmax) gestiegen, Silber = 2, Gold = alle 3 - jeweils über der Medaillenschwelle.' },
+      { term: 'PP-Plausibilisierung', def: 'Das Modell-Pmax wird gegen die bisher tatsächlich gemessene beste 5-Sekunden-Leistung verglichen und die Abweichung angezeigt (unter der Leistungssignatur). Das Modell wird dadurch NICHT automatisch korrigiert - eine größere Abweichung ist nur ein Hinweis, dass ein neuer Sprint-Bestwert die Signatur ggf. noch nicht widerspiegelt.' },
     ],
   },
   {

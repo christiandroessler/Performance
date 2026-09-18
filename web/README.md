@@ -40,6 +40,7 @@ selbst wird vor jedem Deploy nach `web/vendor/core/src` kopiert (siehe
 | `src/pmcView.js` | FA-TP-06: Performance Management Chart. `computePmcSeries` einmal berechnen, `renderPmcChart` (Verlaufschart mit Achsbeschriftung + Sekundaerachse fuer TSB, Hover-Tooltip mit Datum + CTL/ATL/TSB, Zeitraum-Buttons 42/90/365 Tage/dieses Jahr fuer den ANZEIGE-Ausschnitt - CTL/ATL werden immer ueber die volle Historie berechnet, nur die Darstellung wird eingeschraenkt) und `renderMetricsSidebar` (Fatigue/Fitness/Form-Kacheln + Ramp Rates, rechte Spalte) teilen sich das Ergebnis |
 | `src/pmcMath.js` | Reine Ramp-Rate-Berechnung (CTL-Veraenderung ueber 7/28/90/365 Tage) und `sliceSeriesForRange` (Anzeige-Ausschnitt des PMC-Charts) - ohne Browser-Abhaengigkeit, testbar mit `node:test` |
 | `src/dashboardExtras.js` | Uebersicht-Redesign (TrainingPeaks-Vorbild): "Letzte Aktivitaet" (inkl. Distanz), "Sportart-Schwellen" (FA-TP-03/04, `renderSportThresholds` - Lauf-/Schwimm-Pace, Rad-HF, HF je sonstiger Sportart, mit Datum als Schaetzung gekennzeichnet), "Diese Woche", "Neueste Breakthroughs" - reine Zusammenfassungen bereits vorhandener Daten |
+| `src/ppCheck.js` | FA-SIG-13: vergleicht das Modell-Pmax der aktuellen Signatur mit der bis dahin gemessenen besten 5-s-Leistung (`aggregateMMP` aus `core/`, ueber `model/mmp-curves.json`) - reine Anzeige der Abweichung unter den Leistungssignatur-Kacheln, korrigiert das Modell nicht |
 | `src/theme.js` | Hell-/Dunkelmodus zentral (localStorage je Geraet) - von main.js (Anwenden beim Start) und settingsView.js (Umschalten) geteilt |
 | `src/settingsView.js` | FA-SET-01 bis 04: Einstellungen-Modal - Erscheinungsbild, Gewichtsverlauf mit Datum (FA-SET-01), alle in `core/src/settings.js` implementierten Kap.-12-Parameter gruppiert einsehbar/aenderbar (FA-SET-02), Speichern loest `recomputeAll` mit protokollierter Aenderung aus (FA-SET-03), Reset auf Startwerte (FA-SET-04 - "Kalibrierungswerte" faellt bis M4 mit "Literaturwerte" zusammen) |
 | `src/glossaryView.js` | Glossar aller Berechnungsgrundlagen (CP/W'/Pmax, MPA/W'bal, NP/IF/TSS, CTL/ATL/TSB, Strain, Sportart-Schwellen) in einfacher Sprache, fuer alle Nutzer zum Nachlesen |
@@ -84,8 +85,16 @@ Nicht Teil dieser Runde erweiterte Parameter ohne echten Effekt in M1-M3
 haengen an noch nicht gebauten Modellen (M4/M5) und waeren ohne Wirkung nur
 verwirrend.
 
-**Bewusst noch nicht gebaut** (M3, spaetere Runde): PP-Plausibilisierung
-(FA-SIG-13).
+PP-Plausibilisierung (2026-09-18, FA-SIG-13): vergleicht die bis zum
+Signatur-Datum gemessene beste 5-s-Leistung mit dem Modell-Pmax und zeigt
+die Abweichung unter der Leistungssignatur-Karte an (ab 10 % Abweichung rot
+markiert - kein Lastenheft-Parameter, reine UI-Schwelle). Das Modell selbst
+wird nicht korrigiert, nur die Diskrepanz angezeigt (Lastenheft-Wortlaut).
+
+Damit ist der komplette fuer M3 vorgesehene Funktionsumfang (6.5, 6.6, 6.7
+ohne FA-SIG-10 bis 12, 6.9) gebaut - FA-SIG-10/11/12 (belastungsgekoppelter
+3D-Signaturverlauf, Backtesting/Kalibrierung) sind gemaess Lastenheft
+Abschnitt "Inhalt" ohnehin M4-Scope ("3D-Modell und Kalibrierung").
 
 ## Ablageformat der Streams (`streams/YYYY-MM.bin`)
 
