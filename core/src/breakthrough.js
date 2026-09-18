@@ -67,7 +67,16 @@ export function nearMpaPoints(watts, mpa, mask, settings) {
 }
 
 /**
- * Robuster Refit mit Umverteilung (Kap. 7.5).
+ * Robuster Refit mit Umverteilung (Kap. 7.5). TP/HIE/PP werden wie
+ * vorgeschrieben GEMEINSAM neu geschaetzt (`fitMortonRobust`) - aber Pmax
+ * bleibt dabei explizit auf dem bisherigen Wert FIXIERT, solange die
+ * Stuetzpunkte dieses Refits keine echte Sprint-Dauer enthalten
+ * (`settings.pmaxEvidenceMaxSeconds`/`minPmaxEvidenceCount`, siehe
+ * core/README.md "Pmax-Stabilitaet"). Grund: Pmax ist aus Aktivitaeten ohne
+ * kurze Anstrengungen strukturell schlecht bestimmt (bestaetigt an echten
+ * Nutzerdaten UND in der Literatur, siehe core/README.md) und sollte -
+ * anders als TP/HIE, die aus jeder laengeren Anstrengung Evidenz ziehen -
+ * nur bei tatsaechlicher Sprint-Evidenz neu bewertet werden.
  * @param {Object} args
  * @param {{cp:number, wPrimeJ:number, pMax:number}} args.activeSignature - Signatur VOR diesem Breakthrough
  * @param {{t:number, watts:number}[]} args.nearMpaPts - siehe nearMpaPoints (aus der Breakthrough-Aktivitaet)
@@ -88,7 +97,16 @@ export function refitSignature({
   settings,
 }) {
   const points = [...nearMpaPts, ...envelopePts.map((e) => ({ t: e.t, watts: e.watts }))];
-  const fit = fitMortonRobust(points, { pMaxHint: activeSignature.pMax });
+  // Sprint-Evidenz braucht mehr als "irgendein Punkt bei kurzer Dauer" - die 90-Tage-
+  // Envelope (detectMaximalEfforts) liefert IMMER einen 1-20s-Bestwert, sobald ueberhaupt
+  // 1-Hz-Daten vorliegen, auch ohne jede Sprintabsicht (natuerliches Leistungsrauschen reicht).
+  // Erst deutlich ueber der aktuellen Schwelle (>= pmaxEvidenceMinCpMultiple * cp, siehe
+  // core/README.md "Pmax-Stabilitaet") ist ein kurzer Punkt tatsaechlich sprint-artig.
+  const sprintEvidenceCount = points.filter(
+    (p) => p.t <= settings.pmaxEvidenceMaxSeconds && p.watts >= settings.pmaxEvidenceMinCpMultiple * activeSignature.cp
+  ).length;
+  const holdPMax = sprintEvidenceCount < settings.minPmaxEvidenceCount;
+  const fit = fitMortonRobust(points, { pMaxHint: activeSignature.pMax, holdPMax });
   if (!fit) {
     return { signature: activeSignature, dropped: [], fit: null };
   }
@@ -102,7 +120,15 @@ export function refitSignature({
   const proposed = {
     cp: fit.cp,
     wPrimeJ: fit.wPrime,
-    pMax: fit.pMax != null ? fit.pMax : activeSignature.pMax,
+    // Pmax-Traegheitsbremse (siehe core/README.md "Pmax-Stabilitaet"): anders als cp/wPrime, wo
+    // ein Anstieg IMMER voll durchgereicht wird (Kap. 7.5: "Anstiege sind nie gebremst" - ein
+    // Breakthrough ist eine belegte neue Bestleistung), schwankt der rohe Pmax-Fit selbst BEI
+    // vorhandener Sprint-Evidenz noch stark von Fenster zu Fenster (am echten Datensatz
+    // bestaetigt: 450-1092W innerhalb eines Jahres, ohne erkennbaren Trend). Ein Anstieg UND ein
+    // Abstieg werden deshalb symmetrisch auf `maxPmaxChangePerBreakthrough` je Breakthrough
+    // begrenzt, unabhaengig von "enoughSupport" (das gilt nur fuer die separate Absenkbremse
+    // unten). `fit.pMax` selbst bleibt unveraendert (Transparenz, `rawFit` in der UI).
+    pMax: fit.pMax != null ? applyPmaxInertia(activeSignature.pMax, fit.pMax, settings.maxPmaxChangePerBreakthrough) : activeSignature.pMax,
   };
 
   const dropped = [];
@@ -116,6 +142,17 @@ export function refitSignature({
   );
 
   return { signature: corrected, dropped, fit, constraintUnsatisfied };
+}
+
+/**
+ * Pmax-Traegheitsbremse (M1-Festlegung, siehe core/README.md "Pmax-Stabilitaet"):
+ * symmetrische Begrenzung der Pmax-AENDERUNG (Anstieg UND Abstieg) je Breakthrough,
+ * unabhaengig von der (nur fuer Abstiege geltenden) Absenkbremse unten.
+ */
+function applyPmaxInertia(activePMax, proposedPMax, maxChangePct) {
+  if (!activePMax) return proposedPMax;
+  const maxDelta = activePMax * maxChangePct;
+  return Math.max(activePMax - maxDelta, Math.min(activePMax + maxDelta, proposedPMax));
 }
 
 /**

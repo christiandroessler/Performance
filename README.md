@@ -204,15 +204,20 @@ Jetzt auf eine feste Bandbreite (0,2-5) gekappt, mit Kennzeichnung im UI, wenn
 das greift. Details siehe `web/README.md` Abschnitt "M4-Status im Detail".
 Ein Abgleich am echten Konto des Auftraggebers steht noch aus.
 
-**PP/HIE-Ueberschaetzung (2026-09-18, behoben, M1-Scope):** der Nutzer hatte
-unabhaengig von FA-SIG-10/12 gemeldet, dass sein Pmax seit laengerem zu hoch
-wirkt, nicht auf einen einzelnen Breakthrough zurueckzufuehren. Am echten
-7-Jahres-Datensatz bestaetigt: die Nebenbedingungs-Korrektur (Kap. 7.5)
+**PP/HIE-Ueberschaetzung, zwei Runden (2026-09-18, behoben, M1-Scope):** der
+Nutzer hatte unabhaengig von FA-SIG-10/12 gemeldet, dass sein Pmax seit
+laengerem zu hoch wirkt. Runde 1: die Nebenbedingungs-Korrektur (Kap. 7.5)
 durfte cp/pMax bis zur absoluten Plausibilitaetsgrenze anheben, unabhaengig
-davon, wie weit das vom rohen Regressionsergebnis entfernt war. Neue,
-zusaetzliche relative Korrekturgrenze (`maxMpaCorrectionPct`, Standard 20 %)
-behoben - Details in `core/README.md` Abschnitt "Relative Korrekturgrenze".
-Live-Bestaetigung durch den Nutzer steht noch aus.
+davon, wie weit das vom rohen Regressionsergebnis entfernt war - behoben
+durch eine zusaetzliche relative Korrekturgrenze (`maxMpaCorrectionPct`).
+Runde 2 (nach Live-Test-Feedback "PP jetzt bei 450W, zu niedrig, und zu
+unruhig"): Pmax ist aus Aktivitaeten ohne echte kurze Sprint-Anstrengungen
+strukturell schlecht bestimmt (Literatur- und XERT-Recherche) und wird jetzt
+nur noch bei echter Sprint-Evidenz neu geschaetzt, dann zusaetzlich per
+Traegheitsbremse gedaempft (max. 15 % Aenderung je Breakthrough) - am echten
+Datensatz verifiziert: PP steigt jetzt glatt von 898W auf 1114W statt
+zwischen 450-1500W zu springen. Details in `core/README.md` Abschnitt
+"Pmax-Stabilitaet". Live-Bestaetigung durch den Nutzer steht noch aus.
 
 ## Ausgangslage
 

@@ -172,19 +172,43 @@ Fallback-Regel per Test abgesichert, Abschlag-Startwert aus dem Backtesting).
 Ein echter Abgleich am Konto des Auftraggebers (insbesondere ob die
 kalibrierten Werte dort plausibel wirken) steht noch aus.
 
-**PP/HIE-Ueberschaetzung (2026-09-18, behoben in `core/src/breakthrough.js`,
-Details in `core/README.md` "Relative Korrekturgrenze"):** der Nutzer hatte
-unabhaengig von M4 gemeldet, dass sein Pmax seit laengerem zu hoch wirkt -
-Ursache war die Nebenbedingungs-Korrektur (Kap. 7.5), die cp/pMax bis zur
-absoluten Plausibilitaetsgrenze anheben durfte, egal wie weit das vom
-eigentlichen Regressionsergebnis entfernt war. Neue Einstellung
-`maxMpaCorrectionPct` (Standard 20 %, jetzt auch in den Einstellungen unter
-"Nebenbedingungs-Korrektur", zusammen mit den bis dahin dort fehlenden
-`maxPlausiblePMax`/`maxPlausibleCp`) begrenzt die Korrektur zusaetzlich
-relativ zum rohen Fit. Live-Bestaetigung durch den Nutzer steht noch aus -
-dafuer muss einmal neu gerechnet werden (Einstellungen speichern oder einen
-Breakthrough verwerfen/reaktivieren), damit `model/signature-history.json`
-den neuen Code-Stand widerspiegelt.
+**PP/HIE-Ueberschaetzung, zwei Runden (2026-09-18, behoben in
+`core/src/breakthrough.js`/`cpFit.js`, Details in `core/README.md`
+"Relative Korrekturgrenze" und "Pmax-Stabilitaet"):**
+
+1. Der Nutzer hatte unabhaengig von M4 gemeldet, dass sein Pmax seit
+   laengerem zu hoch wirkt - Ursache war die Nebenbedingungs-Korrektur (Kap.
+   7.5), die cp/pMax bis zur absoluten Plausibilitaetsgrenze anheben durfte,
+   egal wie weit das vom eigentlichen Regressionsergebnis entfernt war. Neue
+   Einstellung `maxMpaCorrectionPct` (Standard 20 %) begrenzt die Korrektur
+   zusaetzlich relativ zum rohen Fit.
+2. Nach dem Live-Test meldete der Nutzer zurueck: PP jetzt bei 450 W,
+   deutlich zu NIEDRIG, und generell zu unruhig ("PP sollte sich nicht sehr
+   oft veraendern") - ausdruecklich ohne manuelles Ausfiltern einzelner
+   Aktivitaeten als Loesung. Recherche (Literatur zum 3-Parameter-Modell,
+   XERTs eigenes Sprint-Testprotokoll) bestaetigte: Pmax ist aus Daten ohne
+   echte kurze (<=20 s) Sprint-Anstrengungen strukturell schlecht bestimmt
+   und sollte, anders als TP/HIE, nicht bei jedem Breakthrough neu geschaetzt
+   werden. Vier neue, alle automatische Bausteine: Pmax wird nur bei
+   ausreichender Sprint-Evidenz (`pmaxEvidenceMaxSeconds`/
+   `minPmaxEvidenceCount`/`pmaxEvidenceMinCpMultiple`) ueberhaupt neu
+   gefittet (sonst gehalten), UND selbst dann nur um maximal
+   `maxPmaxChangePerBreakthrough` (Standard 15 %) je Breakthrough veraendert.
+   Am echten Datensatz verifiziert: PP steigt jetzt glatt von 898 W auf
+   1114 W statt zwischen 450-1500 W zu springen, und die Zahl der
+   Breakthroughs sinkt von 16 auf 4 im letzten Jahr (die MPA wird nicht mehr
+   durch einen ploetzlich eingebrochenen Pmax-Wert kuenstlich niedrig).
+
+Alle neuen Einstellungen sind jetzt in den Einstellungen unter
+"Nebenbedingungs-Korrektur" bzw. "PP-Stabilität" editierbar (zusammen mit
+den bis dahin dort komplett fehlenden `maxPlausiblePMax`/`maxPlausibleCp`).
+Live-Bestaetigung durch den Nutzer nach Runde 2 steht noch aus - dafuer muss
+einmal neu gerechnet werden (Einstellungen speichern oder einen Breakthrough
+verwerfen/reaktivieren), damit `model/signature-history.json` den neuen
+Code-Stand widerspiegelt. Ebenfalls noch offen: HIE (wPrimeJ) zeigt denselben
+Instabilitaets-Verdacht (rohe Fits landen wiederholt exakt auf einem
+internen Sicherheits-Clamp, 45000 J) - noch nicht untersucht, ob eine
+aehnliche Evidenz-/Traegheits-Behandlung sinnvoll waere (core/README.md).
 
 ## Ablageformat der Streams (`streams/YYYY-MM.bin`)
 

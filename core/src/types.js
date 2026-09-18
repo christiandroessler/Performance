@@ -58,6 +58,10 @@
  * @property {number} maxPlausiblePMax - Standard 3000 (W, absolute Plausibilitaetsgrenze fuer die Nebenbedingungs-Korrektur)
  * @property {number} maxPlausibleCp - Standard 600 (W, absolute Plausibilitaetsgrenze fuer die Nebenbedingungs-Korrektur)
  * @property {number} maxMpaCorrectionPct - Standard 0.2 (20%): relative Obergrenze fuer die Nebenbedingungs-Korrektur gegenueber dem rohen Fit, siehe core/README.md
+ * @property {number} pmaxEvidenceMaxSeconds - Standard 20 (s): nur Stuetzpunkte bis zu dieser Dauer zaehlen als Pmax-Sprintevidenz, siehe core/README.md
+ * @property {number} minPmaxEvidenceCount - Standard 2: Mindestanzahl an Sprintevidenz-Stuetzpunkten, sonst bleibt Pmax beim Refit fixiert
+ * @property {number} pmaxEvidenceMinCpMultiple - Standard 1.8: ein Stuetzpunkt zaehlt nur als Sprintevidenz, wenn er mindestens das X-fache der aktuellen TP erreicht
+ * @property {number} maxPmaxChangePerBreakthrough - Standard 0.15 (15%): symmetrische Traegheitsbremse fuer Pmax-Aenderungen je Breakthrough (Anstieg und Abstieg), unabhaengig von der Absenkbremse
  * @property {number} thresholdEstimationWindowDays - Standard 180 (FA-TP-03/04): rollierendes Fenster fuer Sportart-Schwellen-Schaetzung
  * @property {number} thresholdEffortSeconds - Standard 1200 (20 Min, FA-TP-03): Zieldauer der "besten Anstrengung" fuer Pace-/HF-Schwellen
  * @property {number} thresholdCyclingPowerTolerance - Standard 0.05 (FA-TP-04): Toleranzband um TP fuer die Rad-Schwellen-HF-Schaetzung

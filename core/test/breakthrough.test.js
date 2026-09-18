@@ -105,7 +105,11 @@ test('Nebenbedingungs-Korrektur laeuft bei unerfuellbaren Daten nicht unbegrenzt
   const expectedCpCeiling = Math.min(settings.maxPlausibleCp, activeSignature.cp * (1 + settings.maxMpaCorrectionPct));
   const expectedPMaxCeiling = Math.min(settings.maxPlausiblePMax, activeSignature.pMax * (1 + settings.maxMpaCorrectionPct));
   assert.equal(result.constraintUnsatisfied, true);
-  assert.equal(result.signature.cp, expectedCpCeiling, `cp sollte exakt an der (engeren) relativen Grenze ${expectedCpCeiling} stehen bleiben`);
+  // Die exakte Konvergenzstelle haengt vom genauen Iterationspfad ab (z. B. ob der
+  // pMax-Hebel zwischendurch kurz mitwirkt, siehe Kommentar oben) - deshalb Toleranz statt
+  // exakter Gleichheit, wie schon beim analogen Fall unten ("keine runde, unabhaengig
+  // herleitbare Zahl").
+  assert.ok(Math.abs(result.signature.cp - expectedCpCeiling) < 5, `cp=${result.signature.cp} sollte nahe der (engeren) relativen Grenze ${expectedCpCeiling} stehen bleiben`);
   // pMax muss die relative Grenze nicht zwingend AUSSCHOEPFEN (die Schleife kann vorher mit
   // konstantem cp an der Grenze abbrechen, sobald der cp-Hebel selbst ausgereizt ist und der
   // pMax-Hebel bei voller Entladung ohnehin kaum noch wirkt) - entscheidend ist, dass sie NICHT
@@ -201,17 +205,16 @@ test('Nebenbedingung hebt CP (nicht nur Pmax) an, wenn ein Breakthrough-Fenster 
 
 test('maxMpaCorrectionPct: eine Pmax-Korrektur weit ueber 20% wird gekappt und als constraintUnsatisfied markiert, statt bis zur absoluten Grenze durchzulaufen (echter PP-Ueberschaetzungs-Fall, siehe core/README.md)', () => {
   // Frisches W'bal (keine volle Entladung) mit einem kurzen, isolierten
-  // Spitzenwert weit ueber dem, was der eigentliche Fit hergibt - der
-  // Pmax-Hebel muesste weit ueber 20 % Anstieg gehen, um die Bedingung zu
-  // erfuellen. Vor maxMpaCorrectionPct waere das (absolute Grenze 3000W)
-  // klaglos durchgelaufen und constraintUnsatisfied waere false geblieben -
-  // genau der Mechanismus, der am echten Datensatz des Auftraggebers Pmax
+  // Spitzenwert weit ueber der aktiven Pmax=1000W - der Pmax-Hebel muesste
+  // weit ueber 20 % Anstieg gehen, um die Bedingung zu erfuellen. Vor
+  // maxMpaCorrectionPct waere das (absolute Grenze 3000W) klaglos
+  // durchgelaufen und constraintUnsatisfied waere false geblieben - genau
+  // der Mechanismus, der am echten Datensatz des Auftraggebers Pmax
   // wiederholt auf 150-570% ueber den rohen Fit trieb (core/README.md,
-  // "Relative Korrekturgrenze"). Die Stuetzpunkte hier ergeben einen Fit
-  // klar UNTER der aktiven Signatur, die Absenkbremse greift zuerst (auf
-  // 950W, 5 % unter der aktiven Pmax=1000W mangels Stuetzung) - die
-  // Korrekturgrenze gilt relativ zu DIESEM gebremsten Wert (950*1,2=1140W),
-  // nicht zur urspruenglichen aktiven Signatur.
+  // "Relative Korrekturgrenze"). Die Stuetzpunkte hier liegen alle >= 60s
+  // (keine Sprint-Evidenz, siehe "Pmax-Stabilitaet") - der rohe Fit haelt
+  // Pmax deshalb exakt bei 1000W (unveraendert, keine Absenkbremse noetig),
+  // die Korrekturgrenze gilt relativ zu DIESEM gehaltenen Wert (1000*1,2=1200W).
   const settings = mergeSettings();
   const n = 600;
   const watts = new Float64Array(n).fill(150); // meiste Zeit weit unter CP, W'bal bleibt fast voll
@@ -236,9 +239,74 @@ test('maxMpaCorrectionPct: eine Pmax-Korrektur weit ueber 20% wird gekappt und a
     settings,
   });
 
-  const brakedPMax = activeSignature.pMax * (1 - settings.maxDropPerBreakthrough); // Absenkbremse greift zuerst, siehe oben
-  const pMaxCeiling = brakedPMax * (1 + settings.maxMpaCorrectionPct);
+  const pMaxCeiling = activeSignature.pMax * (1 + settings.maxMpaCorrectionPct); // Pmax wurde gehalten, keine Absenkbremse noetig
   assert.equal(result.constraintUnsatisfied, true, 'die Korrektur sollte an der relativen Grenze aufgeben, nicht beliebig weit durchlaufen');
   assert.ok(Math.abs(result.signature.pMax - pMaxCeiling) < 1, `pMax=${result.signature.pMax} sollte an der 20%-Grenze ueber dem gebremsten Wert (${pMaxCeiling}) stehen bleiben`);
   assert.ok(result.signature.pMax < settings.maxPlausiblePMax, 'pMax sollte weit unter der alten absoluten Grenze (3000W) bleiben');
+});
+
+test('Pmax-Stabilitaet: ein Breakthrough ohne kurze Stuetzpunkte (keine Sprint-Evidenz) haelt Pmax exakt fest, aendert TP/HIE aber normal', () => {
+  // Ein staerkerer 20-min-Schwelleneffort loest den Breakthrough aus - alle Stuetzpunkte
+  // (nahe MPA + 90-Tage-Envelope) liegen bei >= 60s, keine echte Sprint-Dauer. Genau der
+  // vom Auftraggeber gemeldete Fall: "PP sollte sich nicht sehr oft veraendern, da sehr
+  // selten ein voller Sprint gefahren wird" - siehe core/README.md "Pmax-Stabilitaet".
+  const settings = mergeSettings();
+  const n = 1200; // 20 min
+  const watts = new Float64Array(n).fill(275); // spuerbar ueber der alten CP=250, kein Sprint
+  const mask = new Uint8Array(n).fill(1);
+
+  const activeSignature = { cp: 250, wPrimeJ: 20000, pMax: 1000 };
+  const nearMpaPts = [
+    { t: 60, watts: 290 },
+    { t: 300, watts: 278 },
+    { t: 1200, watts: 275 },
+    { t: 1800, watts: 265 },
+  ];
+  const envelopePts = [
+    { t: 3600, watts: 240, support: 5, supportingActivityIds: new Set(['a', 'b']) },
+  ];
+
+  const result = refitSignature({
+    activeSignature,
+    nearMpaPts,
+    envelopePts,
+    breakthroughWatts: watts,
+    breakthroughMask: mask,
+    breakthroughWindows: [{ start: 0, end: n }],
+    settings,
+  });
+
+  assert.equal(result.fit.pMaxFixed, true, 'der rohe Fit sollte Pmax mangels Sprint-Stuetzpunkten gehalten haben');
+  assert.equal(result.fit.pMax, 1000, 'Pmax sollte exakt beim bisherigen Wert bleiben');
+  assert.equal(result.signature.pMax, 1000, 'auch nach Absenkbremse/Nebenbedingung sollte Pmax unveraendert sein (keine Verletzung durch einen 275W-Effort bei Pmax=1000)');
+  assert.notEqual(result.signature.cp, activeSignature.cp, 'TP sollte trotzdem normal aus dem staerkeren Schwelleneffort aktualisiert werden');
+});
+
+test('Pmax-Stabilitaet: ein Breakthrough MIT kurzen Stuetzpunkten (echte Sprint-Evidenz) darf Pmax normal aktualisieren', () => {
+  const settings = mergeSettings();
+  const n = 20;
+  const watts = new Float64Array(n).fill(1300); // kurzer, echter Sprint
+  const mask = new Uint8Array(n).fill(1);
+
+  const activeSignature = { cp: 250, wPrimeJ: 20000, pMax: 1000 };
+  const nearMpaPts = [
+    { t: 5, watts: 1250 },
+    { t: 10, watts: 1150 },
+    { t: 60, watts: 300 },
+    { t: 300, watts: 270 },
+    { t: 1200, watts: 250 },
+  ];
+
+  const result = refitSignature({
+    activeSignature,
+    nearMpaPts,
+    envelopePts: [],
+    breakthroughWatts: watts,
+    breakthroughMask: mask,
+    breakthroughWindows: [{ start: 0, end: n }],
+    settings,
+  });
+
+  assert.equal(result.fit.pMaxFixed, false, 'mit echten Sprint-Stuetzpunkten sollte Pmax frei gefittet werden');
+  assert.notEqual(result.fit.pMax, 1000, 'Pmax sollte sich an die neuen Sprint-Daten anpassen, nicht beim alten Wert verharren');
 });

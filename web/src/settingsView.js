@@ -46,6 +46,15 @@ const PARAM_GROUPS = [
     ],
   },
   {
+    title: 'PP-Stabilität (Pmax nur bei Sprint-Evidenz aktualisieren)',
+    params: [
+      { key: 'pmaxEvidenceMaxSeconds', label: 'Max. Dauer für Sprint-Stützpunkte', unit: 's', min: 5, max: 60, step: 1, ...identity, hint: 'M1-Festlegung, core/README.md' },
+      { key: 'minPmaxEvidenceCount', label: 'Mindestanzahl Sprint-Stützpunkte', unit: '', min: 1, max: 10, step: 1, ...identity, hint: 'M1-Festlegung, core/README.md' },
+      { key: 'pmaxEvidenceMinCpMultiple', label: 'Min. Vielfaches von TP für Sprint-Stützpunkte', unit: '×', min: 1.2, max: 3, step: 0.1, ...identity, hint: 'M1-Festlegung, core/README.md' },
+      { key: 'maxPmaxChangePerBreakthrough', label: 'Max. PP-Änderung je Breakthrough (Trägheitsbremse)', unit: '%', min: 5, max: 100, step: 1, ...pct, hint: 'M1-Festlegung, core/README.md' },
+    ],
+  },
+  {
     title: 'Ausreißerfilter (Leistung)',
     params: [
       { key: 'outlierMaxWatts', label: 'Max. plausible Leistung', unit: 'W', min: 200, max: 5000, step: 10, ...identity, hint: 'M1-Festlegung, Ausreißerregel' },

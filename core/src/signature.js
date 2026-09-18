@@ -159,6 +159,10 @@ export function computeSignatureHistory(preparedActivities, options = {}) {
         // dass `constraintUnsatisfied` das anzeigt (das Flag greift nur, wenn selbst die
         // Plausibilitaetsgrenzen die Bedingung nicht erfuellen) - siehe core/README.md.
         rawFit: refit.fit ? { cp: refit.fit.cp, wPrimeJ: refit.fit.wPrime, pMax: refit.fit.pMax, model: refit.fit.model, r2: refit.fit.r2, confidence: refit.fit.confidence } : null,
+        // Pmax-Stabilitaet (siehe breakthrough.js#refitSignature, core/README.md): true, wenn dieser
+        // Refit mangels kurzer Stuetzpunkte (Sprint-Evidenz) Pmax NICHT neu geschaetzt, sondern auf
+        // dem bisherigen Wert gehalten hat.
+        pMaxHeld: !!(refit.fit && refit.fit.pMaxFixed),
         droppedByBrake: refit.dropped,
         medal,
         risen,

@@ -15,6 +15,10 @@ export const DEFAULT_SETTINGS = {
   maxPlausiblePMax: 3000, // M1-Festlegung, siehe core/README.md (Nebenbedingungs-Korrektur)
   maxPlausibleCp: 600, // M1-Festlegung, siehe core/README.md (Nebenbedingungs-Korrektur)
   maxMpaCorrectionPct: 0.2, // M1-Festlegung, siehe core/README.md (Nebenbedingungs-Korrektur, relative Grenze)
+  pmaxEvidenceMaxSeconds: 20, // M1-Festlegung, siehe core/README.md (Pmax-Stabilitaet, XERT-Sprinttest-Dauer)
+  minPmaxEvidenceCount: 2, // M1-Festlegung, siehe core/README.md (Pmax-Stabilitaet)
+  pmaxEvidenceMinCpMultiple: 1.8, // M1-Festlegung, siehe core/README.md (Pmax-Stabilitaet)
+  maxPmaxChangePerBreakthrough: 0.15, // M1-Festlegung, siehe core/README.md (Pmax-Stabilitaet, Traegheitsbremse)
   maxGapSecondsForWbalContinuity: 1800, // M1-Festlegung, siehe core/README.md
   ctlTau: 42,
   atlTau: 7,

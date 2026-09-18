@@ -30,6 +30,30 @@ test('Robuster Fit ignoriert einen einzelnen groben Ausreisser', () => {
   assert.ok(Math.abs(fit.pMax - pMax) < 100, `pMax=${fit.pMax}`);
 });
 
+test('fitMortonCP mit fixedPMax haelt Pmax exakt fest, auch wenn die Daten selbst einen anderen Wert nahelegen wuerden (Pmax-Stabilitaet)', () => {
+  const trueCp = 260;
+  const trueWPrime = 18000;
+  const truePMax = 1100; // die Daten selbst "wollen" 1100
+  const grid = [60, 120, 180, 300, 600, 1200]; // keine kurzen Dauern - genau der Fall ohne Sprint-Evidenz
+  const points = grid.map((t) => ({ t, watts: mortonPower(t, trueCp, trueWPrime, truePMax) }));
+
+  const held = fitMortonCP(points, { fixedPMax: 1000 });
+  assert.equal(held.pMax, 1000, 'Pmax sollte exakt beim uebergebenen Fixwert bleiben, nicht bei 1100 landen');
+  assert.equal(held.pMaxFixed, true);
+  assert.ok(Math.abs(held.cp - trueCp) < 15, `cp=${held.cp} sollte trotzdem sinnvoll an die Daten angepasst werden`);
+});
+
+test('fitMortonRobust mit holdPMax haelt Pmax ueber alle IRLS-Iterationen exakt fest', () => {
+  const grid = [60, 120, 180, 300, 600, 1200];
+  const points = grid.map((t) => ({ t, watts: mortonPower(t, 260, 18000, 1100) }));
+
+  const held = fitMortonRobust(points, { pMaxHint: 950, holdPMax: true });
+  assert.equal(held.pMax, 950);
+
+  const free = fitMortonRobust(points, { pMaxHint: 950, holdPMax: false });
+  assert.notEqual(free.pMax, 950, 'ohne holdPMax sollte der Fit frei zu einem anderen Wert konvergieren');
+});
+
 test('fitMortonCP ist deterministisch (gleiche Eingabe -> gleiche Ausgabe)', () => {
   const points = [
     { t: 5, watts: 900 },

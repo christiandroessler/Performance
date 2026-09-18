@@ -113,6 +113,9 @@ export async function renderBreakthroughs(container, modelState, onChanged) {
     if (correction) {
       info.innerHTML += `<br><span class="hint">${correction}</span>`;
     }
+    if (bt.pMaxHeld) {
+      info.innerHTML += '<br><span class="hint">PP nicht neu geschätzt (keine kurze Sprint-Anstrengung in diesem Refit) - bisheriger Wert beibehalten.</span>';
+    }
     row.appendChild(info);
 
     if (bt.discarded) {

@@ -265,19 +265,20 @@ mit Kap. 7.5s eigener Begruendung fuer die absolute Grenze ("statt eine
 unplausible Signatur unbemerkt zu uebernehmen"), nur konsequenter angewendet.
 
 Verifiziert erneut gegen den echten Datensatz (Standard-Grenzen, nicht die
-vom Nutzer manuell abgesenkten): die aktuelle Signatur (letztes Jahr) landet
-jetzt bei cp=278 W, pMax=922 W - beides ohne jede manuelle Anpassung der
+vom Nutzer manuell abgesenkten): die aktuelle Signatur (letztes Jahr) landete
+damit bei cp=278 W, pMax=922 W - beides ohne jede manuelle Anpassung der
 absoluten Grenzen, direkt aus der neuen relativen Korrekturgrenze, und sehr
 nah an der eigenen Einschaetzung des Auftraggebers (~900 W gemessen,
-~1200 W als plausibler Sprintwert). Nebenwirkung, bewusst in Kauf genommen:
-die Zahl der erkannten Breakthroughs steigt spuerbar (7 statt vorher 2-3 im
-letzten Jahr, 140 statt 14 ueber 7 Jahre) - die MPA wird nicht mehr
+~1200 W als plausibler Sprintwert). Nebenwirkung DIESER Runde (bewusst in
+Kauf genommen, aber siehe "Pmax-Stabilitaet" unten fuer die Fortsetzung): die
+Zahl der erkannten Breakthroughs stieg spuerbar (7 statt vorher 2-3 im
+letzten Jahr, 140 statt 14 ueber 7 Jahre) - die MPA wurde nicht mehr
 kuenstlich so weit aufgeblaeht, dass folgende Anstrengungen lange keine
-Ueberschreitung mehr ausloesen. Noch nicht verifiziert: ob 140/7
-Breakthroughs in der Praxis (Breakthrough-Liste, FA-SIG-08) als zu viele
-empfunden werden - falls ja, waere das ein UX-Thema fuer die Liste selbst
-(z. B. Zusammenfassen dicht aufeinanderfolgender Eintraege), nicht ein Grund,
-die Korrekturgrenze wieder zu lockern.
+Ueberschreitung mehr ausloesten. Der Nutzer meldete danach zurueck, dass PP
+jetzt zu NIEDRIG sei (450 W) und generell zu haeufig schwanke - Ursache und
+Fix dafuer siehe "Pmax-Stabilitaet" unten, das reduziert auch diese
+Breakthrough-Inflation wieder (siehe dort: 4 statt 16 Breakthroughs im
+letzten Jahr, nach beiden Fixes zusammen).
 
 **Transparenz-Ergaenzung (2026-09-18, NFA-11):** `constraintUnsatisfied`
 zeigt nur den Fall, dass SELBST die Plausibilitaetsgrenzen die Bedingung
@@ -292,6 +293,97 @@ Nebenbedingungs-Korrektur, `signature.js`), `breakthroughView.js` zeigt bei
 Wert je Parameter. Reine Diagnose/Anzeige, kein Eingriff in die Berechnung
 selbst - Grundlage fuer die weitere Untersuchung des gemeldeten PP/HIE-
 Ueberschaetzungsproblems (siehe "Bekannte offene Punkte" unten).
+
+### Pmax-Stabilitaet (2026-09-18, M1-Festlegung, `pmaxEvidenceMaxSeconds`/`minPmaxEvidenceCount`/`pmaxEvidenceMinCpMultiple`/`maxPmaxChangePerBreakthrough`)
+
+Nach der relativen Korrekturgrenze (oben) blieb PP am echten Datensatz immer
+noch instabil - der Nutzer meldete zurueck: "PP steht bei 450 W, deutlich zu
+wenig" und "PP sollte sich nicht sehr oft veraendern, da sehr, sehr selten
+ein voller Sprint gefahren wird", ausdruecklich OHNE manuelles Ausfiltern
+einzelner Aktivitaeten als Loesung. Recherche (siehe unten) bestaetigt genau
+diese Intuition, sowohl in der Literatur als auch im Vorbild-Produkt (XERT):
+
+- **Literatur:** der 3-Parameter-Fit (Morton 1996) ist fuer Pmax (den
+  t->0-Extremwert) strukturell schlecht bestimmt, wenn keine echten kurzen
+  (Sprint-)Anstrengungen vorliegen - eine Validierungsstudie fand den
+  modellierten Wert (ẇ0) sogar SYSTEMATISCH niedriger als die tatsaechlich
+  gemessene maximale Momentanleistung (1184±265 W vs. 1554±235 W gemessen).
+  Das erklaert direkt, warum PP nach der reinen Fit-Korrektur (relative
+  Korrekturgrenze oben) auf 450 W statt der vom Nutzer erwarteten ~1200 W
+  fiel: ohne echte Sprint-Stuetzpunkte im jeweiligen 90-Tage-Fenster ist der
+  rohe Fit selbst der Fehlerquelle, nicht (mehr) die Korrektur.
+- **XERT** (das dem Lastenheft als Vorbild dient, Kap. 2 "Ausgangslage")
+  behandelt Peak Power in seinem eigenen Testprotokoll ausdruecklich getrennt
+  von Threshold/HIE: "Perform 4-5 peak power sprints for 10-15 seconds ...
+  On your last sprint, go all-out for around 20 seconds" - eine eigene,
+  kurze (<=20 s) Anstrengungskategorie, waehrend TP/HIE aus jeder laengeren
+  Anstrengung Evidenz ziehen koennen.
+
+**Vier Bausteine** in `breakthrough.js#refitSignature`, alle automatisch -
+kein manuelles Ausfiltern von Aktivitaeten, wie vom Nutzer gefordert:
+
+1. **Sprint-Evidenz-Schwelle**: ein Stuetzpunkt (aus den Nahe-MPA-Punkten der
+   Breakthrough-Aktivitaet ODER der 90-Tage-Envelope) zaehlt nur als
+   "Pmax-Sprintevidenz", wenn er (a) hoechstens `pmaxEvidenceMaxSeconds`
+   (Standard 20 s, direkt aus dem XERT-Protokoll uebernommen) dauert UND (b)
+   mindestens `pmaxEvidenceMinCpMultiple` (Standard 1,8) mal die aktuelle TP
+   erreicht. Reiner Dauer-Filter allein reicht NICHT: die 90-Tage-Envelope
+   liefert praktisch IMMER einen 1-20-s-Bestwert, auch ohne jede
+   Sprintabsicht (natuerliches Leistungsrauschen genuegt) - erst der
+   Vielfache-Filter unterscheidet einen echten sprintartigen Ausschlag von
+   einer zufaellig etwas hoeheren Sekunde einer normalen Ausfahrt.
+2. **Pmax-Halte-Modus** (`cpFit.js#fitMortonCP`s neue `fixedPMax`-Option,
+   `fitMortonRobust`s `holdPMax`): unterhalb `minPmaxEvidenceCount` (Standard
+   2) qualifizierender Stuetzpunkte wird Pmax waehrend der GESAMTEN
+   Levenberg-Marquardt-Optimierung auf dem bisherigen Wert FIXIERT (effektiv
+   ein 2-Parameter-Fit fuer cp/wPrime) statt frei mitgefittet. Kap. 7.5
+   verlangt weiterhin "TP, HIE und PP gemeinsam neu geschaetzt" - das bleibt
+   woertlich erfuellt (der gemeinsame Fit-Aufruf findet immer statt), nur
+   dass PPs Beitrag dazu bei fehlender Evidenz eben "unveraendert" lautet,
+   statt einer unbelegten Neuschaetzung. `fit.pMaxFixed`/das
+   Breakthrough-Feld `pMaxHeld` machen das transparent (UI:
+   "PP nicht neu geschaetzt (keine kurze Sprint-Anstrengung)").
+3. **Pmax-Traegheitsbremse** (`applyPmaxInertia`, NEU, zusaetzlich zur
+   bestehenden Absenkbremse): selbst mit ausreichender Sprint-Evidenz schwankte
+   der rohe Fit am echten Datensatz noch stark von Fenster zu Fenster (898 W
+   -> 1092 W -> 559 W -> 780 W -> ... -> 922 W innerhalb eines Jahres, ohne
+   erkennbaren Trend) - jede 90-Tage-Envelope enthaelt eben einen etwas
+   anderen Ausschnitt der Sprint-Historie. Anders als bei cp/wPrime (Kap.
+   7.5: "Anstiege sind nie gebremst" - ein Breakthrough ist eine belegte
+   PERSOENLICHE Bestleistung, soll also sofort sichtbar werden) gibt es fuer
+   Pmax speziell keinen Grund zur Eile: ein einzelner guter Sprint beweist
+   nicht zuverlaessig einen dauerhaft hoeheren Wert, siehe Literatur oben.
+   Deshalb wird die Pmax-AENDERUNG (Anstieg UND Abstieg, anders als die nur
+   fuer Abstiege geltende Absenkbremse) auf `maxPmaxChangePerBreakthrough`
+   (Standard 0,15 = 15 %) je Breakthrough begrenzt - unabhaengig von
+   "gestuetzt" (das bleibt der Absenkbremse fuer cp/wPrime vorbehalten). Das
+   rohe `fit.pMax` (Transparenz, `rawFit`) bleibt davon unberuehrt.
+4. **Reihenfolge**: Sprint-Evidenz-Pruefung -> Fit (ggf. mit fixiertem Pmax)
+   -> Pmax-Traegheitsbremse -> Absenkbremse (cp/wPrime/pMax) ->
+   Nebenbedingungs-Korrektur (Kap. 7.5, mit der relativen Grenze oben). Jede
+   Stufe wirkt auf das Ergebnis der vorherigen, keine Stufe wird uebersprungen.
+
+**Verifiziert gegen den echten Datensatz** (letztes synchronisiertes Jahr,
+Standard-Einstellungen): vor diesem Fix 16 Breakthroughs mit PP-Werten
+zwischen 450 W und 1500 W ohne erkennbaren Trend; danach nur noch **4
+Breakthroughs**, PP steigt glatt und plausibel von 898 W (Startsignatur) auf
+1114 W - nahe an der vom Nutzer selbst geschaetzten Sprintleistung
+(~1200 W) und an der gemessenen besten 1-s-Leistung (961 W, ueber 4
+Aktivitaeten reproduziert). Die Breakthrough-Inflation aus der relativen
+Korrekturgrenze (oben, 7 statt 2-3 im letzten Jahr) ist damit ebenfalls
+behoben, weil die MPA nicht mehr durch einen ploetzlich eingebrochenen
+Pmax-Wert kuenstlich zu niedrig wird.
+
+**Noch offen** (separat von PP, nicht Teil dieser Anfrage): `wPrimeJ` (HIE)
+landet im rohen Fit ebenfalls mehrfach exakt auf 45000 J - dem internen
+LM-Optimierungs-Clamp in `cpFit.js` (`CLAMP[1]`), einer numerischen
+Stabilitaetsgrenze, keiner physiologischen. Der Nutzer hatte HIE
+unabhaengig davon ebenfalls als zu hoch gemeldet; ob HIE von einer
+aehnlichen Evidenz-/Traegheits-Behandlung profitieren wuerde, ist nicht
+untersucht - anders als bei Pmax gibt es dafuer aber keine ebenso klare
+Literatur-/Produktvorlage (W' wird ueblicherweise aus laengeren
+Erschoepfungstests geschaetzt, nicht aus Sprints), das muesste eigens
+hergeleitet werden.
 
 ### Startsignatur ohne ausreichende Daten (FA-SIG-03)
 

@@ -60,8 +60,17 @@ export function mortonPower(t, cp, wPrime, pMax) {
  * (fuer robuste IRLS-Regression, siehe fitMortonRobust). Faellt auf das
  * 2-Parameter-Modell zurueck, wenn zu wenige Punkte vorliegen oder das
  * 3-Parameter-Ergebnis unplausibel/schlechter ist.
+ *
+ * `fixedPMax` (siehe core/README.md "Pmax-Stabilitaet"): wenn gesetzt, bleibt
+ * Pmax waehrend der gesamten Optimierung auf diesem Wert fixiert - effektiv
+ * ein 2-Parameter-Fit (nur cp/wPrime), der weiterhin dieselbe LM-Maschinerie
+ * nutzt (die dritte Dimension wird nach jedem Schritt einfach zurueckgeklemmt).
+ * Grund: Pmax ist aus Aktivitaeten ohne echte Sprint-Dauern (siehe
+ * `refitSignature`) strukturell schlecht bestimmt - ein Ergebnis wird nicht
+ * "unbelegt frisch geschaetzt" zurueckgegeben, sondern haelt den bisherigen
+ * Wert, bis echte kurze Anstrengungen vorliegen.
  */
-export function fitMortonCP(points, { pMaxHint, weights } = {}) {
+export function fitMortonCP(points, { pMaxHint, weights, fixedPMax } = {}) {
   const pts = (points || []).filter((p) => p.watts > 0 && p.t > 0).sort((a, b) => a.t - b.t);
   const w = weights || pts.map(() => 1);
   const two = fit2ParamCP(pts, w);
@@ -70,7 +79,7 @@ export function fitMortonCP(points, { pMaxHint, weights } = {}) {
   const maxP = Math.max(...pts.map((p) => p.watts));
   let cp = two ? two.cp : 250;
   let wPrime0 = two ? two.wPrime : 15000;
-  let pmax = clamp(Math.max(pMaxHint || 0, maxP * 1.05, cp * 2), cp + 80, 2500);
+  let pmax = fixedPMax != null ? fixedPMax : clamp(Math.max(pMaxHint || 0, maxP * 1.05, cp * 2), cp + 80, 2500);
 
   const CLAMP = [
     [120, 500],
@@ -80,7 +89,7 @@ export function fitMortonCP(points, { pMaxHint, weights } = {}) {
   const applyClamp = (v) => [
     clamp(v[0], CLAMP[0][0], CLAMP[0][1]),
     clamp(v[1], CLAMP[1][0], CLAMP[1][1]),
-    clamp(v[2], Math.max(v[0] + 60, 450), 2600),
+    fixedPMax != null ? fixedPMax : clamp(v[2], Math.max(v[0] + 60, 450), 2600),
   ];
 
   let theta = applyClamp([cp, wPrime0, pmax]);
@@ -172,6 +181,7 @@ export function fitMortonCP(points, { pMaxHint, weights } = {}) {
     rmse: Math.round(rmse * 10) / 10,
     r2: Math.round(r2 * 1000) / 1000,
     confidence: Math.round(confidence * 100) / 100,
+    pMaxFixed: fixedPMax != null,
   };
 }
 
@@ -180,13 +190,18 @@ export function fitMortonCP(points, { pMaxHint, weights } = {}) {
  * mit Tukey-Biweight-Gewichten um `fitMortonCP`. Standard-Tuning-Konstante
  * c = 4.685 (bei normalverteilten Residuen ~95% Effizienz), 3 aeussere
  * Iterationen. Siehe core/README.md, Abschnitt "Robuste Regression".
+ *
+ * `holdPMax`: haelt Pmax fest auf `pMaxHint` (siehe `fitMortonCP`s
+ * `fixedPMax`) - siehe core/README.md "Pmax-Stabilitaet" fuer die
+ * Entscheidung, WANN das gilt (keine Stuetzpunkte im Sprint-Dauernbereich).
  */
-export function fitMortonRobust(points, { pMaxHint, iterations = 3, tukeyC = 4.685 } = {}) {
+export function fitMortonRobust(points, { pMaxHint, iterations = 3, tukeyC = 4.685, holdPMax = false } = {}) {
   const pts = (points || []).filter((p) => p.watts > 0 && p.t > 0);
   if (pts.length === 0) return null;
+  const fixedPMax = holdPMax ? pMaxHint : undefined;
 
   let weights = pts.map(() => 1);
-  let result = fitMortonCP(pts, { pMaxHint, weights });
+  let result = fitMortonCP(pts, { pMaxHint, weights, fixedPMax });
   if (!result) return null;
 
   for (let iter = 0; iter < iterations; iter++) {
@@ -204,7 +219,7 @@ export function fitMortonRobust(points, { pMaxHint, iterations = 3, tukeyC = 4.6
     });
     if (weights.every((w) => w === 0)) break; // Degeneriert, letztes Ergebnis behalten
 
-    const next = fitMortonCP(pts, { pMaxHint, weights });
+    const next = fitMortonCP(pts, { pMaxHint, weights, fixedPMax });
     if (!next) break;
     result = next;
   }
