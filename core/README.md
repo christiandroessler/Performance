@@ -233,6 +233,20 @@ zeigt der vollstaendige 7-Jahres-Datensatz **0 von 14** Breakthroughs mit
 `constraintUnsatisfied: true` (siehe "Stand der Verifikation" oben) - die
 Nebenbedingung gilt damit als verifiziert abgeschlossen fuer M1.
 
+**Transparenz-Ergaenzung (2026-09-18, NFA-11):** `constraintUnsatisfied`
+zeigt nur den Fall, dass SELBST die Plausibilitaetsgrenzen die Bedingung
+nicht erfuellen - der haeufigere Fall, dass die Korrektur cp/pMax spuerbar
+angehoben, aber unterhalb der Grenzen konvergiert ist, blieb bisher
+unsichtbar (genau das war der Auftraggeber-Feedback-Fall: gemeldete PP/HIE
+deutlich zu hoch, ohne dass ein einzelner Breakthrough als fehlerhaft
+markiert war). Jeder Breakthrough fuehrt deshalb jetzt zusaetzlich `rawFit`
+mit (das rohe `fitMortonRobust`-Ergebnis VOR Absenkbremse und
+Nebenbedingungs-Korrektur, `signature.js`), `breakthroughView.js` zeigt bei
+>= 2 % Abweichung zur finalen Signatur eine Zeile mit rohem vs. korrigiertem
+Wert je Parameter. Reine Diagnose/Anzeige, kein Eingriff in die Berechnung
+selbst - Grundlage fuer die weitere Untersuchung des gemeldeten PP/HIE-
+Ueberschaetzungsproblems (siehe "Bekannte offene Punkte" unten).
+
 ### Startsignatur ohne ausreichende Daten (FA-SIG-03)
 
 Reicht die Datenbasis der ersten 90 Tage nicht (weniger als 4
@@ -457,6 +471,20 @@ bereits verifizierten CP-/Breakthrough-Pipeline.
   begruendet, aber experimentell nicht validiert" (Kap. 7.7) - auch mit
   vollstaendiger Kalibrierung ist der Signaturverlauf ein datengestuetzter
   Trend, keine wissenschaftlich validierte Vorhersage.
+- **Gemeldete PP/HIE-Ueberschaetzung (2026-09-18, laufende Untersuchung):**
+  der Auftraggeber berichtet, das modellierte PP liege dauerhaft ueber der
+  gemessenen besten 5-s-Leistung UND ueber dem eigenen, per `outlierMaxWatts`
+  personalisierten Plausibilitaetsdach - auch HIE wirkt zu hoch. Arbeitshypothese
+  (aus Code-Analyse, noch nicht am echten Datensatz bestaetigt): das
+  3-Parameter-Modell extrapoliert `pMax` als t→0-Asymptote aus nur 1-Hz-Daten
+  (kuerzeste Stuetzstelle 1 s) - dieser Bereich ist strukturell schlecht
+  bestimmt, ein einzelner "bester 1-s-Wert je Fenster" (`detectMaximalEfforts`,
+  ohne Gewichtung nach `support`) hat unverhaeltnismaessig viel Hebelwirkung
+  auf die Kruemmung nahe t=0. Zusaetzlich kann die Nebenbedingungs-Korrektur
+  (siehe oben) `cp`/`pMax` weit ueber den rohen Regressionswert anheben, ohne
+  dass das je Breakthrough sichtbar war. Als ersten Schritt jetzt `rawFit`
+  ergaenzt (siehe oben), um am echten Konto zu sehen, WELCHER Mechanismus
+  ueberwiegt, bevor am Fit-/Korrektur-Verfahren selbst etwas geaendert wird.
 
 ## Verwendung
 

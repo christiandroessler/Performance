@@ -82,6 +82,12 @@ test('Schwelle zum Aktivitaetsdatum: ein Breakthrough mitten im Zeitraum aendert
   // Unmittelbare Konsequenz: derselbe NP wuerde vor/nach dem Breakthrough einen
   // unterschiedlichen TSS ergeben, weil die TSS-Schwelle (CP) sich geaendert hat.
   assert.notEqual(btResult.tss, afterResult.tss);
+
+  // Transparenz-Ergaenzung (rawFit): das rohe Regressionsergebnis wird mitgefuehrt, unabhaengig
+  // davon, ob die Nebenbedingungs-Korrektur hier tatsaechlich eingegriffen hat.
+  const rawFit = result.breakthroughs[0].rawFit;
+  assert.ok(rawFit, 'rawFit sollte gesetzt sein, sobald die Regression konvergiert');
+  assert.ok(Number.isFinite(rawFit.cp) && Number.isFinite(rawFit.wPrimeJ) && Number.isFinite(rawFit.pMax));
 });
 
 test('FA-SIG-07: Verwerfen eines Breakthroughs haelt die Signatur fuer alle nachfolgenden Aktivitaeten unveraendert', () => {

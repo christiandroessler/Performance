@@ -102,6 +102,13 @@ test('Nebenbedingungs-Korrektur laeuft bei unerfuellbaren Daten nicht unbegrenzt
   assert.equal(result.signature.pMax, settings.maxPlausiblePMax);
   assert.ok(result.signature.pMax <= settings.maxPlausiblePMax);
   assert.ok(result.signature.cp <= settings.maxPlausibleCp);
+
+  // Transparenz-Ergaenzung (siehe signature.js#rawFit, breakthroughView.js#correctionNote):
+  // das rohe Regressionsergebnis (result.fit, unveraendert von fitMortonRobust) bleibt deutlich
+  // unter den durch die Korrektur erzwungenen Plausibilitaetsgrenzen - genau dieser Abstand
+  // soll fuer den Nutzer sichtbar werden, statt in der finalen Signatur zu verschwinden.
+  assert.ok(result.fit.cp < result.signature.cp, `rohes cp=${result.fit.cp} sollte unter der erzwungenen Grenze ${result.signature.cp} liegen`);
+  assert.ok(result.fit.pMax < result.signature.pMax, `rohes pMax=${result.fit.pMax} sollte unter der erzwungenen Grenze ${result.signature.pMax} liegen`);
 });
 
 test('Nebenbedingung ignoriert Anstrengung ausserhalb der Breakthrough-Fenster (Regressionstest fuer die 71%-Falsch-Erkennung)', () => {

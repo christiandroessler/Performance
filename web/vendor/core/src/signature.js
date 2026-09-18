@@ -154,6 +154,11 @@ export function computeSignatureHistory(preparedActivities, options = {}) {
         windows,
         previousSignature: active,
         proposedSignature: refit.signature,
+        // Rohes Regressionsergebnis VOR Absenkbremse/Nebenbedingungs-Korrektur (Kap. 7.5) -
+        // Transparenz-Ergaenzung (NFA-11): die Korrektur kann cp/pMax spuerbar anheben, ohne
+        // dass `constraintUnsatisfied` das anzeigt (das Flag greift nur, wenn selbst die
+        // Plausibilitaetsgrenzen die Bedingung nicht erfuellen) - siehe core/README.md.
+        rawFit: refit.fit ? { cp: refit.fit.cp, wPrimeJ: refit.fit.wPrime, pMax: refit.fit.pMax, model: refit.fit.model, r2: refit.fit.r2, confidence: refit.fit.confidence } : null,
         droppedByBrake: refit.dropped,
         medal,
         risen,

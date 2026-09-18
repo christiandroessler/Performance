@@ -12,6 +12,35 @@ function signatureText(sig) {
   return `TP ${Math.round(sig.cp)}W · HIE ${Math.round(sig.wPrimeJ / 1000)}kJ · PP ${Math.round(sig.pMax)}W`;
 }
 
+// UI-Schwelle (kein Lastenheft-Parameter, analog zu ppCheck.js#PP_DEVIATION_WARN_PCT): ab wann
+// die Nebenbedingungs-Korrektur (core/src/breakthrough.js#enforceMpaConstraint) als eigener
+// Hinweis auftaucht, statt nur den bereits sichtbaren `constraintUnsatisfied`-Fall (der nur bei
+// Erreichen der Plausibilitaetsgrenzen greift, siehe core/README.md).
+const CORRECTION_NOTE_THRESHOLD_PCT = 0.02;
+
+/** Vergleicht das rohe Regressionsergebnis mit der finalen (korrigierten) Signatur - macht die
+ * Absenkbremse/Nebenbedingungs-Korrektur sichtbar, auch wenn sie unterhalb der
+ * Plausibilitaetsgrenzen konvergiert (dann bleibt `constraintUnsatisfied` false). */
+function correctionNote(bt) {
+  if (!bt.rawFit) return null;
+  const parts = [];
+  for (const [key, label, unit, scale] of [
+    ['cp', 'CP', 'W', 1],
+    ['pMax', 'PP', 'W', 1],
+    ['wPrimeJ', 'HIE', 'kJ', 1000],
+  ]) {
+    const raw = bt.rawFit[key];
+    const final = bt.proposedSignature ? bt.proposedSignature[key] : null;
+    if (raw == null || final == null || raw === 0) continue;
+    const deltaPct = (final - raw) / raw;
+    if (Math.abs(deltaPct) < CORRECTION_NOTE_THRESHOLD_PCT) continue;
+    const sign = deltaPct > 0 ? '+' : '';
+    parts.push(`${label} ${Math.round(raw / scale)}→${Math.round(final / scale)}${unit} (${sign}${Math.round(deltaPct * 100)}%)`);
+  }
+  if (parts.length === 0) return null;
+  return `Nebenbedingungs-Korrektur/Absenkbremse hat den rohen Regressionswert verschoben: ${parts.join(', ')}.`;
+}
+
 export async function renderBreakthroughs(container, modelState, onChanged) {
   container.innerHTML = '';
   const box = document.createElement('div');
@@ -79,6 +108,10 @@ export async function renderBreakthroughs(container, modelState, onChanged) {
     info.innerHTML = `<strong>${bt.date}</strong>${medalPart}${discardedPart}<br>` + `<span class="hint">${signatureText(bt.previousSignature)} → ${signatureText(bt.proposedSignature)}</span>`;
     if (bt.constraintUnsatisfied) {
       info.innerHTML += '<br><span class="error">Nebenbedingung nicht erfüllt - Datenqualität prüfen</span>';
+    }
+    const correction = correctionNote(bt);
+    if (correction) {
+      info.innerHTML += `<br><span class="hint">${correction}</span>`;
     }
     row.appendChild(info);
 
