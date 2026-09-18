@@ -29,7 +29,7 @@ Diese Version deckt den **M1-Umfang** ab (Kap. 10):
 
 ## Stand der Verifikation
 
-Alle 66 automatisierten Tests laufen gruen (`npm test` im `core`-Ordner).
+Alle 68 automatisierten Tests laufen gruen (`npm test` im `core`-Ordner).
 Zusaetzlich wurde der komplette Aktivitaetsbestand eines echten Nutzers
 (1977 Rad-Aktivitaeten mit Leistung, 2017–2026, aus der bestehenden
 `strava-dashboard`-Datenbank, siehe `scripts/run-legacy-db.js`) mehrfach
@@ -347,6 +347,22 @@ implementiert deshalb in zwei Schritten:
   tatsaechlich bestaetigten Breakthrough-Deltas geschaetzt (Stand von p_s am
   Tag VOR dem jeweiligen Breakthrough), der Kandidat mit der kleinsten
   Fehlerquadratsumme gewinnt (`calibrateTau1K1`).
+- **k1,s feste Grenzen** (Kap. 7.8 verlangt "feste Grenzen" fuer BEIDE frei
+  geschaetzten Parameter, nicht nur tau1,s - anders als bei tau1,s existiert
+  fuer k1,s aber kein Literaturbereich, Kap. 7.7 "Einordnung": keine
+  veroeffentlichten Daten fuer systemspezifische Parameter). Die
+  Strain-Score-Skalierung (Kap. 7.6, kappa_strain=1,00 fuer die
+  Referenzaktivitaet) ist so gewaehlt, dass k1,s=1 bereits der "neutrale"
+  Umrechnungsfaktor waere - als feste Grenzen dient deshalb eine Bandbreite
+  um diesen Anker, Faktor 5 in jede Richtung (`K1_MIN=0,2`, `K1_MAX=5`), statt
+  eines unbeschraenkten Fits, der bei wenigen Stuetzpunkten (Mindestanzahl oft
+  nur 3) leicht auf unplausible oder sogar negative Werte ueberschiessen
+  kann. Der unbeschraenkte Least-Squares-Wert wird auf den naechstgelegenen
+  Grenzwert gekappt (`fitK1ThroughOrigin`, exakt das beschraenkte Optimum bei
+  einer eindimensionalen Regression durch den Ursprung), die Fehlerquadratsumme
+  fuer die tau1-Auswahl wird konsistent mit dem GEKAPPTEN k1 berechnet. Ein
+  `clamped: true`-Flag markiert im Bericht/UI, wenn das passiert ist (M4-Abnahme
+  Kap. 10: "Die Kalibrierung liefert Parameter innerhalb der Grenzen").
 - **k2,s = 1** (fest, Kap. 7.8 verlangt "Literaturwerte", die es dafuer nicht
   gibt) - dieselbe implizite Wahl, die der Rechenkern bereits fuer
   TSB = CTL − ATL trifft. g (tau1, lang/traege - wie CTL) und h (tau2, kurz/

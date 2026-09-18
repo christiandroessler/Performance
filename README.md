@@ -12,7 +12,7 @@ Rechenkern zuerst, getestet mit dem Strava-Datenexport.
 | **M1** | Rechenkern (Bibliothek) | abgeschlossen, siehe [`core/`](core/) |
 | **M2** | Fundament (Cloudflare, Google-Login, Strava-OAuth, Drive-Ablage) | in Arbeit (nur das theoretische Tageskontingent-Pause/Resume offen), siehe [`worker/`](worker/) und [`web/`](web/) |
 | **M3** | Oberfläche TrainingPeaks/Strava/XERT | fertig gebaut, siehe [`web/README.md`](web/README.md) Abschnitt "M3-Abnahme" |
-| **M4** | 3D-Modell und Kalibrierung | fertig gebaut (FA-SIG-10/11/12), noch nicht gegen echte Daten abgenommen, siehe [`web/README.md`](web/README.md) Abschnitt "M4-Status im Detail" |
+| **M4** | 3D-Modell und Kalibrierung | fertig gebaut (FA-SIG-10/11/12), Abnahmekriterien code-seitig geprüft, Live-Abgleich am echten Konto offen, siehe [`web/README.md`](web/README.md) Abschnitt "M4-Status im Detail" |
 | M5 | Stoffwechselmodell | offen |
 | M6 | Gruppe, Datenschutz, PWA | offen |
 
@@ -194,7 +194,15 @@ kalibriert zu tarnen. Der Backtesting-Bericht liefert zusaetzlich eine
 Abschlag-Empfehlung (Kap. 12), die nur angezeigt, nicht automatisch
 uebernommen wird. Alle Design-Entscheidungen sind in `core/README.md`
 Abschnitt "Belastungsgekoppelter Signaturverlauf" dokumentiert. `core/`:
-66 Tests (15 neu, `loadResponse.test.js`).
+68 Tests.
+
+**M4-Abnahme (2026-09-18, Kap. 10)**: gegen die 5 Abnahmekriterien
+durchgegangen. Dabei ein echter Gap gefunden und geschlossen - Kap. 7.8
+verlangt "feste Grenzen" fuer tau1,s UND k1,s, im Code war aber nur tau1,s
+(per Grid-Search) beschraenkt, k1,s ein unbeschraenkter Least-Squares-Fit.
+Jetzt auf eine feste Bandbreite (0,2-5) gekappt, mit Kennzeichnung im UI, wenn
+das greift. Details siehe `web/README.md` Abschnitt "M4-Status im Detail".
+Ein Abgleich am echten Konto des Auftraggebers steht noch aus.
 
 **Bewusst noch offen** (unabhaengig von FA-SIG-10/12): der Nutzer hat
 gemeldet, dass sein Pmax seit laengerem zu hoch wirkt, nicht auf einen

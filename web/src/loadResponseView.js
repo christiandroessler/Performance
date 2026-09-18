@@ -117,7 +117,8 @@ function renderSystemCard(sys, series, calib, modelState) {
   calibP.className = 'hint';
   if (calib && calib.fitted) {
     const physicalUnit = sys.key === 'wPrime' ? 'J' : 'W';
-    calibP.textContent = `τ1 ≈ ${calib.tau1} Tage, k1 ≈ ${calib.k1.toFixed(2)} ${physicalUnit} pro SS - aus ${calib.supportCount} eigenen Breakthroughs geschätzt (Grid-Search über 35-51 Tage).`;
+    const clampedNote = calib.clamped ? ' <span class="badge badge-muted">an Grenzwert gekappt</span>' : '';
+    calibP.innerHTML = `τ1 ≈ ${calib.tau1} Tage, k1 ≈ ${calib.k1.toFixed(2)} ${physicalUnit} pro SS - aus ${calib.supportCount} eigenen Breakthroughs geschätzt (Grid-Search über 35-51 Tage, k1 begrenzt auf 0,2-5).${clampedNote}`;
   } else {
     const need = calib ? calib.supportCount : 0;
     calibP.innerHTML = `<span class="badge badge-muted">Fallback</span> noch zu wenige eigene Breakthroughs für eine Schätzung (${need} vorhanden) - zeigt den unkalibrierten Trend (τ1 = ${calib ? calib.tau1 : 42} Tage, k1 = 1).`;

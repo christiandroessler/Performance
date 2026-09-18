@@ -24,6 +24,18 @@ const TAU1_MIN_DAYS = 35;
 const TAU1_MAX_DAYS = 51;
 const TAU1_STEP_DAYS = 1;
 
+// Kap. 7.8 verlangt "feste Grenzen" fuer BEIDE frei geschaetzten Parameter, tau1,s UND k1,s -
+// fuer k1,s existiert (anders als bei tau1) kein Literaturbereich (Kap. 7.7 "Einordnung": keine
+// veroeffentlichten Daten). Die Strain-Score-Skalierung (Kap. 7.6) ist so gewaehlt, dass k1,s=1
+// bereits der "neutrale" Umrechnungsfaktor waere (Referenzaktivitaet ergibt k_strain=1,00) - als
+// feste Grenzen dient deshalb eine Bandbreite um diesen Anker (Faktor 5 in jede Richtung), statt
+// eines unbeschraenkten Fits, der bei wenigen Stuetzpunkten (Mindestanzahl oft nur 3) leicht auf
+// unplausible oder sogar negative Werte ueberschiessen kann. Ausserhalb der Grenzen wird auf den
+// naechstgelegenen Grenzwert gekappt (siehe fitK1ThroughOrigin) - bei einer eindimensionalen
+// Least-Squares-Regression durch den Ursprung ist das exakt das beschraenkte Optimum.
+const K1_MIN = 0.2;
+const K1_MAX = 5;
+
 function addDaysISO(dateStr, days) {
   const d = new Date(dateStr + 'T00:00:00Z');
   d.setUTCDate(d.getUTCDate() + days);
@@ -146,7 +158,7 @@ function breakthroughDelta(bt, system) {
  * @param {Array} breakthroughs
  * @param {'cp'|'wPrime'|'pMax'} system
  * @param {number} minSupport
- * @returns {{k1:number, fitted:boolean, supportCount:number, sse:number|null}}
+ * @returns {{k1:number, fitted:boolean, supportCount:number, sse:number|null, clamped:boolean}}
  */
 export function fitK1ThroughOrigin(systemSeries, breakthroughs, system, minSupport) {
   const byDate = new Map(systemSeries.map((e) => [e.date, e]));
@@ -163,7 +175,7 @@ export function fitK1ThroughOrigin(systemSeries, breakthroughs, system, minSuppo
   }
 
   if (xs.length < minSupport) {
-    return { k1: 1, fitted: false, supportCount: xs.length, sse: null };
+    return { k1: 1, fitted: false, supportCount: xs.length, sse: null, clamped: false };
   }
 
   let sxy = 0;
@@ -172,13 +184,14 @@ export function fitK1ThroughOrigin(systemSeries, breakthroughs, system, minSuppo
     sxy += xs[i] * ys[i];
     sxx += xs[i] * xs[i];
   }
-  const k1 = sxx > 0 ? sxy / sxx : 1;
+  const unclamped = sxx > 0 ? sxy / sxx : 1;
+  const k1 = Math.min(K1_MAX, Math.max(K1_MIN, unclamped));
   let sse = 0;
   for (let i = 0; i < xs.length; i++) {
     const err = ys[i] - k1 * xs[i];
     sse += err * err;
   }
-  return { k1, fitted: sxx > 0, supportCount: xs.length, sse };
+  return { k1, fitted: sxx > 0, supportCount: xs.length, sse, clamped: sxx > 0 && k1 !== unclamped };
 }
 
 /**
@@ -190,7 +203,7 @@ export function fitK1ThroughOrigin(systemSeries, breakthroughs, system, minSuppo
  * @param {Object<string, {cp:number, wPrime:number, pMax:number}>} sums
  * @param {Array} breakthroughs
  * @param {import('./types.js').ModelSettings} settings
- * @returns {Object<string, {tau1:number, k1:number, fitted:boolean, supportCount:number, sse:number|null}>}
+ * @returns {Object<string, {tau1:number, k1:number, fitted:boolean, supportCount:number, sse:number|null, clamped:boolean}>}
  */
 export function calibrateTau1K1(sums, breakthroughs, settings) {
   const result = {};
@@ -199,7 +212,7 @@ export function calibrateTau1K1(sums, breakthroughs, settings) {
     const referenceSeries = loadResponseSeriesForSystem(sums, breakthroughs, s, settings.loadResponseTau1Days, settings.loadResponseTau2Days);
     const referenceFit = fitK1ThroughOrigin(referenceSeries, breakthroughs, s, settings.loadResponseMinBreakthroughsForFit);
     if (!referenceFit.fitted) {
-      result[s] = { tau1: settings.loadResponseTau1Days, k1: 1, fitted: false, supportCount: referenceFit.supportCount, sse: null };
+      result[s] = { tau1: settings.loadResponseTau1Days, k1: 1, fitted: false, supportCount: referenceFit.supportCount, sse: null, clamped: false };
       continue;
     }
 
@@ -209,7 +222,7 @@ export function calibrateTau1K1(sums, breakthroughs, settings) {
       const fit = fitK1ThroughOrigin(candidateSeries, breakthroughs, s, settings.loadResponseMinBreakthroughsForFit);
       if (!best || fit.sse < best.fit.sse) best = { tau1, fit };
     }
-    result[s] = { tau1: best.tau1, k1: best.fit.k1, fitted: true, supportCount: best.fit.supportCount, sse: best.fit.sse };
+    result[s] = { tau1: best.tau1, k1: best.fit.k1, fitted: true, supportCount: best.fit.supportCount, sse: best.fit.sse, clamped: best.fit.clamped };
   }
 
   return result;

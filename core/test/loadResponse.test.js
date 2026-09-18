@@ -118,7 +118,47 @@ test('fitK1ThroughOrigin: bleibt beim Neutralwert 1, solange weniger Breakthroug
   const breakthroughs = [{ date: '2026-01-01', discarded: false, previousSignature: { cp: 250 }, proposedSignature: { cp: 275 } }];
 
   const fit = fitK1ThroughOrigin(series, breakthroughs, 'cp', 3);
-  assert.deepEqual(fit, { k1: 1, fitted: false, supportCount: 1, sse: null });
+  assert.deepEqual(fit, { k1: 1, fitted: false, supportCount: 1, sse: null, clamped: false });
+});
+
+test('fitK1ThroughOrigin: kappt k1 an der oberen festen Grenze (Kap. 7.8), statt einen unplausiblen Ausreisser zu liefern', () => {
+  const settings = mergeSettings({ loadResponseMinBreakthroughsForFit: 3 });
+  // Sehr kleines p bei grossen Deltas -> unbeschraenkter Fit waere weit ueber K1_MAX=5.
+  const series = [
+    { date: '2025-12-31', g: 1, h: 0, p: 1 },
+    { date: '2026-02-14', g: 2, h: 0, p: 2 },
+    { date: '2026-03-31', g: 1.5, h: 0, p: 1.5 },
+  ];
+  const breakthroughs = [
+    { date: '2026-01-01', discarded: false, previousSignature: { cp: 250 }, proposedSignature: { cp: 300 } },
+    { date: '2026-02-15', discarded: false, previousSignature: { cp: 250 }, proposedSignature: { cp: 350 } },
+    { date: '2026-04-01', discarded: false, previousSignature: { cp: 250 }, proposedSignature: { cp: 325 } },
+  ];
+
+  const fit = fitK1ThroughOrigin(series, breakthroughs, 'cp', settings.loadResponseMinBreakthroughsForFit);
+  assert.equal(fit.fitted, true);
+  assert.equal(fit.k1, 5, `k1=${fit.k1} sollte an K1_MAX=5 gekappt sein`);
+  assert.equal(fit.clamped, true);
+});
+
+test('fitK1ThroughOrigin: kappt k1 an der unteren festen Grenze, auch bei einem negativen unbeschraenkten Fit', () => {
+  const settings = mergeSettings({ loadResponseMinBreakthroughsForFit: 3 });
+  // p und Delta laufen gegenlaeufig -> unbeschraenkter Fit waere negativ, unterhalb K1_MIN=0,2.
+  const series = [
+    { date: '2025-12-31', g: 10, h: 0, p: 10 },
+    { date: '2026-02-14', g: 20, h: 0, p: 20 },
+    { date: '2026-03-31', g: 30, h: 0, p: 30 },
+  ];
+  const breakthroughs = [
+    { date: '2026-01-01', discarded: false, previousSignature: { cp: 250 }, proposedSignature: { cp: 260 } },
+    { date: '2026-02-15', discarded: false, previousSignature: { cp: 250 }, proposedSignature: { cp: 245 } },
+    { date: '2026-04-01', discarded: false, previousSignature: { cp: 250 }, proposedSignature: { cp: 220 } },
+  ];
+
+  const fit = fitK1ThroughOrigin(series, breakthroughs, 'cp', settings.loadResponseMinBreakthroughsForFit);
+  assert.equal(fit.fitted, true);
+  assert.equal(fit.k1, 0.2, `k1=${fit.k1} sollte an K1_MIN=0,2 gekappt sein`);
+  assert.equal(fit.clamped, true);
 });
 
 test('calibrateTau1K1: findet ein bekanntes synthetisches tau1 per Grid-Search wieder', () => {
@@ -153,7 +193,7 @@ test('calibrateTau1K1: bleibt beim Literatur-Fallback, solange weniger Breakthro
   const breakthroughs = [{ date: '2025-01-02', discarded: false, previousSignature: { cp: 250 }, proposedSignature: { cp: 260 } }];
 
   const calibration = calibrateTau1K1(sums, breakthroughs, settings);
-  assert.deepEqual(calibration.cp, { tau1: settings.loadResponseTau1Days, k1: 1, fitted: false, supportCount: 1, sse: null });
+  assert.deepEqual(calibration.cp, { tau1: settings.loadResponseTau1Days, k1: 1, fitted: false, supportCount: 1, sse: null, clamped: false });
 });
 
 test('holdOutBacktest: trennt Training/Test am Stichtag, sagt die Zukunft korrekt voraus, wenn das Modell exakt generiert wurde', () => {

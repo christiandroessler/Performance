@@ -68,7 +68,7 @@ Neuberechnungsdauer fuer den Gesamtverlauf, nur NFA-04 fuer eine einzelne
 (RawStreamPoint[]-Form, FA-DQ-01 `deviceWatts`-Maskierung, sowie FA-TP-02/03
 end-to-end: ein Lauf ohne Leistungsmesser bekommt ueber die volle Kette
 Pace-TSS statt eines fabrizierten `tss: 0`) - die Algorithmus-Korrektheit
-selbst deckt bereits `core/test/` ab (66 Tests, M1).
+selbst deckt bereits `core/test/` ab (68 Tests, M1).
 
 Automatische Schwellen-Schaetzung fuer HF/Pace/Schwimmen (FA-TP-02/03/04/05:
 hrTSS/Pace-TSS fuer Aktivitaeten ohne Leistung, inkl. "≈"-Kennzeichnung in
@@ -156,6 +156,21 @@ Vorhersagefehler an den Breakthroughs danach, "pro Nutzer einsehbar") mit
 einer daraus abgeleiteten Abschlag-Empfehlung - wird nur angezeigt, nicht
 automatisch in die Einstellungen uebernommen (FA-SET-03: explizite
 Nutzeraktion).
+
+**M4-Abnahme (2026-09-18, Kap. 10)** gegen die 5 Abnahmekriterien
+durchgegangen: dabei fiel auf, dass Kap. 7.8 "feste Grenzen" fuer BEIDE frei
+geschaetzten Parameter verlangt (tau1,s UND k1,s), im bisherigen Code aber nur
+tau1,s durch die Grid-Search beschraenkt war - k1,s war ein unbeschraenkter
+Least-Squares-Fit, der bei wenigen Stuetzpunkten auf unplausible oder
+negative Werte ausschlagen kann. Jetzt behoben: k1,s wird auf eine feste
+Bandbreite (0,2 bis 5, Begruendung in `core/README.md`) gekappt, ein
+`clamped`-Flag markiert das im Bericht und in der Kalibrierungs-Karte
+("an Grenzwert gekappt"). Damit ist Abnahmekriterium 2 ("Die Kalibrierung
+liefert Parameter innerhalb der Grenzen") erfuellt. Die uebrigen 4 Kriterien
+sind bereits durch den Code selbst erfuellt (3 Charts + PMC, Hold-out-Bericht,
+Fallback-Regel per Test abgesichert, Abschlag-Startwert aus dem Backtesting).
+Ein echter Abgleich am Konto des Auftraggebers (insbesondere ob die
+kalibrierten Werte dort plausibel wirken) steht noch aus.
 
 **Bewusst noch offen**: der Nutzer hat unabhaengig davon gemeldet, dass sein
 Pmax seit laengerem zu hoch wirkt (nicht auf einen einzelnen Breakthrough
