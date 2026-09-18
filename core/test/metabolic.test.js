@@ -93,20 +93,17 @@ test('deriveMetabolicProfile: rekonstruiert bekannte VO2max/VLamax aus einer syn
 
   const cp = solveMlssPower({ bodyMassKg, muscleMassKg, vo2max: trueVo2max, vlamax: trueVlamax }, settings).power;
 
-  // Kurzzeit-Zielleistung exakt nach derselben Formel wie shortDurationPowerModel (intern,
-  // hier repliziert, um eine dazu passende Morton-Signatur zu konstruieren).
-  const B_VO2 = 0.2321;
-  const ATP_PER_LACTATE = 1.5;
-  const atpAerobicMax = B_VO2 * trueVo2max * bodyMassKg;
-  const atpGlycolyticMax = trueVlamax * ATP_PER_LACTATE * muscleMassKg * 60;
-  const vo2Equiv = (atpAerobicMax + atpGlycolyticMax) / B_VO2;
-  const shortTarget = (vo2Equiv - 250) / 11.7;
+  // Kurzzeit-Zielleistung exakt nach derselben Umkehrung wie vo2Load (intern, hier repliziert,
+  // um eine dazu passende Morton-Signatur zu konstruieren: die Leistung bei metShortDurationSeconds
+  // soll GENAU trueVo2max ergeben, wenn man sie durch vo2Load zurueckrechnet).
+  const shortTarget = (trueVo2max * bodyMassKg - 250) / 11.7;
 
   const wPrimeJ = 20000;
+  const t = settings.metShortDurationSeconds;
   const dP = shortTarget - cp;
-  const x = (dP * wPrimeJ) / (wPrimeJ - 15 * dP);
+  const x = (dP * wPrimeJ) / (wPrimeJ - t * dP);
   const pMax = cp + x;
-  assert.ok(Math.abs(mortonPower(15, cp, wPrimeJ, pMax) - shortTarget) < 1e-6);
+  assert.ok(Math.abs(mortonPower(t, cp, wPrimeJ, pMax) - shortTarget) < 1e-6);
 
   const result = deriveMetabolicProfile({ cp, wPrimeJ, pMax, bodyMassKg, activeMusclePct, labValues: [] }, settings);
   assert.equal(result.converged, true);
@@ -205,6 +202,31 @@ test('deriveMetabolicProfile ist deterministisch (gleiche Eingabe -> gleiche Aus
   const a = deriveMetabolicProfile(input, settings);
   const b = deriveMetabolicProfile(input, settings);
   assert.deepEqual(a, b);
+});
+
+test('Sentiero-Vergleich (2026-09-19, echte Nutzerdaten): VO2max/VLamax nahe am Referenztool, siehe core/README.md "Stoffwechselmodell"', () => {
+  // Realer Cross-Check gegen Sentiero (Kap. 6.8 "Sentiero-Block" - das Lastenheft-Vorbild
+  // fuer den MET-Block): 62 kg, TP/6min-Leistung aus Sentieros eigener 10'/3'-Ableitung
+  // (309W/383W). Sentiero selbst zeigt VO2max ~77,3 ml/min/kg, VLamax ~0,6 mmol/l/s.
+  // Dieser Test haelt die durch den Vergleich ausgeloeste Neugestaltung der
+  // Kurzzeitbedingung (6-min-Leistung -> VO2max direkt statt einer eigenen ATP-Summenformel)
+  // als Regressionstest fest - exakte Uebereinstimmung wird NICHT erwartet (andere
+  // Implementierung, evtl. andere aktive Muskelmasse/Konstanten bei Sentiero), nur dieselbe
+  // Groessenordnung.
+  const settings = mergeSettings();
+  const bodyMassKg = 62;
+  const cp = 309;
+  const wPrimeJ = 20000;
+  const sixMinTarget = 383;
+  const t = settings.metShortDurationSeconds; // 360s = 6min
+  const dP = sixMinTarget - cp;
+  const x = (dP * wPrimeJ) / (wPrimeJ - t * dP);
+  const pMax = cp + x;
+
+  const result = deriveMetabolicProfile({ cp, wPrimeJ, pMax, bodyMassKg, activeMusclePct: settings.activeMusclePctDefault, labValues: [] }, settings);
+  assert.equal(result.converged, true);
+  assert.ok(Math.abs(result.vo2max - 77.3) < 5, `vo2max=${result.vo2max} sollte nahe Sentieros ~77,3 liegen`);
+  assert.ok(Math.abs(result.vlamax - 0.6) < 0.2, `vlamax=${result.vlamax} sollte nahe Sentieros ~0,6 liegen`);
 });
 
 test('Kap.-7.9-Referenzfall: Steady-State-[La] bei 50W liegt in einer physiologisch plausiblen Groessenordnung (KEINE literale Reproduktion der PCr-Kinetik des dynamischen Modells - siehe core/README.md)', () => {

@@ -226,14 +226,24 @@ die vom Lastenheft als Pflicht (M-Prioritaet) eingestufte
 Steady-State-Variante (V1, "Lookup je Leistungswert") - die volle dynamische
 Simulation ist explizit optional (S-Prioritaet) und nicht Teil dieser
 Runde. VO2max/VLamax werden aus der bestehenden Leistungssignatur + Gewicht
-abgeleitet (Modell-MLSS = TP, plus eine Kurzzeitbedingung bei 15 s), neuer
+abgeleitet (Modell-MLSS = TP, plus eine Kurzzeitbedingung bei 6 min - die
+etablierte "Leistung bei VO2max ≈ 6-min-Bestleistung"-Konvention), neuer
 Tab "Stoffwechsel" mit 5 metabolischen Zonen (kcal/KH/Fett je Stunde), neue
 Kennzahlen in der Aktivitaets-Detailansicht, optionale Laborwerte in den
 Einstellungen. Alle Design-Entscheidungen (Kurzzeitbedingung, Zonenschema,
 Substrat-/Energieaufteilung, Vertrauensniveau der Konstanten) sind in
 `core/README.md` Abschnitt "Stoffwechselmodell" dokumentiert, Details zur
 Web-Integration in `web/README.md` Abschnitt "M5-Status im Detail". `core/`:
-92 Tests. Noch nicht live gegen ein echtes Konto geprueft.
+93 Tests.
+
+**Validierung gegen Sentiero (2026-09-19):** der Nutzer verglich sein
+Profil live mit *Sentiero* (Kap. 6.8, das Lastenheft-Vorbild fuer den
+MET-Block) anhand seiner echten Werte (62 kg, TP 309 W, 6-min 383 W) -
+deckte dabei auf, dass die urspruengliche Kurzzeitbedingung (15 s + eine
+eigene ATP-Summenformel) VLamax um Faktor ~2 unterschaetzte. Nach der
+Umstellung auf die 6-Minuten-Konvention: VO2max ~1,3 % und VLamax ~20-25 %
+von Sentieros Werten entfernt - deutliche Verbesserung, aber noch nicht
+exakt (Details/moegliche Restursachen in `core/README.md`).
 
 ## Ausgangslage
 

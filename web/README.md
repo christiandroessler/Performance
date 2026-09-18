@@ -69,7 +69,7 @@ Neuberechnungsdauer fuer den Gesamtverlauf, nur NFA-04 fuer eine einzelne
 (RawStreamPoint[]-Form, FA-DQ-01 `deviceWatts`-Maskierung, sowie FA-TP-02/03
 end-to-end: ein Lauf ohne Leistungsmesser bekommt ueber die volle Kette
 Pace-TSS statt eines fabrizierten `tss: 0`) - die Algorithmus-Korrektheit
-selbst deckt bereits `core/test/` ab (92 Tests, M1).
+selbst deckt bereits `core/test/` ab (93 Tests, M1).
 
 Automatische Schwellen-Schaetzung fuer HF/Pace/Schwimmen (FA-TP-02/03/04/05:
 hrTSS/Pace-TSS fuer Aktivitaeten ohne Leistung, inkl. "≈"-Kennzeichnung in
@@ -218,15 +218,24 @@ die Steady-State-Variante (V1, "Lookup je Leistungswert", M-Prioritaet) -
 die volle dynamische Simulation ist laut Lastenheft optional (S-Prioritaet)
 und nicht Teil dieser Runde, siehe `core/README.md` Abschnitt
 "Stoffwechselmodell" fuer die volle Methodik, das Vertrauensniveau aller
-Konstanten (drei Tiers) und alle M5-Festlegungen (Kurzzeitbedingung 15 s,
+Konstanten (drei Tiers) und alle M5-Festlegungen (Kurzzeitbedingung 6 min,
 Zonenschema 55/75/95 % TP, Substrat-/Energieaufteilung). Neuer Tab
 "Stoffwechsel" (VO2max/VLamax-Profil + Zonen-Tabelle mit kcal/KH/Fett je
 Stunde), Kompakt-Karte in der Uebersicht, neue Kennzahlen in der
 Aktivitaets-Detailansicht (Energie/KH/Fett gesamt + pro Stunde), neue
 Laborwerte-Card in den Einstellungen (FA-MET-02, optionale zusaetzliche
 Bedingung, ueberschreibt nie die TP). Alle Anzeigen sind durchgehend als
-"Modellschätzung" gekennzeichnet (FA-MET-06/NFA-11). `core/`: 92 Tests
-(24 neu, `metabolic.test.js`).
+"Modellschätzung" gekennzeichnet (FA-MET-06/NFA-11). `core/`: 93 Tests
+(25 neu, `metabolic.test.js`).
+
+**Validierung gegen Sentiero (2026-09-19):** der Nutzer verglich sein
+Profil mit *Sentiero* (Kap. 6.8, das Lastenheft-Vorbild) anhand seiner
+echten Werte - deckte auf, dass die urspruengliche Kurzzeitbedingung (15 s
++ eigene ATP-Summenformel) VLamax um Faktor ~2 unterschaetzte. Neu:
+6-min-Leistung → VO2max direkt (etablierte "Leistung bei VO2max ≈ 6-min"-
+Konvention), VLamax exakt aus MLSS=TP geloest - jetzt VO2max ~1,3 %,
+VLamax ~20-25 % von Sentiero entfernt. Details in `core/README.md`
+Abschnitt "Stoffwechselmodell".
 
 **Bewusst noch offen:** kein persistiertes historisches
 Stoffwechselprofil (wird live aus der jeweils aktuellen Signatur

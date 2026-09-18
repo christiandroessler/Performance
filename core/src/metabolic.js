@@ -28,7 +28,6 @@ const KS1 = 1.225e-3; // (mmol/kgm)^2, Hill-Konstante oxidative ATP-Bereitstellu
 const KS2 = 3.375e-3; // (mmol/kgm)^3, Hill-Konstante Glykolyse n=3 (Tier B)
 const K_LA_O2 = 0.01475; // mmol Laktat je ml O2, Laktat-Oxidationskoeffizient (Tier B)
 const KEL_OX = 2.0; // (mmol/l)^2, Saettigungskonstante Laktat-Oxidation nach [La] (Tier B)
-const B_VO2 = 0.2321; // mmol ATP je ml O2, aus P/O-Quotient 2.6 (Tier B)
 
 // --- Tier A: Standard-Sportphysiologie (unabhaengig von der Quelle) --------
 
@@ -38,7 +37,6 @@ export const KCAL_PER_G_CHO = 4.1; // Standard-Brennwert Kohlenhydrate
 export const KCAL_PER_G_FAT = 9.75; // Standard-Brennwert Fett
 const O2_PER_PYRUVATE_MOL = 2.5; // C3H4O3 + 2.5 O2 -> 3 CO2 + 2 H2O, von Hand bilanziert
 const MOLAR_VOLUME_ML = 22400; // ml/mol bei Standardbedingungen
-const ATP_PER_LACTATE_MOL = 1.5; // mol ATP je mol Laktat aus Glykogenolyse (Tier A)
 
 /**
  * VO2-Bedarf bei Leistung P, ml/min je kg Koerpermasse (Tier B).
@@ -194,30 +192,6 @@ export function modelSteadyStateLactate(pWatts, params, settings) {
 }
 
 /**
- * Modellierte Kurzzeit-Leistungsfaehigkeit (W) - M5-Festlegung (Kap. 7.9
- * "Kurzzeitbedingung", core/README.md): Summe aus maximaler aerober
- * ATP-Kapazitaet (VO2max) und maximaler glykolytischer ATP-Kapazitaet
- * (VLamax), zurueckgerechnet auf eine Leistung ueber dieselbe c0/c1-
- * Leistungs-VO2-Beziehung wie `vo2Load`. Tier C: eigene Formel fuer V1.
- * @param {number} vo2max
- * @param {number} vlamax
- * @param {number} bodyMassKg
- * @param {number} muscleMassKg
- */
-function shortDurationPowerModel(vo2max, vlamax, bodyMassKg, muscleMassKg) {
-  const atpAerobicMax = B_VO2 * vo2max * bodyMassKg; // mmol ATP/min
-  const atpGlycolyticMax = vlamax * ATP_PER_LACTATE_MOL * muscleMassKg * 60; // mmol ATP/min
-  const vo2EquivMlMin = (atpAerobicMax + atpGlycolyticMax) / B_VO2;
-  return (vo2EquivMlMin - C0_ML_MIN) / C1_ML_MIN_W;
-}
-
-function relResidualSq(model, target) {
-  if (!(target > 0)) return 0;
-  const d = (model - target) / target;
-  return d * d;
-}
-
-/**
  * Inneres Loesen: VO2max, sodass die modellierte MLSS exakt `targetMlssPower`
  * (=TP der Signatur) trifft - Bisektion, monoton (mehr VO2max -> mehr
  * oxidative Kapazitaet bei gleichem P -> kleineres [ADP] -> geringere
@@ -247,15 +221,74 @@ function solveVo2maxForMlss(targetMlssPower, vlamax, massParams, settings) {
 }
 
 /**
- * Ableitung VO2max/VLamax (F11, FA-MET-01/02, Kap. 7.9): aeussere
- * deterministische Grid-Search + Golden-Section-Verfeinerung ueber VLamax
- * (Stil wie `loadResponse.js#calibrateTau1K1`), bei der VO2max auf JEDEM
- * Kandidaten per innerem Bisektions-Loeser exakt auf MLSS=TP gehalten wird
- * (Bedingung 1 bleibt dadurch strukturell immer erfuellt). Zielfunktion:
- * das Kurzzeit-Residuum (immer vorhanden) plus optionale gewichtete
- * Laborwerte-Residuen (FA-MET-02) - Bedingung 1 wird davon nie ueberschrieben.
- * Ohne loesbaren Kandidaten: `{vo2max: null, reason}` statt erfundener Werte
- * (Muster wie `computeInitialSignature`).
+ * Loest VLamax (Bisektion), sodass die modellierte MLSS bei gegebenem,
+ * FESTEM VO2max exakt `targetMlssPower` trifft - die Umkehrung von
+ * `solveVo2maxForMlss`. MLSS faellt monoton mit VLamax (mehr Glykolyse bei
+ * gleichem [ADP] -> Produktion uebersteigt die (von VLamax unabhaengige)
+ * Oxidationskapazitaet frueher). `null`, wenn kein VLamax im Suchbereich
+ * `[metVlamaxMinMmolLs, metVlamaxMaxMmolLs]` das leistet.
+ */
+function solveVlamaxForMlss(targetMlssPower, vo2max, massParams, settings) {
+  let lo = settings.metVlamaxMinMmolLs;
+  let hi = settings.metVlamaxMaxMmolLs;
+  const mlssAt = (vlamax) => solveMlssPower({ ...massParams, vo2max, vlamax }, settings);
+
+  const resLo = mlssAt(lo); // niedrigstes vlamax -> hoechste MLSS
+  const resHi = mlssAt(hi); // hoechstes vlamax -> niedrigste MLSS
+  if (!resLo.converged || resLo.power < targetMlssPower) return null; // Ziel liegt ueber jeder erreichbaren MLSS
+  if (!resHi.converged || resHi.power > targetMlssPower) return null; // Ziel liegt unter jeder erreichbaren MLSS
+
+  for (let i = 0; i < 50 && hi - lo > 1e-4; i++) {
+    const mid = (lo + hi) / 2;
+    const res = mlssAt(mid);
+    if (!res.converged) return null;
+    if (res.power > targetMlssPower) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+/**
+ * Loest VLamax (Bisektion) bei FESTEM VO2max, sodass das modellierte
+ * Steady-State-[La] bei `pWatts` exakt `targetLactate` trifft - fuer die
+ * Umrechnung eines Laborwert-Laktat-Leistungs-Paars (FA-MET-02) in ein
+ * implizites VLamax. Monoton steigend (mehr VLamax -> mehr Produktion ->
+ * hoeheres noetiges Steady-State-[La]). `null` bei P >= modellierter MLSS
+ * durchgehend im Suchbereich (kein endliches [La] erreichbar).
+ */
+function solveVlamaxForLactate(pWatts, targetLactate, vo2max, massParams, settings) {
+  let lo = settings.metVlamaxMinMmolLs;
+  let hi = settings.metVlamaxMaxMmolLs;
+  for (let i = 0; i < 50 && hi - lo > 1e-4; i++) {
+    const mid = (lo + hi) / 2;
+    const la = modelSteadyStateLactate(pWatts, { ...massParams, vo2max, vlamax: mid }, settings);
+    if (la == null || la < targetLactate) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+/**
+ * Ableitung VO2max/VLamax (F11, FA-MET-01/02, Kap. 7.9): zwei Bedingungen,
+ * beide exakt loesbar statt per Optimierung angenaehert (M5-Festlegung,
+ * siehe core/README.md "Stoffwechselmodell" fuer die Herleitung/Validierung
+ * gegen ein reales Vergleichstool):
+ *
+ * 1. **Kurzzeitbedingung → VO2max**: die etablierte Konvention
+ *    "Leistung bei VO2max ≈ 6-Minuten-Bestleistung" (Billat et al.) liefert
+ *    VO2max direkt ueber `vo2Load` - keine Schaetzung, ein geschlossener
+ *    Ausdruck. Laborwerte (VO2max direkt, oder ueber ein implizites VO2max
+ *    aus VLamax bzw. einem Laktat-Leistungs-Paar) werden als gewichtetes
+ *    Mittel in DIESEM VO2max-Wert zusammengefuehrt (`metShortDurationWeight`
+ *    vs. `metLabVo2maxWeight`/`metLabVlamaxWeight`/`metLabLactateWeight`).
+ * 2. **MLSS=TP → VLamax**: mit dem (ggf. laborwert-angepassten) VO2max wird
+ *    VLamax per Bisektion so bestimmt, dass die modellierte MLSS EXAKT die
+ *    TP der Signatur trifft (`solveVlamaxForMlss`) - Bedingung 1 (Kap. 7.9:
+ *    "bleibt immer erfuellt") gilt dadurch strukturell immer, ohne
+ *    Kompromiss durch die Laborwerte-Gewichtung.
+ *
+ * Ohne loesbare Kombination: `{vo2max: null, reason}` statt erfundener
+ * Werte (Muster wie `computeInitialSignature`).
  * @param {{cp:number, wPrimeJ:number, pMax:number, bodyMassKg:number, activeMusclePct:number,
  *   labValues?: Array<{vo2max?:number, vlamax?:number, powerWatts?:number, lactateMmolL?:number}>}} input
  * @param {import('./types.js').ModelSettings} settings
@@ -265,67 +298,34 @@ export function deriveMetabolicProfile(input, settings) {
   const muscleMassKg = bodyMassKg * activeMusclePct;
   const massParams = { bodyMassKg, muscleMassKg };
   const shortPowerTarget = mortonPower(settings.metShortDurationSeconds, cp, wPrimeJ, pMax);
+  const vo2maxFromShort = vo2Load(shortPowerTarget, bodyMassKg);
 
-  function objective(vlamax) {
-    const vo2max = solveVo2maxForMlss(cp, vlamax, massParams, settings);
-    if (vo2max == null) return { cost: Infinity, vo2max: null };
-    let cost = settings.metShortDurationWeight * relResidualSq(shortDurationPowerModel(vo2max, vlamax, bodyMassKg, muscleMassKg), shortPowerTarget);
-    for (const lab of labValues || []) {
-      if (lab.vo2max != null) cost += settings.metLabVo2maxWeight * relResidualSq(vo2max, lab.vo2max);
-      if (lab.vlamax != null) cost += settings.metLabVlamaxWeight * relResidualSq(vlamax, lab.vlamax);
-      if (lab.powerWatts != null && lab.lactateMmolL != null) {
-        const modelLa = modelSteadyStateLactate(lab.powerWatts, { ...massParams, vo2max, vlamax }, settings);
-        if (modelLa != null) cost += settings.metLabLactateWeight * relResidualSq(modelLa, lab.lactateMmolL);
-      }
+  const weighted = [{ vo2max: vo2maxFromShort, weight: settings.metShortDurationWeight }];
+  for (const lab of labValues || []) {
+    if (lab.vo2max != null) {
+      weighted.push({ vo2max: lab.vo2max, weight: settings.metLabVo2maxWeight });
     }
-    return { cost, vo2max };
-  }
-
-  // Grid-Search zum Bracketing des Minimums, dann Golden-Section-Verfeinerung -
-  // deterministisch, ableitungsfrei, Stil wie calibrateTau1K1s Grid-Search.
-  const n = settings.metVlamaxGridPoints;
-  const vMin = settings.metVlamaxMinMmolLs;
-  const vMax = settings.metVlamaxMaxMmolLs;
-  let best = null;
-  for (let i = 0; i <= n; i++) {
-    const vlamax = vMin + ((vMax - vMin) * i) / n;
-    const { cost, vo2max } = objective(vlamax);
-    if (vo2max != null && (!best || cost < best.cost)) best = { vlamax, cost, vo2max };
-  }
-  if (!best) {
-    return { vo2max: null, vlamax: null, converged: false, reason: 'keine VO2max/VLamax-Kombination im zulaessigen Bereich erreicht MLSS=TP' };
-  }
-
-  // Golden-Section-Verfeinerung um den besten Gitterpunkt herum.
-  const step = (vMax - vMin) / n;
-  let a = Math.max(vMin, best.vlamax - step);
-  let b = Math.min(vMax, best.vlamax + step);
-  const phi = (Math.sqrt(5) - 1) / 2;
-  let c = b - phi * (b - a);
-  let d = a + phi * (b - a);
-  let fc = objective(c);
-  let fd = objective(d);
-  for (let i = 0; i < 30 && b - a > 1e-4; i++) {
-    if (fc.cost < fd.cost) {
-      b = d;
-      d = c;
-      fd = fc;
-      c = b - phi * (b - a);
-      fc = objective(c);
-    } else {
-      a = c;
-      c = d;
-      fc = fd;
-      d = a + phi * (b - a);
-      fd = objective(d);
+    if (lab.vlamax != null) {
+      const impliedVo2max = solveVo2maxForMlss(cp, lab.vlamax, massParams, settings);
+      if (impliedVo2max != null) weighted.push({ vo2max: impliedVo2max, weight: settings.metLabVlamaxWeight });
+    }
+    if (lab.powerWatts != null && lab.lactateMmolL != null) {
+      // Anker: das kurzzeit-abgeleitete VO2max (noch ohne die anderen Laborwerte) - eine
+      // vollstaendig self-konsistente Mitschaetzung wuerde eine weitere aeussere Iteration
+      // verlangen, fuer V1 ist die Anker-Naeherung ausreichend (siehe core/README.md).
+      const impliedVlamax = solveVlamaxForLactate(lab.powerWatts, lab.lactateMmolL, vo2maxFromShort, massParams, settings);
+      const impliedVo2max = solveVo2maxForMlss(cp, impliedVlamax, massParams, settings);
+      if (impliedVo2max != null) weighted.push({ vo2max: impliedVo2max, weight: settings.metLabLactateWeight });
     }
   }
-  const finalVlamax = fc.cost < fd.cost ? c : d;
-  const final = objective(finalVlamax);
-  if (final.vo2max == null) {
-    return { vo2max: best.vo2max, vlamax: best.vlamax, mlssPower: cp, shortPowerTarget, converged: true };
+  const totalWeight = weighted.reduce((sum, w) => sum + w.weight, 0);
+  const vo2max = weighted.reduce((sum, w) => sum + w.vo2max * w.weight, 0) / totalWeight;
+
+  const vlamax = solveVlamaxForMlss(cp, vo2max, massParams, settings);
+  if (vlamax == null) {
+    return { vo2max: null, vlamax: null, converged: false, reason: 'kein VLamax im zulaessigen Bereich erreicht MLSS=TP bei diesem VO2max' };
   }
-  return { vo2max: final.vo2max, vlamax: finalVlamax, mlssPower: cp, shortPowerTarget, converged: true };
+  return { vo2max, vlamax, mlssPower: cp, shortPowerTarget, converged: true };
 }
 
 // --- Zonen (FA-MET-03, M5-Festlegung) ---------------------------------------

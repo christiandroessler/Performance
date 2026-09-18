@@ -32,7 +32,7 @@ Diese Version deckt den **M1-Umfang** ab (Kap. 10):
 
 ## Stand der Verifikation
 
-Alle 92 automatisierten Tests laufen gruen (`npm test` im `core`-Ordner).
+Alle 93 automatisierten Tests laufen gruen (`npm test` im `core`-Ordner).
 Zusaetzlich wurde der komplette Aktivitaetsbestand eines echten Nutzers
 (1977 Rad-Aktivitaeten mit Leistung, 2017–2026, aus der bestehenden
 `strava-dashboard`-Datenbank, siehe `scripts/run-legacy-db.js`) mehrfach
@@ -426,41 +426,66 @@ Groessenordnung liegt (nicht als literale Reproduktion). Der Testvektor
 bleibt als Zielwert fuer eine spaetere S-Prioritaet-Erweiterung (volles
 dynamisches Modell) vermerkt.
 
-**Ableitung von VO2max/VLamax** (F11, FA-MET-01/02): zwei Bedingungen aus
-Kap. 7.9 - (1) Modell-MLSS = TP der Signatur (IMMER exakt erfuellt), (2)
-eine Kurzzeitbedingung. MLSS wird per Bisektion ueber die
-"Produktionsdefizit"-Funktion PD(P) = Laktat-Oxidationskapazitaet −
-Laktat-Produktion bestimmt (Nullstelle = MLSS-Leistung); PD(P) ist im
-gueltigen Bereich ueberwiegend fallend, weil die Oxidationskapazitaet nur
-schwach/naeherungsweise linear mit P waechst (Groessenordnung ~0,003-0,04
-mmol/l/s ueber den gesamten Bereich beim Referenzfall), waehrend die
-Produktion Richtung VLamax saettigt (~0,3-0,9 mmol/l/s) und damit den
-ueberwiegenden Anteil der Formaenderung traegt - eine einfache Bisektion
-liefert deshalb einen robusten, deterministischen Treffer, keine
-Newton-Iteration noetig. Die VOLLE Ableitung ist eine verschachtelte Suche:
-aeussere deterministische Grid-Search + Golden-Section-Verfeinerung ueber
-VLamax (Stil wie `loadResponse.js#calibrateTau1K1`), bei der VO2max auf
-JEDEM Kandidaten per innerer Bisektion exakt auf MLSS=TP gehalten wird -
-Bedingung 1 gilt dadurch strukturell IMMER, nicht nur im Optimum. Kein
-loesbarer Kandidat gefunden → `{vo2max: null, reason}` statt erfundener
+**Ableitung von VO2max/VLamax** (F11, FA-MET-01/02, ueberarbeitet
+2026-09-19 nach einem Realdaten-Abgleich - siehe "Validierung gegen
+Sentiero" unten): zwei Bedingungen aus Kap. 7.9, beide EXAKT geloest statt
+per Optimierung angenaehert.
+
+1. **Kurzzeitbedingung → VO2max direkt.** Die etablierte
+   sportwissenschaftliche Konvention "Leistung bei VO2max ≈ 6-Minuten-
+   Bestleistung" (Billat et al.) liefert VO2max ueber `vo2Load` als
+   geschlossenen Ausdruck - keine Schaetzung/Suche. **M5-Festlegung:**
+   `metShortDurationSeconds = 360` (6 Minuten),
+   `mortonPower(360, cp, wPrimeJ, pMax)` als Zielleistung. Diese Wahl
+   ersetzt eine fruehere Version (15 Sekunden + eine selbst erfundene
+   ATP-Kapazitaets-Summenformel), die im Sentiero-Vergleich VLamax um
+   Faktor ~2 unterschaetzte - siehe unten.
+2. **MLSS = TP → VLamax exakt.** Mit dem (ggf. laborwertgewichteten)
+   VO2max aus Schritt 1 wird VLamax per Bisektion so bestimmt, dass die
+   modellierte MLSS GENAU die TP trifft (`solveVlamaxForMlss`) - dieselbe
+   "Produktionsdefizit"-Bisektion wie `solveMlssPower`, nur nach VLamax
+   statt nach der Leistung aufgeloest (PD(P) faellt monoton mit VLamax bei
+   fixem VO2max: mehr Glykolyse bei gleichem [ADP], waehrend die - von
+   VLamax unabhaengige - Oxidationskapazitaet gleich bleibt). Bedingung 1
+   (Kap. 7.9: "bleibt immer erfuellt") gilt dadurch STRUKTURELL immer, ohne
+   Naeherung.
+
+Kein loesbarer Wert gefunden → `{vo2max: null, reason}` statt erfundener
 Werte (Muster wie `computeInitialSignature`).
 
-**Kurzzeitbedingung (M5-Festlegung):** 15 Sekunden,
-`mortonPower(15, cp, wPrimeJ, pMax)` als Zielleistung - begruendet mit dem
-in der Sportwissenschaft gaengigen ~15-s-All-out-Sprinttest-Protokoll zur
-VLamax-Schaetzung (auch XERTs eigenes Peak-Power-Testprotokoll nutzt
-4-5×10-15-s-Sprints mit einem abschliessenden ~20-s-All-out-Sprint). Die
-modellierte Kurzzeitleistung ist die Summe aus maximaler aerober
-ATP-Kapazitaet (VO2max × bVO2) und maximaler glykolytischer ATP-Kapazitaet
-(VLamax × 1,5 mol ATP/mol Laktat je kg Muskelmasse), zurueckgerechnet auf
-Watt ueber dieselbe c0/c1-Leistungs-VO2-Beziehung.
+**Laborwerte (FA-MET-02):** fliessen als gewichtetes Mittel INS VO2max
+ein, bevor Schritt 2 (VLamax exakt) laeuft - so bleibt Bedingung 1 immer
+exakt erfuellt, egal wie stark die Laborwerte gewichtet sind. Ein
+Laborwert-VO2max geht direkt ein; ein Laborwert-VLamax oder ein
+Laktat-Leistungs-Paar wird zuerst in ein "implizites VO2max" uebersetzt
+(ueber dieselbe MLSS=TP-Bisektion bzw. `modelSteadyStateLactate`,
+verankert am kurzzeit-abgeleiteten VO2max als Naeherung - eine vollstaendig
+self-konsistente Mitschaetzung wuerde eine weitere aeussere Iteration
+verlangen, fuer V1 nicht noetig) und dann mit demselben Gewichtsschema
+(`metShortDurationWeight` vs. `metLabVo2maxWeight`/`metLabVlamaxWeight`/
+`metLabLactateWeight`) gemittelt.
 
-**Laborwerte (FA-MET-02):** gehen als zusaetzliche, gewichtete Terme in die
-Zielfunktion der aeusseren Suche ein (VO2max-, VLamax- und
-Laktat-Leistungs-Paare, letztere ueber ein self-konsistentes
-Steady-State-[La] unterhalb der MLSS, `modelSteadyStateLactate`) - Bedingung
-1 (MLSS=TP) bleibt davon UNBERUEHRT, da sie strukturell in der inneren
-Bisektion erzwungen wird, nicht Teil der gewichteten Summe ist.
+**Validierung gegen Sentiero (2026-09-19, echte Nutzerdaten):** der
+Auftraggeber verglich sein Profil mit *Sentiero* (Kap. 6.8
+"Sentiero-Block" - das Lastenheft-Vorbild fuer den MET-Block) anhand
+seiner echten Werte (62 kg, TP/6min-Leistung 309 W/383 W aus Sentieros
+eigener 10'/3'-Testableitung). Sentiero zeigt VO2max ≈ 77,3 ml/min/kg,
+VLamax ≈ 0,6 mmol/l/s. Die urspruengliche Kurzzeitbedingung (15 s +
+ATP-Summenformel) ergab VO2max ≈ 71,9 (7 % Abweichung, akzeptabel) aber
+VLamax ≈ 0,29 (52 % zu niedrig) - ein Test mit derselben Dauer, aber der
+DIREKT gemessenen (nicht extrapolierten) Leistung bei 180 s verschlechterte
+die VLamax-Abweichung sogar weiter, was zeigte: das Problem lag an der
+Formel, nicht an der gewaehlten Dauer. Mit der jetzigen Loesung (6-min-
+Leistung → VO2max direkt via `vo2Load`, VLamax exakt aus MLSS=TP): VO2max
+≈ 76,3 (1,3 % Abweichung), VLamax ≈ 0,48 (20-25 % Abweichung) - deutlich
+naeher, aber nicht exakt. Moegliche Restursachen fuer die verbleibende
+VLamax-Luecke (nicht weiter verfolgt, Aufwand/Nutzen): abweichende
+Annahme der aktiven Muskelmasse (Sentiero fragt sie nicht ab, koennte
+intern einen anderen Wert als die hier verwendeten 30 % nutzen), oder
+Restunsicherheit in den Tier-B-Hill-Kinetik-Konstanten (siehe
+"Vertrauensniveau" oben - nicht am MetaboliSim-Originalcode gegengeprueft).
+`test/metabolic.test.js` haelt diesen Vergleich als Regressionstest fest
+(Toleranzband, keine exakte Uebereinstimmung erwartet).
 
 **Zonenschema (FA-MET-03, M5-Festlegung):** 5 Zonen, %TP-verankert (55 %/
 75 %/95 %), MLSS=TP exakt als obere Z4-Grenze. Begruendung: das Modell
@@ -757,15 +782,17 @@ bereits verifizierten CP-/Breakthrough-Pipeline.
   keinen weiteren Fix in dieser Runde, nur die jetzt sichtbare
   `constraintUnsatisfied`-Markierung statt einer stillschweigenden
   Ueberschaetzung.
-- **Stoffwechselmodell (M5, Kap. 7.9)** ist nur mit synthetischen Testdaten
-  verifiziert, NICHT gegen echte Laborwerte oder den 7.9-Referenztestfall
-  (der ist ein Ergebnis des dynamischen Modells, siehe "Stoffwechselmodell"
+- **Stoffwechselmodell (M5, Kap. 7.9)**: gegen den 7.9-Referenztestfall NICHT
+  verifiziert (Ergebnis des dynamischen Modells, siehe "Stoffwechselmodell"
   oben - Produktentscheidung, diesen Testfall bewusst nicht als
   Abnahmekriterium fuer die V1-Steady-State-Variante zu verwenden). Die volle
-  dynamische Simulation (PCr-/pH-Kinetik, S-Prioritaet) ist nicht gebaut. Die
-  Hill-Kinetik-Konstanten (Tier B) sind aus einer PDF-Extraktion gewonnen,
-  nicht am MetaboliSim-Originalcode gegengeprueft - bei spuerbaren
-  Plausibilitaetsproblemen in der Praxis dort zuerst nachschauen.
+  dynamische Simulation (PCr-/pH-Kinetik, S-Prioritaet) ist nicht gebaut.
+  Gegen ECHTE Nutzerdaten verglichen mit Sentiero (siehe "Validierung gegen
+  Sentiero" oben): VO2max trifft nah (~1,3 % Abweichung), VLamax bleibt
+  ~20-25 % zu niedrig - Ursache nicht abschliessend geklaert (moeglich:
+  abweichende Annahme der aktiven Muskelmasse, oder Restunsicherheit in den
+  Tier-B-Hill-Kinetik-Konstanten, die aus einer PDF-Extraktion stammen und
+  nicht am MetaboliSim-Originalcode gegengeprueft sind).
 
 ## Verwendung
 

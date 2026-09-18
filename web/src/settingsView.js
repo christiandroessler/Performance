@@ -81,7 +81,7 @@ const PARAM_GROUPS = [
     title: 'Stoffwechselmodell (Kap. 7.9)',
     params: [
       { key: 'activeMusclePctDefault', label: 'Aktive Muskelmasse', unit: '%', min: 15, max: 50, step: 1, ...pct, hint: 'Kap. 7.9, Standard 30% für Radfahren' },
-      { key: 'metShortDurationSeconds', label: 'Kurzzeitbedingung (Dauer)', unit: 's', min: 5, max: 60, step: 1, ...identity, hint: 'M5-Festlegung, core/README.md' },
+      { key: 'metShortDurationSeconds', label: 'Kurzzeitbedingung (Dauer)', unit: 's', min: 120, max: 600, step: 10, ...identity, hint: 'M5-Festlegung, core/README.md' },
       { key: 'metZoneBoundary1Pct', label: 'Zonengrenze Z1/Z2', unit: '%', min: 30, max: 70, step: 1, ...pct, hint: 'M5-Festlegung, core/README.md' },
       { key: 'metZoneBoundary2Pct', label: 'Zonengrenze Z2/Z3', unit: '%', min: 50, max: 85, step: 1, ...pct, hint: 'M5-Festlegung, core/README.md' },
       { key: 'metZoneBoundary3Pct', label: 'Zonengrenze Z3/Z4', unit: '%', min: 80, max: 99, step: 1, ...pct, hint: 'M5-Festlegung, core/README.md' },
