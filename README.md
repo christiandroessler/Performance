@@ -12,7 +12,7 @@ Rechenkern zuerst, getestet mit dem Strava-Datenexport.
 | **M1** | Rechenkern (Bibliothek) | abgeschlossen, siehe [`core/`](core/) |
 | **M2** | Fundament (Cloudflare, Google-Login, Strava-OAuth, Drive-Ablage) | in Arbeit (nur das theoretische Tageskontingent-Pause/Resume offen), siehe [`worker/`](worker/) und [`web/`](web/) |
 | **M3** | Oberfläche TrainingPeaks/Strava/XERT | fertig gebaut, siehe [`web/README.md`](web/README.md) Abschnitt "M3-Abnahme" |
-| **M4** | 3D-Modell und Kalibrierung | Phase 1 begonnen (FA-SIG-10/11), siehe [`web/README.md`](web/README.md) Abschnitt "M4-Status im Detail" |
+| **M4** | 3D-Modell und Kalibrierung | fertig gebaut (FA-SIG-10/11/12), noch nicht gegen echte Daten abgenommen, siehe [`web/README.md`](web/README.md) Abschnitt "M4-Status im Detail" |
 | M5 | Stoffwechselmodell | offen |
 | M6 | Gruppe, Datenschutz, PWA | offen |
 
