@@ -31,6 +31,22 @@ export const DEFAULT_SETTINGS = {
   loadResponseMinBreakthroughsForFit: 3, // M4-Festlegung, siehe core/README.md (FA-SIG-12 Fallback-Schwelle, Phase 1)
   loadResponseDisplayDiscountPct: 0, // M4-Festlegung, siehe core/README.md (Anzeige-Abschlag, Startwert erst mit FA-SIG-12/Backtesting)
   loadResponseHoldOutMonths: 6, // Kap. 12 (FA-SIG-12): Hold-out-Zeitraum fuer den Backtesting-Bericht
+  activeMusclePctDefault: 0.3, // Kap. 7.9, Standard fuer Radfahren
+  metShortDurationSeconds: 15, // M5-Festlegung, siehe core/README.md (Kurzzeitbedingung, Kap. 7.9)
+  metShortDurationWeight: 1.0, // M5-Festlegung, siehe core/README.md
+  metLabVo2maxWeight: 2.0, // M5-Festlegung, siehe core/README.md (FA-MET-02)
+  metLabVlamaxWeight: 2.0, // M5-Festlegung, siehe core/README.md (FA-MET-02)
+  metLabLactateWeight: 2.0, // M5-Festlegung, siehe core/README.md (FA-MET-02)
+  metVlamaxMinMmolLs: 0.1, // M5-Festlegung, siehe core/README.md (Literaturbereich)
+  metVlamaxMaxMmolLs: 1.5, // M5-Festlegung, siehe core/README.md
+  metVo2maxMinMlKg: 20, // M5-Festlegung, siehe core/README.md
+  metVo2maxMaxMlKg: 90, // M5-Festlegung, siehe core/README.md
+  metVlamaxGridPoints: 40, // M5-Festlegung, siehe core/README.md (Grid-Search-Aufloesung)
+  metMlssToleranceWatts: 0.1, // M5-Festlegung, siehe core/README.md (Bisektionspraezision)
+  metZoneBoundary1Pct: 0.55, // M5-Festlegung, siehe core/README.md (Zonenschema)
+  metZoneBoundary2Pct: 0.75, // M5-Festlegung, siehe core/README.md
+  metZoneBoundary3Pct: 0.95, // M5-Festlegung, siehe core/README.md
+  metSmoothingWindowSeconds: 30, // M5-Festlegung, siehe core/README.md (analog NP-Fenster)
 };
 
 /** @returns {import('./types.js').ModelSettings} */

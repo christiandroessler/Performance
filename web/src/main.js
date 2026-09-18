@@ -109,6 +109,7 @@ const TABS = [
   { id: 'weeks', label: 'Wochen/Kalender' },
   { id: 'power', label: 'Leistungskurve' },
   { id: 'load', label: 'Belastung' },
+  { id: 'metabolic', label: 'Stoffwechsel' },
   { id: 'breakthroughs', label: 'Breakthroughs' },
   { id: 'sync', label: 'Daten' },
 ];
@@ -161,6 +162,7 @@ function renderAppShell(settings) {
     weeksContainer: panels.weeks,
     powerCurveContainer: panels.power,
     loadResponseContainer: panels.load,
+    metabolicContainer: panels.metabolic,
     breakthroughsContainer: panels.breakthroughs,
     weightKg: settings.weightKg,
   }).catch(showFatalError);

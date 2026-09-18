@@ -4,7 +4,7 @@
 // Hauptfenster (kein Worker noetig - eine einzelne Aktivitaet ist klein genug,
 // NFA-04 gilt fuer den Gesamtverlauf ueber alle Aktivitaeten, nicht hierfuer).
 
-import { prepareActivity, mergeSettings, wPrimeBalanceSkiba2015, mpaTrace, signatureAtDate } from '../vendor/core/src/index.js';
+import { prepareActivity, mergeSettings, wPrimeBalanceSkiba2015, mpaTrace, signatureAtDate, deriveMetabolicProfile, activityMetabolicTimeCourse } from '../vendor/core/src/index.js';
 import { loadIndex } from './sync.js';
 import { loadModelState } from './compute.js';
 import { readFile, readJson } from './storage.js';
@@ -138,6 +138,17 @@ function statTile(label, value, unit, accent) {
   </div>`;
 }
 
+/** Gewicht zum Datum (FA-MET-01): letzter Verlaufseintrag <= date, sonst der Startwert. Analog powerCurveView.js#weightAtDate. */
+function weightAtDate(settingsJson, date) {
+  const history = (settingsJson && settingsJson.weightHistory) || [];
+  const sorted = [...history].sort((a, b) => a.date.localeCompare(b.date));
+  let w = settingsJson ? settingsJson.weightKg : null;
+  for (const entry of sorted) {
+    if (entry.date <= date) w = entry.kg;
+  }
+  return w;
+}
+
 export async function openActivityDetail(activityId) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
@@ -258,6 +269,36 @@ export async function openActivityDetail(activityId) {
         </div>
       `;
       panel.appendChild(strainCard);
+    }
+
+    // Stoffwechsel (FA-MET-05, Kap. 7.9 V1 Steady-State-Lookup): Signatur + Gewicht ZUM
+    // AKTIVITAETSDATUM (wie ueberall sonst im Modell, F10/FA-TP-08), nicht die aktuellen Werte.
+    if (stream.n > 0) {
+      const sigAtDate = signatureAtDate(modelState.history || [], meta.date);
+      const massKg = weightAtDate(settingsJson, meta.date);
+      if (sigAtDate && massKg) {
+        const profile = deriveMetabolicProfile(
+          { cp: sigAtDate.cp, wPrimeJ: sigAtDate.wPrimeJ, pMax: sigAtDate.pMax, bodyMassKg: massKg, activeMusclePct: settings.activeMusclePctDefault, labValues: (settingsJson && settingsJson.labValues) || [] },
+          settings
+        );
+        if (profile.converged) {
+          const muscleMassKg = massKg * settings.activeMusclePctDefault;
+          const course = activityMetabolicTimeCourse(prepared.recoveryWatts, { bodyMassKg: massKg, muscleMassKg, vo2max: profile.vo2max, vlamax: profile.vlamax }, settings);
+          const metCard = document.createElement('div');
+          metCard.className = 'card';
+          metCard.innerHTML = `
+            <h3>Stoffwechsel <span class="badge badge-muted">Modellschätzung</span></h3>
+            <div class="stat-grid">
+              ${statTile('Energie', Math.round(course.totalKcal), 'kcal', true)}
+              ${statTile('Kohlenhydrate', Math.round(course.totalChoG), 'g')}
+              ${statTile('Fett', Math.round(course.totalFatG), 'g')}
+              ${statTile('Energie/h', Math.round(course.kcalPerHour), 'kcal')}
+            </div>
+            <p class="hint">Aus dem Stoffwechselmodell (Kap. 7.9, keine experimentelle Validierung) - Signatur/Gewicht zum Aktivitätsdatum.</p>
+          `;
+          panel.appendChild(metCard);
+        }
+      }
     }
 
     // Leistung (+ MPA, falls Signatur zum Datum bekannt), W'bal, Herzfrequenz, Kadenz - EIN gemeinsamer Hover:

@@ -13,7 +13,7 @@ Rechenkern zuerst, getestet mit dem Strava-Datenexport.
 | **M2** | Fundament (Cloudflare, Google-Login, Strava-OAuth, Drive-Ablage) | in Arbeit (nur das theoretische Tageskontingent-Pause/Resume offen), siehe [`worker/`](worker/) und [`web/`](web/) |
 | **M3** | Oberfläche TrainingPeaks/Strava/XERT | fertig gebaut, siehe [`web/README.md`](web/README.md) Abschnitt "M3-Abnahme" |
 | **M4** | 3D-Modell und Kalibrierung | fertig gebaut (FA-SIG-10/11/12), Abnahmekriterien code-seitig geprüft, Live-Abgleich am echten Konto offen, siehe [`web/README.md`](web/README.md) Abschnitt "M4-Status im Detail" |
-| M5 | Stoffwechselmodell | offen |
+| **M5** | Stoffwechselmodell | V1 (Steady-State) gebaut, siehe [`web/README.md`](web/README.md) Abschnitt "M5-Status im Detail" |
 | M6 | Gruppe, Datenschutz, PWA | offen |
 
 ## M1-Status im Detail
@@ -193,8 +193,7 @@ jede Karte deutlich einen Fallback-Hinweis statt unbelegte Zahlen als fertig
 kalibriert zu tarnen. Der Backtesting-Bericht liefert zusaetzlich eine
 Abschlag-Empfehlung (Kap. 12), die nur angezeigt, nicht automatisch
 uebernommen wird. Alle Design-Entscheidungen sind in `core/README.md`
-Abschnitt "Belastungsgekoppelter Signaturverlauf" dokumentiert. `core/`:
-68 Tests.
+Abschnitt "Belastungsgekoppelter Signaturverlauf" dokumentiert.
 
 **M4-Abnahme (2026-09-18, Kap. 10)**: gegen die 5 Abnahmekriterien
 durchgegangen. Dabei ein echter Gap gefunden und geschlossen - Kap. 7.8
@@ -219,6 +218,22 @@ Datensatz verifiziert: PP steigt jetzt glatt von 898W auf 1114W statt
 zwischen 450-1500W zu springen. Details in `core/README.md` Abschnitt
 "Pmax-Stabilitaet". **Live vom Nutzer bestaetigt (2026-09-18): PP=1060W,
 passt.** HIE bleibt auf Nutzerwunsch zurueckgestellt.
+
+## M5-Status im Detail
+
+FA-MET-01 bis 07 (2026-09-18, Kap. 7.9): Stoffwechselmodell nach Mader, nur
+die vom Lastenheft als Pflicht (M-Prioritaet) eingestufte
+Steady-State-Variante (V1, "Lookup je Leistungswert") - die volle dynamische
+Simulation ist explizit optional (S-Prioritaet) und nicht Teil dieser
+Runde. VO2max/VLamax werden aus der bestehenden Leistungssignatur + Gewicht
+abgeleitet (Modell-MLSS = TP, plus eine Kurzzeitbedingung bei 15 s), neuer
+Tab "Stoffwechsel" mit 5 metabolischen Zonen (kcal/KH/Fett je Stunde), neue
+Kennzahlen in der Aktivitaets-Detailansicht, optionale Laborwerte in den
+Einstellungen. Alle Design-Entscheidungen (Kurzzeitbedingung, Zonenschema,
+Substrat-/Energieaufteilung, Vertrauensniveau der Konstanten) sind in
+`core/README.md` Abschnitt "Stoffwechselmodell" dokumentiert, Details zur
+Web-Integration in `web/README.md` Abschnitt "M5-Status im Detail". `core/`:
+92 Tests. Noch nicht live gegen ein echtes Konto geprueft.
 
 ## Ausgangslage
 

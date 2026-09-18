@@ -34,7 +34,7 @@ selbst wird vor jedem Deploy nach `web/vendor/core/src` kopiert (siehe
 | `src/activityListView.js` | FA-ACT-01: Aktivitaetsliste, sortierbar, Suche (Name) + Filter (Sportart, Zeitraum von/bis), Klick auf Zeile oeffnet die Detailansicht. TSS aus HF/Pace (statt Leistung) ist mit "≈" + Tooltip gekennzeichnet (FA-TP-05) |
 | `src/activityFilter.js` | Reine Filterlogik fuer die Aktivitaetsliste (Suche/Sportart/Zeitraum) - ohne Browser-Abhaengigkeit, testbar mit `node:test` |
 | `src/format.js` | Gemeinsame Dauer-/Distanz-Formatierung (`formatDuration`, `formatDistance`), bisher in mehreren Views dupliziert - u. a. behebt das hier zusammengefuehrte `formatDuration` einen Rundungsfehler ("Xh 60min" statt "(X+1)h 0min" bei z. B. 3599s) |
-| `src/activityDetailView.js` | FA-ACT-02: Detailansicht (Modal) - Leistungs-/Puls-/Kadenz-Verlauf, MPA und W'bal (per `signatureAtDate`), Belastungsanteile (Strain Low/High/Peak), Kennzahlen. Alle Verlaufsgrafiken teilen sich EINEN Hover: synchroner Crosshair ueber alle Charts + ein Tooltip mit Zeit im Training und allen an diesem Zeitpunkt verfuegbaren Werten (Leistung/MPA/W'bal/Herzfrequenz/Kadenz), plus Achsbeschriftung je Grafik (gemeinsame Y-Skala fuer Leistung+MPA statt unabhaengig normiert). Rechnet direkt im Hauptfenster, kein Worker (eine Aktivitaet ist klein genug) |
+| `src/activityDetailView.js` | FA-ACT-02: Detailansicht (Modal) - Leistungs-/Puls-/Kadenz-Verlauf, MPA und W'bal (per `signatureAtDate`), Belastungsanteile (Strain Low/High/Peak), Kennzahlen, Stoffwechsel (FA-MET-05: Energie/KH/Fett gesamt + pro Stunde, Signatur/Gewicht zum Aktivitaetsdatum, `core/metabolic.js#activityMetabolicTimeCourse`). Alle Verlaufsgrafiken teilen sich EINEN Hover: synchroner Crosshair ueber alle Charts + ein Tooltip mit Zeit im Training und allen an diesem Zeitpunkt verfuegbaren Werten (Leistung/MPA/W'bal/Herzfrequenz/Kadenz), plus Achsbeschriftung je Grafik (gemeinsame Y-Skala fuer Leistung+MPA statt unabhaengig normiert). Rechnet direkt im Hauptfenster, kein Worker (eine Aktivitaet ist klein genug) |
 | `src/chartUtils.js` | Reine Chart-Hilfsfunktionen (Downsampling fuer lange Sekunden-Arrays, `downsampledBucketSize` fuer die Rueckrechnung Index -> Sekunde im Training) - bewusst von `activityDetailView.js` getrennt, damit ohne Browser-Abhaengigkeit mit `node:test` testbar |
 | `src/powerCurveView.js` | FA-ACT-03: Leistungskurve/persoenliche Bestwerte, waehlbarer Zeitraum, optional W/kg. `buildPowerCurveChart` zeichnet zusaetzlich zur Tabelle eine Grafik mit log-Dauer-Achse (1s bis mehrere Stunden auf einer Skala) |
 | `src/pmcView.js` | FA-TP-06: Performance Management Chart. `computePmcSeries` einmal berechnen, `renderPmcChart` (Verlaufschart mit Achsbeschriftung + Sekundaerachse fuer TSB, Hover-Tooltip mit Datum + CTL/ATL/TSB, Zeitraum-Buttons 42/90/365 Tage/dieses Jahr fuer den ANZEIGE-Ausschnitt - CTL/ATL werden immer ueber die volle Historie berechnet, nur die Darstellung wird eingeschraenkt) und `renderMetricsSidebar` (Fatigue/Fitness/Form-Kacheln + Ramp Rates, rechte Spalte) teilen sich das Ergebnis |
@@ -48,6 +48,7 @@ selbst wird vor jedem Deploy nach `web/vendor/core/src` kopiert (siehe
 | `src/breakthroughView.js` | FA-SIG-07/08: Breakthrough-Uebersicht, Mehrfachauswahl zum Verwerfen, Reaktivieren |
 | `src/calendarUtils.js` | Reine Datums-/Aggregationsfunktionen fuer FA-TP-07 (Wochen-/Monats-/Tagesgruppierung) - ohne Browser-Abhaengigkeit, testbar mit `node:test` |
 | `src/weekView.js` | FA-TP-07: Monatskalender oben (Tages-TSS, Klick auf Aktivitaet oeffnet die Detailansicht), darunter Wochenuebersicht fuer die letzten 4 Wochen und eine Monatsuebersicht fuer die 12 Monate davor (TrainingPeaks-Vorbild - eine Wochenzeile je Woche ueber ein ganzes Jahr waere unuebersichtlich) mit TSS/Dauer/Distanz/Einheiten je Sportart, Zahlenspalten rechtsbuendig (`.stats-table`-CSS) - reine Aggregation der in `index.json` bereits abgelegten Kennzahlen, keine erneute Berechnung |
+| `src/metabolicView.js` | FA-MET-01 bis 04: Tab "Stoffwechsel" + Kompakt-Karte in der Uebersicht - leitet VO2max/VLamax live aus der aktuellen Signatur + Gewicht ab (`core/metabolic.js#deriveMetabolicProfile`), zeigt die 5 metabolischen Zonen (kcal/KH/Fett je Stunde), immer mit "Modellschätzung"-Kennzeichnung (FA-MET-06) |
 | `src/dashboardView.js` | Verdrahtet die M3-Ansichten, stoesst die Erstberechnung nach dem ersten Sync automatisch an |
 | `src/main.js` | Einstiegspunkt, verdrahtet alles (M2 + M3). Klick auf den Nutzerbereich oeffnet ein Menue (Einstellungen/Begriffe/Abmelden) statt einzelner Buttons |
 
@@ -68,7 +69,7 @@ Neuberechnungsdauer fuer den Gesamtverlauf, nur NFA-04 fuer eine einzelne
 (RawStreamPoint[]-Form, FA-DQ-01 `deviceWatts`-Maskierung, sowie FA-TP-02/03
 end-to-end: ein Lauf ohne Leistungsmesser bekommt ueber die volle Kette
 Pace-TSS statt eines fabrizierten `tss: 0`) - die Algorithmus-Korrektheit
-selbst deckt bereits `core/test/` ab (68 Tests, M1).
+selbst deckt bereits `core/test/` ab (92 Tests, M1).
 
 Automatische Schwellen-Schaetzung fuer HF/Pace/Schwimmen (FA-TP-02/03/04/05:
 hrTSS/Pace-TSS fuer Aktivitaeten ohne Leistung, inkl. "≈"-Kennzeichnung in
@@ -209,6 +210,31 @@ später") - zeigt denselben Instabilitaets-Verdacht (rohe Fits landen
 wiederholt exakt auf einem internen Sicherheits-Clamp, 45000 J), noch nicht
 untersucht, ob eine aehnliche Evidenz-/Traegheits-Behandlung sinnvoll waere
 (core/README.md).
+
+## M5-Status im Detail
+
+FA-MET-01 bis 07 (2026-09-18, Kap. 7.9): Stoffwechselmodell nach Mader, nur
+die Steady-State-Variante (V1, "Lookup je Leistungswert", M-Prioritaet) -
+die volle dynamische Simulation ist laut Lastenheft optional (S-Prioritaet)
+und nicht Teil dieser Runde, siehe `core/README.md` Abschnitt
+"Stoffwechselmodell" fuer die volle Methodik, das Vertrauensniveau aller
+Konstanten (drei Tiers) und alle M5-Festlegungen (Kurzzeitbedingung 15 s,
+Zonenschema 55/75/95 % TP, Substrat-/Energieaufteilung). Neuer Tab
+"Stoffwechsel" (VO2max/VLamax-Profil + Zonen-Tabelle mit kcal/KH/Fett je
+Stunde), Kompakt-Karte in der Uebersicht, neue Kennzahlen in der
+Aktivitaets-Detailansicht (Energie/KH/Fett gesamt + pro Stunde), neue
+Laborwerte-Card in den Einstellungen (FA-MET-02, optionale zusaetzliche
+Bedingung, ueberschreibt nie die TP). Alle Anzeigen sind durchgehend als
+"Modellschätzung" gekennzeichnet (FA-MET-06/NFA-11). `core/`: 92 Tests
+(24 neu, `metabolic.test.js`).
+
+**Bewusst noch offen:** kein persistiertes historisches
+Stoffwechselprofil (wird live aus der jeweils aktuellen Signatur
+berechnet, siehe core/README.md "Vereinfachungen fuer V1"); der
+7.9-Referenztestfall (PCr-/Laktat-Kinetik) ist ein Ergebnis des
+dynamischen Modells und wird von der V1-Variante bewusst nicht literal
+reproduziert; die Hill-Kinetik-Konstanten sind aus einer PDF-Extraktion
+gewonnen (Tier B), nicht am Original-Python-Code gegengeprueft.
 
 ## Ablageformat der Streams (`streams/YYYY-MM.bin`)
 

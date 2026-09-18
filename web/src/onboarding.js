@@ -35,6 +35,9 @@ export async function loadOrInitSettings() {
     // plus protokollierte Aenderungshistorie (settingsView.js).
     modelSettings: {},
     settingsChangeLog: [],
+    // FA-MET-02: optionale Laborwerte (VO2max/VLamax/Laktat-Leistungs-Paare) als zusaetzliche
+    // gewichtete Bedingung fuer das Stoffwechselmodell (Kap. 7.9) - ueberschreiben nie die TP.
+    labValues: [],
   };
 }
 

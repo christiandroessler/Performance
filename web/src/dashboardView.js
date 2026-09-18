@@ -22,8 +22,9 @@ import { renderPowerCurve } from './powerCurveView.js';
 import { renderWeekOverview } from './weekView.js';
 import { renderRecentActivity, renderThisWeekSummary, renderRecentBreakthroughs, renderSportThresholds } from './dashboardExtras.js';
 import { renderLoadResponse } from './loadResponseView.js';
+import { computeCurrentMetabolicProfile, renderMetabolicTiles, renderMetabolicView } from './metabolicView.js';
 
-export async function renderDashboard({ overviewContainer, activitiesContainer, weeksContainer, powerCurveContainer, loadResponseContainer, breakthroughsContainer }) {
+export async function renderDashboard({ overviewContainer, activitiesContainer, weeksContainer, powerCurveContainer, loadResponseContainer, metabolicContainer, breakthroughsContainer }) {
   overviewContainer.innerHTML = '';
 
   const statusCard = document.createElement('div');
@@ -59,9 +60,11 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
   grid.appendChild(rightCol);
 
   const signatureContainer = document.createElement('div');
+  const metabolicTilesContainer = document.createElement('div');
   const thresholdsContainer = document.createElement('div');
   const thisWeekContainer = document.createElement('div');
   leftCol.appendChild(signatureContainer);
+  leftCol.appendChild(metabolicTilesContainer);
   leftCol.appendChild(thresholdsContainer);
   leftCol.appendChild(thisWeekContainer);
 
@@ -137,6 +140,11 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
     });
     safeRender(signatureContainer, 'Leistungssignatur', () => renderSignatureTiles(signatureContainer, modelState, mmpCurves));
 
+    await safeRenderAsync(metabolicTilesContainer, 'Stoffwechselprofil', async () => {
+      const computed = await computeCurrentMetabolicProfile();
+      renderMetabolicTiles(metabolicTilesContainer, computed);
+    });
+
     let thresholds = { pace: {}, hr: {} };
     await safeRenderAsync(null, 'Sportart-Schwellen laden', async () => {
       thresholds = await loadThresholds();
@@ -157,6 +165,7 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
     safeRender(weeksContainer, 'Wochen-/Kalenderübersicht', () => renderWeekOverview(weeksContainer, index));
     await safeRenderAsync(powerCurveContainer, 'Leistungskurve', () => renderPowerCurve(powerCurveContainer));
     await safeRenderAsync(loadResponseContainer, 'Belastung', () => renderLoadResponse(loadResponseContainer));
+    await safeRenderAsync(metabolicContainer, 'Stoffwechsel', () => renderMetabolicView(metabolicContainer));
     await safeRenderAsync(breakthroughsContainer, 'Breakthroughs', () => renderBreakthroughs(breakthroughsContainer, modelState, refresh));
     return { index, modelState };
   }

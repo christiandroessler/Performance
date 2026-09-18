@@ -71,6 +71,22 @@
  * @property {number} loadResponseMinBreakthroughsForFit - Standard 3 (FA-SIG-12 Phase 1): Mindestanzahl Breakthroughs fuer den k1-Least-Squares-Fit, sonst Neutralwert 1
  * @property {number} loadResponseDisplayDiscountPct - Standard 0 (FA-SIG-10 Anzeige-Abschlag, %): Startwert erst mit FA-SIG-12/Backtesting sinnvoll belegbar
  * @property {number} loadResponseHoldOutMonths - Standard 6 (FA-SIG-12, Kap. 12): Hold-out-Zeitraum fuer den Backtesting-Bericht
+ * @property {number} activeMusclePctDefault - Standard 0.3 (30%, Kap. 7.9): Anteil aktiver Muskelmasse am Koerpergewicht fuer Radfahren
+ * @property {number} metShortDurationSeconds - Standard 15 (s, M5-Festlegung): Kurzzeitbedingung fuer die VO2max/VLamax-Ableitung, siehe core/README.md
+ * @property {number} metShortDurationWeight - Standard 1.0 (M5-Festlegung): Gewicht des Kurzzeit-Residuums in der Zielfunktion
+ * @property {number} metLabVo2maxWeight - Standard 2.0 (FA-MET-02): Gewicht eines Laborwert-VO2max in der Zielfunktion
+ * @property {number} metLabVlamaxWeight - Standard 2.0 (FA-MET-02): Gewicht eines Laborwert-VLamax in der Zielfunktion
+ * @property {number} metLabLactateWeight - Standard 2.0 (FA-MET-02): Gewicht eines Laktat-Leistungs-Laborwerts in der Zielfunktion
+ * @property {number} metVlamaxMinMmolLs - Standard 0.1 (M5-Festlegung): untere Suchgrenze fuer VLamax
+ * @property {number} metVlamaxMaxMmolLs - Standard 1.5 (M5-Festlegung): obere Suchgrenze fuer VLamax
+ * @property {number} metVo2maxMinMlKg - Standard 20 (M5-Festlegung): untere Suchgrenze fuer VO2max
+ * @property {number} metVo2maxMaxMlKg - Standard 90 (M5-Festlegung): obere Suchgrenze fuer VO2max
+ * @property {number} metVlamaxGridPoints - Standard 40 (M5-Festlegung): Aufloesung der Grid-Search ueber VLamax
+ * @property {number} metMlssToleranceWatts - Standard 0.1 (W, M5-Festlegung): Bisektionspraezision fuer die MLSS-Leistung
+ * @property {number} metZoneBoundary1Pct - Standard 0.55 (M5-Festlegung, FA-MET-03): Grenze Z1/Z2 relativ zu TP
+ * @property {number} metZoneBoundary2Pct - Standard 0.75 (M5-Festlegung, FA-MET-03): Grenze Z2/Z3 relativ zu TP
+ * @property {number} metZoneBoundary3Pct - Standard 0.95 (M5-Festlegung, FA-MET-03): Grenze Z3/Z4 relativ zu TP
+ * @property {number} metSmoothingWindowSeconds - Standard 30 (s, M5-Festlegung, FA-MET-05): Glaettungsfenster fuer den Aktivitaets-Zeitverlauf, analog NP
  */
 
 /**

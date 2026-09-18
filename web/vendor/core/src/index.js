@@ -61,4 +61,24 @@ export {
   rampRate,
   classifyFormZone,
 } from './npTss.js';
+export {
+  vo2Load,
+  adpForVo2Demand,
+  glycolyticRateMmolLS,
+  lactateOxidationCapacityMmolLS,
+  lactateOxidationMmolLS,
+  solveMlssPower,
+  modelSteadyStateLactate,
+  deriveMetabolicProfile,
+  metabolicZones,
+  classifyMetabolicZone,
+  substrateSplitAtPower,
+  substrateSplitForZoneLookup,
+  smoothWattsForMetabolic,
+  activityMetabolicTimeCourse,
+  KCAL_PER_L_O2_CHO,
+  KCAL_PER_L_O2_FAT,
+  KCAL_PER_G_CHO,
+  KCAL_PER_G_FAT,
+} from './metabolic.js';
 export * as importers from './importers/index.js';

@@ -24,12 +24,15 @@ Diese Version deckt den **M1-Umfang** ab (Kap. 10):
   Kalibrierung (FA-SIG-10/12, Kap. 7.7/7.8) - tau1,s per Grid-Search, k1,s per
   Least-Squares je System, Hold-out-Backtesting-Bericht, siehe M4-Festlegung
   "Belastungsgekoppelter Signaturverlauf" unten
-
-**Nicht** in M1/dieser Runde: das Stoffwechselmodell (Kap. 7.9 → M5).
+- **Vorgezogen aus M5**: Stoffwechselmodell (FA-MET-01 bis 07, Kap. 7.9) -
+  nur die Steady-State-Variante (V1, Kap. 7.9 "Lookup je Leistungswert",
+  M-Prioritaet); die volle dynamische Simulation (S-Prioritaet, "fuer eine
+  spaetere Version") ist NICHT Teil dieser Runde, siehe M5-Festlegung
+  "Stoffwechselmodell" unten.
 
 ## Stand der Verifikation
 
-Alle 68 automatisierten Tests laufen gruen (`npm test` im `core`-Ordner).
+Alle 92 automatisierten Tests laufen gruen (`npm test` im `core`-Ordner).
 Zusaetzlich wurde der komplette Aktivitaetsbestand eines echten Nutzers
 (1977 Rad-Aktivitaeten mit Leistung, 2017–2026, aus der bestehenden
 `strava-dashboard`-Datenbank, siehe `scripts/run-legacy-db.js`) mehrfach
@@ -390,6 +393,124 @@ Literatur-/Produktvorlage (W' wird ueblicherweise aus laengeren
 Erschoepfungstests geschaetzt, nicht aus Sprints), das muesste eigens
 hergeleitet werden.
 
+### Stoffwechselmodell (FA-MET-01 bis 07, Kap. 7.9, M5-Festlegung)
+
+`src/metabolic.js` implementiert **nur die Steady-State-Variante** (V1, Kap.
+7.9: "Lookup je Leistungswert", M-Prioritaet) des Mader-Modells - die volle
+dynamische Simulation (5 gekoppelte Differentialgleichungen, PCr-Kinetik,
+RK4-Integration) ist im Lastenheft explizit **optional (S-Prioritaet, "fuer
+eine spaetere Version")** und bewusst nicht Teil dieser Runde. Quelle der
+Gleichungen/Konstanten: Mader 2003, Heck et al. 2022, sowie "Dunst et al.
+2026" - identifiziert als *MetaboliSim* (Dunst, Scharf, Hesse, Asteroth,
+arXiv 2606.08366, "MetaboliSim: a Python implementation of the Mader model
+for dynamic and steady-state simulation of muscular energy metabolism"),
+dessen zitierter Testfall (50 W/600 s/75 kg/30 % aktive Muskelmasse/VO2max
+50/VLamax 0,5 → PCr≈16,46 mmol/kg, Laktat≈1,09 mmol/l) fast exakt dem
+Lastenheft-Testvektor entspricht.
+
+**Vertrauensniveau der Konstanten** (im Code an der jeweiligen
+Funktion/Konstante vermerkt):
+
+| Tier | Bedeutung | Beispiele |
+|---|---|---|
+| A | Standard-Sportphysiologie, unabhaengig von der Quelle verifizierbar | Energieaequivalente (Peronnet & Massicotte 1991: 5,05/4,69 kcal je Liter O2 fuer KH/Fett), Pyruvat-Oxidations-Stoechiometrie, Glykogenolyse-ATP-Ausbeute (1,5 mol ATP/mol Laktat) |
+| B | Aus der MetaboliSim-Recherche, modellspezifisch, mittlere Sicherheit (nicht am Originalcode gegengeprueft, PDF-Extraktion bei dieser Papierdichte nicht robust genug fuer 100%ige Sicherheit) | Hill-Kinetik-Konstanten (Ks1/Ks2/KLaO2/Kel,ox), Leistungs-VO2-Beziehung (c0/c1), bVO2 (P/O-Quotient 2,6) |
+| C | Eigene V1-Festlegungen dieser App, nicht aus der Quelle | pH-/Glykogen-Hemmterm auf 1 gesetzt, Kurzzeit-Leistungsformel, CHO/Fett-Aufteilung aus νLa,ox, Zonenschema |
+
+**Wichtige Scope-Entscheidung:** Der 7.9-Testvektor (PCr/Laktat-Kinetik) ist
+ein Ergebnis des DYNAMISCHEN Modells - ohne Zeitintegration gibt es keinen
+PCr-Zustand, eine reine Steady-State-Variante kann ihn nicht woertlich
+reproduzieren. `test/metabolic.test.js` prueft stattdessen nur, dass das
+modellierte Steady-State-Laktat bei 50 W in einer plausiblen
+Groessenordnung liegt (nicht als literale Reproduktion). Der Testvektor
+bleibt als Zielwert fuer eine spaetere S-Prioritaet-Erweiterung (volles
+dynamisches Modell) vermerkt.
+
+**Ableitung von VO2max/VLamax** (F11, FA-MET-01/02): zwei Bedingungen aus
+Kap. 7.9 - (1) Modell-MLSS = TP der Signatur (IMMER exakt erfuellt), (2)
+eine Kurzzeitbedingung. MLSS wird per Bisektion ueber die
+"Produktionsdefizit"-Funktion PD(P) = Laktat-Oxidationskapazitaet −
+Laktat-Produktion bestimmt (Nullstelle = MLSS-Leistung); PD(P) ist im
+gueltigen Bereich ueberwiegend fallend, weil die Oxidationskapazitaet nur
+schwach/naeherungsweise linear mit P waechst (Groessenordnung ~0,003-0,04
+mmol/l/s ueber den gesamten Bereich beim Referenzfall), waehrend die
+Produktion Richtung VLamax saettigt (~0,3-0,9 mmol/l/s) und damit den
+ueberwiegenden Anteil der Formaenderung traegt - eine einfache Bisektion
+liefert deshalb einen robusten, deterministischen Treffer, keine
+Newton-Iteration noetig. Die VOLLE Ableitung ist eine verschachtelte Suche:
+aeussere deterministische Grid-Search + Golden-Section-Verfeinerung ueber
+VLamax (Stil wie `loadResponse.js#calibrateTau1K1`), bei der VO2max auf
+JEDEM Kandidaten per innerer Bisektion exakt auf MLSS=TP gehalten wird -
+Bedingung 1 gilt dadurch strukturell IMMER, nicht nur im Optimum. Kein
+loesbarer Kandidat gefunden → `{vo2max: null, reason}` statt erfundener
+Werte (Muster wie `computeInitialSignature`).
+
+**Kurzzeitbedingung (M5-Festlegung):** 15 Sekunden,
+`mortonPower(15, cp, wPrimeJ, pMax)` als Zielleistung - begruendet mit dem
+in der Sportwissenschaft gaengigen ~15-s-All-out-Sprinttest-Protokoll zur
+VLamax-Schaetzung (auch XERTs eigenes Peak-Power-Testprotokoll nutzt
+4-5×10-15-s-Sprints mit einem abschliessenden ~20-s-All-out-Sprint). Die
+modellierte Kurzzeitleistung ist die Summe aus maximaler aerober
+ATP-Kapazitaet (VO2max × bVO2) und maximaler glykolytischer ATP-Kapazitaet
+(VLamax × 1,5 mol ATP/mol Laktat je kg Muskelmasse), zurueckgerechnet auf
+Watt ueber dieselbe c0/c1-Leistungs-VO2-Beziehung.
+
+**Laborwerte (FA-MET-02):** gehen als zusaetzliche, gewichtete Terme in die
+Zielfunktion der aeusseren Suche ein (VO2max-, VLamax- und
+Laktat-Leistungs-Paare, letztere ueber ein self-konsistentes
+Steady-State-[La] unterhalb der MLSS, `modelSteadyStateLactate`) - Bedingung
+1 (MLSS=TP) bleibt davon UNBERUEHRT, da sie strukturell in der inneren
+Bisektion erzwungen wird, nicht Teil der gewichteten Summe ist.
+
+**Zonenschema (FA-MET-03, M5-Festlegung):** 5 Zonen, %TP-verankert (55 %/
+75 %/95 %), MLSS=TP exakt als obere Z4-Grenze. Begruendung: das Modell
+selbst liefert nur EINE vom Lastenheft geforderte, belastbare Grenze
+(MLSS=TP) - darunter gibt es keine vom Modell vorgegebene weitere
+Unterteilung, deshalb Rueckgriff auf die etablierte, athletenverstaendliche
+%-Schwellen-Konvention (wie Coggan/Seiler-Zonen) statt einer unbelegten
+eigenen Kennzahl. Z5 (> TP) ist per Definition nicht ueber eine Stunde
+haltbar (PD(P) < 0, Nettoakkumulation) - in der UI ausdruecklich als
+"hochgerechnet, nicht ueber eine Stunde haltbar" gekennzeichnet (FA-MET-06).
+
+**Substrat-/Energieaufteilung (FA-MET-04/05):** Kap. 7.9 verlangt
+"Fettoxidation = Differenz zwischen glykolytischer Pyruvatbildung und
+tatsaechlicher Pyruvatoxidation". `substrateSplitAtPower` setzt das um: der
+CHO-Anteil des gesamten VO2 ist der Teil, der ueber tatsaechlich oxidiertes
+(nicht als Laktat exportiertes) Pyruvat gedeckt wird
+(`lactateOxidationMmolLS` → Pyruvat-O2-Stoechiometrie, 2,5 mol O2/mol
+Pyruvat, von Hand bilanziert); der VERBLEIBENDE aerobe O2-Umsatz wird per
+Definition Fett zugeschrieben (kein Proteinanteil, Standardvereinfachung).
+Entscheidend fuer einen plausiblen Fett/KH-Verlauf: `[La]` wird NICHT auf
+einen fixen (z. B. saettigten) Wert gesetzt, sondern ist das
+MODELLIERTE Steady-State-[La] bei genau dieser Leistung
+(`modelSteadyStateLactate`) - eine fruehe Version dieses Moduls nutzte
+faelschlich einen fixen hohen [La]-Wert fuer die Zonen-Lookup-Tabelle, was
+bei niedriger Leistung unplausibel KH-lastige Werte ergab (bei 100 W ~83 %
+KH statt ueberwiegend Fett); mit dem power-abhaengigen Steady-State-[La]
+zeigt sich stattdessen das erwartete "Crossover-Konzept" (Brooks & Mercier):
+Fett dominiert bei niedriger Leistung, KH nahe/ueber der MLSS. Oberhalb der
+modellierten MLSS existiert kein endliches Steady-State-[La] mehr (dort wird
+die saettigte Oxidationsrate verwendet, siehe `substrateSplitForZoneLookup`).
+
+**Vereinfachungen fuer V1** (jede gegenueber dem vollen dynamischen Modell):
+- pH-Hemmterm und Glykogenverfuegbarkeit (fgly) sind auf ihren Neutralwert 1
+  gesetzt - beide sind Teil der Zeitintegration (pH-Drift, Glykogendepletion
+  ueber eine Aktivitaet), die V1 nicht fuehrt.
+- Kein PCr-Zustand, keine W'bal-artige Dynamik im Stoffwechselmodell selbst
+  - jede Leistung wird unabhaengig als eigener Steady-State-Punkt behandelt
+  ("Lookup je Leistungswert", exakt wie Kap. 7.9 es fuer V1 vorschreibt).
+- Muskeldichte ≈ 1,0 kg/l (statt der realen ~1,06 kg/l) fuer die
+  Muskelmasse-in-Liter-Umrechnung - dokumentierte ~6%-Vereinfachung.
+- **Kein persistiertes historisches Stoffwechselprofil**: anders als
+  TP/HIE/PP (eigene `history[]`-Zeitreihe) wird VO2max/VLamax live aus der
+  JEWEILS aktuellen Signatur berechnet (`web/src/metabolicView.js`), nicht
+  als eigene Zeitreihe abgelegt - "je Zeitpunkt" (FA-MET-01) wird so
+  interpretiert, dass die Herleitung an jedem Zeitpunkt (Signatur zum
+  Aktivitaetsdatum, FA-MET-05) moeglich ist, nicht dass eine eigene
+  persistierte Historie gefuehrt wird. Rein pragmatische V1-Entscheidung,
+  da die Berechnung selbst schnell genug ist, um sie bei Bedarf neu
+  auszufuehren (kein Web-Worker noetig, siehe `metabolicView.js`).
+
 ### Startsignatur ohne ausreichende Daten (FA-SIG-03)
 
 Reicht die Datenbasis der ersten 90 Tage nicht (weniger als 4
@@ -636,6 +757,15 @@ bereits verifizierten CP-/Breakthrough-Pipeline.
   keinen weiteren Fix in dieser Runde, nur die jetzt sichtbare
   `constraintUnsatisfied`-Markierung statt einer stillschweigenden
   Ueberschaetzung.
+- **Stoffwechselmodell (M5, Kap. 7.9)** ist nur mit synthetischen Testdaten
+  verifiziert, NICHT gegen echte Laborwerte oder den 7.9-Referenztestfall
+  (der ist ein Ergebnis des dynamischen Modells, siehe "Stoffwechselmodell"
+  oben - Produktentscheidung, diesen Testfall bewusst nicht als
+  Abnahmekriterium fuer die V1-Steady-State-Variante zu verwenden). Die volle
+  dynamische Simulation (PCr-/pH-Kinetik, S-Prioritaet) ist nicht gebaut. Die
+  Hill-Kinetik-Konstanten (Tier B) sind aus einer PDF-Extraktion gewonnen,
+  nicht am MetaboliSim-Originalcode gegengeprueft - bei spuerbaren
+  Plausibilitaetsproblemen in der Praxis dort zuerst nachschauen.
 
 ## Verwendung
 

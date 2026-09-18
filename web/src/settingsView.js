@@ -77,6 +77,16 @@ const PARAM_GROUPS = [
       { key: 'thresholdChangeEpsilon', label: 'Änderungsschwelle (neuer Verlaufseintrag)', unit: '%', min: 0.5, max: 10, step: 0.5, ...pct, hint: 'M1-Festlegung' },
     ],
   },
+  {
+    title: 'Stoffwechselmodell (Kap. 7.9)',
+    params: [
+      { key: 'activeMusclePctDefault', label: 'Aktive Muskelmasse', unit: '%', min: 15, max: 50, step: 1, ...pct, hint: 'Kap. 7.9, Standard 30% für Radfahren' },
+      { key: 'metShortDurationSeconds', label: 'Kurzzeitbedingung (Dauer)', unit: 's', min: 5, max: 60, step: 1, ...identity, hint: 'M5-Festlegung, core/README.md' },
+      { key: 'metZoneBoundary1Pct', label: 'Zonengrenze Z1/Z2', unit: '%', min: 30, max: 70, step: 1, ...pct, hint: 'M5-Festlegung, core/README.md' },
+      { key: 'metZoneBoundary2Pct', label: 'Zonengrenze Z2/Z3', unit: '%', min: 50, max: 85, step: 1, ...pct, hint: 'M5-Festlegung, core/README.md' },
+      { key: 'metZoneBoundary3Pct', label: 'Zonengrenze Z3/Z4', unit: '%', min: 80, max: 99, step: 1, ...pct, hint: 'M5-Festlegung, core/README.md' },
+    ],
+  },
 ];
 
 const ALL_PARAMS = PARAM_GROUPS.flatMap((g) => g.params);
@@ -125,6 +135,7 @@ export async function openSettings() {
 
   renderAppearanceCard();
   renderWeightCard();
+  renderLabValuesCard();
   renderParamsCard();
   renderChangelogCard();
 
@@ -241,6 +252,118 @@ export async function openSettings() {
         delBtn.onclick = async () => {
           settings.weightHistory = (settings.weightHistory || []).filter((w) => w.date !== entry.date);
           await persistWeight();
+          renderList();
+        };
+        row.appendChild(delBtn);
+        list.appendChild(row);
+      }
+    }
+    renderList();
+  }
+
+  // ---------- FA-MET-02: Laborwerte (Stoffwechselmodell, Kap. 7.9) ----------
+  function renderLabValuesCard() {
+    const card = document.createElement('div');
+    card.className = 'card';
+    panel.appendChild(card);
+
+    const h = document.createElement('h3');
+    h.textContent = 'Laborwerte (Stoffwechselmodell)';
+    card.appendChild(h);
+
+    const hint = document.createElement('p');
+    hint.className = 'hint';
+    hint.textContent = 'Optionale zusätzliche Bedingung für VO2max/VLamax (Kap. 7.9) - überschreibt nie die TP. Mindestens ein Feld ausfüllen.';
+    card.appendChild(hint);
+
+    const list = document.createElement('div');
+    list.className = 'threshold-list';
+    card.appendChild(list);
+
+    const addRow = document.createElement('div');
+    addRow.className = 'btn-row';
+    addRow.style.marginTop = '0.75rem';
+    addRow.style.flexWrap = 'wrap';
+    const dateInput = document.createElement('input');
+    dateInput.type = 'date';
+    dateInput.value = new Date().toISOString().slice(0, 10);
+    const vo2Input = document.createElement('input');
+    vo2Input.type = 'number';
+    vo2Input.step = '0.1';
+    vo2Input.placeholder = 'VO2max ml/min/kg';
+    vo2Input.style.width = '150px';
+    const vlaInput = document.createElement('input');
+    vlaInput.type = 'number';
+    vlaInput.step = '0.01';
+    vlaInput.placeholder = 'VLamax mmol/l/s';
+    vlaInput.style.width = '130px';
+    const powerInput = document.createElement('input');
+    powerInput.type = 'number';
+    powerInput.step = '1';
+    powerInput.placeholder = 'Leistung W';
+    powerInput.style.width = '100px';
+    const lactateInput = document.createElement('input');
+    lactateInput.type = 'number';
+    lactateInput.step = '0.1';
+    lactateInput.placeholder = 'Laktat mmol/l';
+    lactateInput.style.width = '110px';
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn-primary';
+    addBtn.textContent = 'Hinzufügen';
+    addRow.appendChild(dateInput);
+    addRow.appendChild(vo2Input);
+    addRow.appendChild(vlaInput);
+    addRow.appendChild(powerInput);
+    addRow.appendChild(lactateInput);
+    addRow.appendChild(addBtn);
+    card.appendChild(addRow);
+
+    addBtn.onclick = async () => {
+      const entry = { date: dateInput.value };
+      if (vo2Input.value) entry.vo2max = Number(vo2Input.value);
+      if (vlaInput.value) entry.vlamax = Number(vlaInput.value);
+      if (powerInput.value && lactateInput.value) {
+        entry.powerWatts = Number(powerInput.value);
+        entry.lactateMmolL = Number(lactateInput.value);
+      }
+      if (!entry.date || (entry.vo2max == null && entry.vlamax == null && entry.powerWatts == null)) return;
+      settings.labValues = [...(settings.labValues || []), entry];
+      await writeJson(SETTINGS_FILE, settings);
+      vo2Input.value = '';
+      vlaInput.value = '';
+      powerInput.value = '';
+      lactateInput.value = '';
+      renderList();
+    };
+
+    function describeEntry(entry) {
+      const parts = [];
+      if (entry.vo2max != null) parts.push(`VO2max ${entry.vo2max} ml/min/kg`);
+      if (entry.vlamax != null) parts.push(`VLamax ${entry.vlamax} mmol/l/s`);
+      if (entry.powerWatts != null) parts.push(`${entry.powerWatts} W → ${entry.lactateMmolL} mmol/l`);
+      return parts.join(' · ');
+    }
+
+    function renderList() {
+      list.innerHTML = '';
+      const sorted = [...(settings.labValues || [])].sort((a, b) => b.date.localeCompare(a.date));
+      if (sorted.length === 0) {
+        const p = document.createElement('p');
+        p.className = 'hint';
+        p.textContent = 'Noch keine Laborwerte hinterlegt.';
+        list.appendChild(p);
+        return;
+      }
+      for (const entry of sorted) {
+        const row = document.createElement('div');
+        row.className = 'threshold-row';
+        row.innerHTML = `<span>${entry.date}</span><span class="threshold-value">${describeEntry(entry)}</span>`;
+        const delBtn = document.createElement('button');
+        delBtn.className = 'btn-ghost';
+        delBtn.textContent = 'Entfernen';
+        delBtn.onclick = async () => {
+          settings.labValues = (settings.labValues || []).filter((e) => e !== entry);
+          await writeJson(SETTINGS_FILE, settings);
           renderList();
         };
         row.appendChild(delBtn);
