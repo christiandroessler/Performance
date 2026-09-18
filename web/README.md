@@ -67,7 +67,7 @@ Neuberechnungsdauer fuer den Gesamtverlauf, nur NFA-04 fuer eine einzelne
 (RawStreamPoint[]-Form, FA-DQ-01 `deviceWatts`-Maskierung, sowie FA-TP-02/03
 end-to-end: ein Lauf ohne Leistungsmesser bekommt ueber die volle Kette
 Pace-TSS statt eines fabrizierten `tss: 0`) - die Algorithmus-Korrektheit
-selbst deckt bereits `core/test/` ab (48 Tests, M1).
+selbst deckt bereits `core/test/` ab (51 Tests, M1).
 
 Automatische Schwellen-Schaetzung fuer HF/Pace/Schwimmen (FA-TP-02/03/04/05:
 hrTSS/Pace-TSS fuer Aktivitaeten ohne Leistung, inkl. "≈"-Kennzeichnung in
@@ -95,6 +95,48 @@ Damit ist der komplette fuer M3 vorgesehene Funktionsumfang (6.5, 6.6, 6.7
 ohne FA-SIG-10 bis 12, 6.9) gebaut - FA-SIG-10/11/12 (belastungsgekoppelter
 3D-Signaturverlauf, Backtesting/Kalibrierung) sind gemaess Lastenheft
 Abschnitt "Inhalt" ohnehin M4-Scope ("3D-Modell und Kalibrierung").
+
+### M3-Abnahme (Kap. 10) - Stand 2026-09-18
+
+Die vier M3-Abnahmekriterien im Einzelnen:
+
+- [x] **"Kennzahlen in der UI identisch mit den M1-Ergebnissen"**: strukturell
+      per Code-Pruefung sichergestellt - `compute.js` schreibt `np`/`if`/`tss`/
+      `strain` unveraendert aus `activityResults` (Rechenkern-Ausgabe) in
+      `index.json`, keine erneute Rundung/Berechnung in der UI-Schicht. Einzige
+      Restunsicherheit: `web/vendor/core` ist eine manuell per
+      `npm run sync-core` synchronisierte Kopie von `core/src`, kein Live-Import
+      - bei einem vergessenen Sync vor dem Deploy koennte die UI eine aeltere
+      Rechenkern-Version zeigen. Nicht automatisiert geprueft (kein CI-Gate).
+- [x] **"Verwerfen/Reaktivieren eines Breakthroughs"**: jetzt mit einem
+      dedizierten End-zu-Ende-Test abgesichert (`core/test/signature.test.js`,
+      neu 2026-09-18) - vorher gab es dafuer ueberhaupt keinen automatisierten
+      Test, weder auf Core- noch auf Web-Ebene. Die UI-Verdrahtung selbst
+      (`breakthroughView.js` -> `compute.js#discardBreakthrough`/
+      `reactivateBreakthrough`) ist nur per Code-Lesen geprueft, nicht live
+      durchgeklickt.
+- [x] **"hrTSS/Pace-TSS fuer Nicht-Rad, fehlende Schwellen gekennzeichnet"**:
+      der Happy-Path war bereits getestet (`core/test/thresholds.test.js`);
+      neu ist die durchgaengige Kennzeichnung des "kein TSS ermittelbar"-Falls
+      in der Aktivitaetsliste - vorher zeigte diese Zelle einen nicht von
+      anderen leeren Zellen unterscheidbaren Strich ohne Erklaerung, jetzt
+      immer mit erklaerendem Tooltip (`activityListView.js`).
+- [x] **"Schwelle zum Aktivitaetsdatum, Testfall Breakthrough mitten im
+      Zeitraum"**: jetzt mit einem expliziten Testfall abgesichert
+      (`core/test/signature.test.js`) - eine synthetische Historie mit einem
+      Breakthrough mitten drin zeigt, dass die Breakthrough-Aktivitaet selbst
+      noch die alte Schwelle nutzt und nur nachfolgende Aktivitaeten die neue.
+      Vorher gab es nur einen generischen `thresholdAtDate`-Test ohne
+      Breakthrough-Bezug.
+
+**Was damit automatisiert abgesichert ist** (obige vier Punkte inhaltlich).
+**Was nur der Nutzer mit echten Daten/echtem Konto pruefen kann** (kein
+Browser-Zugriff auf das echte Google-Drive-/Strava-Konto vorhanden):
+klicken Sie in der laufenden App einen echten Breakthrough in der
+Breakthroughs-Uebersicht verwerfen -> pruefen, dass sich TSS/PMC ab diesem
+Datum sichtbar aendern -> reaktivieren -> pruefen, dass exakt die vorherigen
+Werte wiederkehren; und ob eine echte Nicht-Rad-Aktivitaet ohne schaetzbare
+Schwelle (z. B. ganz am Anfang der Historie) den neuen Tooltip zeigt.
 
 ## Ablageformat der Streams (`streams/YYYY-MM.bin`)
 

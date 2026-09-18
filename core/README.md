@@ -26,7 +26,7 @@ Kalibrierung Kap. 7.8 → M4) und das Stoffwechselmodell (Kap. 7.9 → M5).
 
 ## Stand der Verifikation
 
-Alle 48 automatisierten Tests laufen gruen (`npm test` im `core`-Ordner).
+Alle 51 automatisierten Tests laufen gruen (`npm test` im `core`-Ordner).
 Zusaetzlich wurde der komplette Aktivitaetsbestand eines echten Nutzers
 (1977 Rad-Aktivitaeten mit Leistung, 2017–2026, aus der bestehenden
 `strava-dashboard`-Datenbank, siehe `scripts/run-legacy-db.js`) mehrfach
@@ -406,4 +406,10 @@ Breakthrough-Erkennung (Schwellen, Mindestdauer, Datenqualitaets-Ausschluss),
 NP/TSS/hrTSS/paceTSS-Formeln, Sportart-Schwellen-Schaetzung und
 hrTSS/Pace-TSS-Routing inkl. FA-TP-05-Kennzeichnung (`pace.test.js`,
 `thresholds.test.js`), Determinismus des gesamten Signaturverlaufs, sowie die
-Text-/FIT-Importer.
+Text-/FIT-Importer. `signature.test.js` deckt zusaetzlich genau die beiden
+M3-Abnahmekriterien ab, fuer die vorher kein End-zu-Ende-Test existierte: ein
+Breakthrough mitten in der Historie aendert die Schwelle nachweislich nur fuer
+NACHFOLGENDE Aktivitaeten (die Breakthrough-Aktivitaet selbst zaehlt noch mit
+der alten Schwelle), und Verwerfen/Reaktivieren eines Breakthroughs
+(FA-SIG-07) fuehrt zu exakt den erwarteten bzw. wiederhergestellten
+Kennzahlen.

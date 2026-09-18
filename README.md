@@ -169,7 +169,17 @@ einem Web Worker (NFA-04), gefuettert mit den in M2 abgelegten Rohdaten:
   gehoeren laut Lastenheft-Abschnitt "Inhalt" ohnehin zu M4.
 - `web/test/computePipeline.test.js` prueft die Naht Ablageformat -> core
   (RawStreamPoint[]-Form, FA-DQ-01 deviceWatts-Maskierung); die
-  Algorithmus-Korrektheit selbst deckt bereits `core/test/` ab (M1).
+  Algorithmus-Korrektheit selbst deckt bereits `core/test/` ab (M1, 51 Tests).
+- M3-Abnahme (2026-09-18, Kap. 10) gegen die 4 Abnahmekriterien durchgegangen:
+  fuer die beiden bis dahin ungetesteten Kriterien ("Breakthrough
+  verwerfen/reaktivieren", "Schwelle zum Aktivitaetsdatum mit Breakthrough
+  mitten im Zeitraum") gab es schlicht KEINEN automatisierten Test - jetzt
+  abgesichert durch `core/test/signature.test.js`. Die "fehlende Schwellen
+  sind gekennzeichnet"-Anforderung hatte eine echte Luecke: der TSS-Strich bei
+  fehlender Schwelle war nicht von anderen leeren Zellen unterscheidbar,
+  jetzt mit erklaerendem Tooltip (`activityListView.js`). Details und die
+  verbleibenden, nur live pruefbaren Punkte (echtes Konto, kein Test-Ersatz
+  moeglich) siehe `web/README.md` Abschnitt "M3-Abnahme".
 
 ## Ausgangslage
 

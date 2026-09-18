@@ -149,9 +149,13 @@ export function renderActivityList(container, index) {
         a.type,
         formatDuration(a.movingTimeSec),
         formatDistance(a.distanceM),
-        // FA-TP-05: TSS aus HF/Pace ist eine Schaetzung (Sportart-Schwelle) - Tilde + Tooltip kennzeichnen das,
-        // "-" bleibt fuer "kein TSS ermittelbar" (weder Leistung noch schaetzbare Schwelle).
-        { text: a.tss != null ? `${a.tssSource && a.tssSource !== 'power' ? '≈' : ''}${a.tss}` : '-', title: a.tssSource ? TSS_SOURCE_LABEL[a.tssSource] : undefined },
+        // FA-TP-05: TSS aus HF/Pace ist eine Schaetzung (Sportart-Schwelle) - Tilde + Tooltip kennzeichnen das.
+        // "-" bei fehlendem TSS ist sonst nicht von anderen leeren Zellen (z. B. fehlender Name) zu
+        // unterscheiden - bekommt daher immer einen erklaerenden Tooltip, auch ohne Schwelle.
+        {
+          text: a.tss != null ? `${a.tssSource && a.tssSource !== 'power' ? '≈' : ''}${a.tss}` : '-',
+          title: a.tssSource ? TSS_SOURCE_LABEL[a.tssSource] : 'Kein TSS ermittelbar: keine Leistungsdaten und keine schätzbare Sportart-Schwelle (FA-TP-05)',
+        },
         a.strain != null && a.strain.total != null ? String(Math.round(a.strain.total)) : '-',
         a.breakthrough ? `${MEDAL_LABEL[a.breakthrough.medal] || ''}${a.breakthrough.discarded ? ' (verworfen)' : ''}` : '-',
       ];
