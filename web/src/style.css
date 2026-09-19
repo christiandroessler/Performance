@@ -367,6 +367,22 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   .dashboard-grid { grid-template-columns: 1fr; }
 }
 
+/* FA-PWA-02/04 (Kap. 6.10): echte mobile Anpassungen statt nur des groben 1100px-
+   Spalten-Umbruchs oben - Kap. 1 des Kommentars am Dateianfang ("nicht mobile-first")
+   gilt weiter fuer das Layout selbst (keine eigene Mobile-Ansicht, siehe web/README.md
+   M6-Status), aber Abstaende/Touch-Ziele werden hier fuer schmale Viewports nachgezogen. */
+@media (max-width: 640px) {
+  .app-main { padding: 1rem 0.85rem 2rem; }
+  .app-header { padding: 0 0.85rem; gap: 0.75rem; }
+  .card { padding: 1rem 0.9rem; }
+  .modal-overlay { padding: 1rem 0.6rem; }
+  .modal-panel { padding: 1.1rem 1.1rem; }
+  .user-meta { display: none; } /* nur noch der Avatar-Kreis, E-Mail/Status kosten auf 375px zu viel Platz */
+  button, input[type='text'], input[type='number'], input[type='search'], input[type='date'], select {
+    min-height: 44px; /* Touch-Ziel-Empfehlung, vorher 40px */
+  }
+}
+
 .metric-badge-row { display: flex; gap: 0.6rem; }
 .metric-badge { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.25rem; padding: 0.85rem 0.5rem; border-radius: var(--radius-md); border: 1px solid; }
 .metric-badge-value { font-size: 1.8rem; font-weight: 700; font-variant-numeric: tabular-nums; }

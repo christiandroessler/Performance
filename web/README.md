@@ -373,6 +373,48 @@ liste, Status-Labels, Zwei-Schritt-Entfernen, Einladen inkl. Fehleranzeige
 bei voller Gruppe. `worker`: 41→43 Tests (neue FA-USER-06-Tests inkl. eines
 Regressionstests, dass ein 5xx-Ausfall NICHT als Widerruf gewertet wird).
 
+**Phase 3, PWA (FA-PWA-01 bis 04) - abgeschlossen:**
+- **FA-PWA-01 (installierbar):** neues `manifest.json` + `icon.svg`
+  (einfaches, an `.brand-mark` angelehntes Platzhalter-Icon - es gab bisher
+  KEINE Bild-Assets im Projekt; ein echtes Marken-PNG waere ein spaeterer
+  Polish-Schritt, kein Lastenheft-Blocker) + `index.html`-Verlinkung
+  (`<link rel="manifest">`, `theme-color`, `apple-touch-icon`). Minimaler
+  Service Worker `sw.js` (nur `install`/`activate`/Passthrough-`fetch` -
+  bewusst KEIN Offline-Caching, das Lastenheft verlangt keinen
+  Offline-Modus, nur Installierbarkeit), Registrierung in `main.js`.
+  Live verifiziert: Service Worker registriert sich erfolgreich
+  (`navigator.serviceWorker.getRegistrations()` zeigt `active: true`),
+  `manifest.json`/`sw.js`/`icon.svg` laden fehlerfrei.
+- **FA-PWA-02 (mobile Kurzuebersicht):** bewusst KEINE separate
+  Mobile-Ansicht - die bestehende Uebersicht zeigt bereits alle
+  geforderten Inhalte (Signatur-Kacheln inkl. der belastungsgekoppelten
+  Anzeige+Verfall, TSB/Form, letzte Aktivitaet, Breakthroughs mit
+  Medaillen). Echte mobile CSS-Breakpoints in `style.css` ergaenzt (vorher
+  nur ein grober 1100px-Spalten-Umbruch, Layout blieb sonst Desktop-dicht) -
+  Abstaende/Kartenpolsterung fuer schmale Viewports, Touch-Ziele auf 44px
+  angehoben, Nutzer-Chip-Details ausgeblendet. Neu: "neue Medaillen seit
+  letztem Besuch" - `settings.json` bekommt ein `lastVisitAt`-Feld
+  (`dashboardView.js#refresh`: alter Wert wird VOR dem Rendern gelesen,
+  NACH dem Rendern aktualisiert), `dashboardExtras.js#renderRecentBreakthroughs`
+  markiert neuere Breakthroughs mit einem "neu"-Badge
+  (Tagesgranularitaet, wie der Rest der Signatur-Historie). Live im
+  Preview mit `lastVisitAt` in der Vergangenheit verifiziert: das
+  "neu"-Badge erscheint korrekt am juengsten Breakthrough.
+- **FA-PWA-03 (mobiler Sync nur inkrementell, kein Erstimport) - bereits
+  erfuellt:** identischer Mechanismus wie FA-SYNC-05 (M3), siehe
+  "Sync-Ablauf" oben - keine Code-Aenderung noetig, nur dokumentiert.
+- **FA-PWA-04 (Charts ausgeduennt):** `pmcView.js` bekommt einen neuen
+  `downsamplePmcSeries`-Helfer (Bucket-Mittelwert ueber ctl/atl/tsb, analog
+  zu `chartUtils.js#downsample`, das nur auf flache Zahlen-Arrays passt) -
+  greift erst oberhalb von 500 Tages-Punkten (z. B. "Gesamt" bei
+  mehrjaehriger Historie), reine Wiederverwendung des bestehenden Prinzips,
+  keine neue Chart-Infrastruktur.
+
+`web`: weiterhin 52 Tests gruen (keine neuen Unit-Tests fuer die
+View-Dateien selbst - konsistent mit dem bisherigen Muster des Projekts,
+*View.js-Dateien werden ueber Preview/Live-Checks statt `node --test`
+verifiziert).
+
 ## Ablageformat der Streams (`streams/YYYY-MM.bin`)
 
 In M1 bewusst offengelassen ("wird erst in M2 festgelegt", `core/README.md`).
@@ -389,7 +431,9 @@ Ablage, fuer Reproduzierbarkeit.
 
 - **Erstimport**: Der Nutzer waehlt ein Zeitfenster (30/90/365 Tage oder
   gesamte Historie). Nur in der Desktop-Ansicht startbar (FA-SYNC-05,
-  `isDesktopViewport()`: Breite ≥ 900px).
+  `isDesktopViewport()`: Breite ≥ 900px) - erfuellt damit gleichzeitig
+  FA-PWA-03 (Kap. 6.10: "Erstimport nur Desktop, inkrementeller Sync auch
+  mobil"), derselbe Mechanismus, nur aus zwei Lastenheft-Kapiteln zitiert.
 - **Zwei Phasen**: (1) Aktivitaetsliste paginiert vom Worker abfragen, (2) je
   neuer Aktivitaet die Streams laden, ins Monatsbuendel schreiben,
   `index.json` fortschreiben.

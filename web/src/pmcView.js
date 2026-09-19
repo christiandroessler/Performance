@@ -162,7 +162,7 @@ export function renderPmcChart(container, { series, message }) {
 
   function renderChart() {
     chartContainer.innerHTML = '';
-    chartContainer.appendChild(buildChart(sliceSeriesForRange(series, selectedRange)));
+    chartContainer.appendChild(buildChart(downsamplePmcSeries(sliceSeriesForRange(series, selectedRange))));
     for (const r of CHART_RANGES) {
       rangeButtons[r.value].className = r.value === selectedRange ? 'btn-primary' : 'btn-ghost';
     }
@@ -180,6 +180,26 @@ export function renderPmcChart(container, { series, message }) {
   }
 
   renderChart();
+}
+
+/**
+ * FA-PWA-04: Diagramme werden fuer die Anzeige ausgeduennt, die Berechnung (bereits vorher
+ * gelaufen, computePmcSeries) bleibt in voller Aufloesung. Gleiches Bucket-Mittelwert-Prinzip
+ * wie chartUtils.js#downsample (dort nur fuer flache Zahlen-Arrays, hier fuer die drei Felder
+ * ctl/atl/tsb je Tag - "Gesamt"-Zeitraum kann bei mehrjaehriger Historie mehrere Tausend
+ * Tages-Punkte haben).
+ */
+function downsamplePmcSeries(series, maxPoints = 500) {
+  if (series.length <= maxPoints) return series;
+  const bucketSize = Math.ceil(series.length / maxPoints);
+  const out = [];
+  for (let i = 0; i < series.length; i += bucketSize) {
+    const chunk = series.slice(i, i + bucketSize);
+    const mid = chunk[Math.floor(chunk.length / 2)];
+    const avg = (field) => chunk.reduce((sum, p) => sum + p[field], 0) / chunk.length;
+    out.push({ date: mid.date, ctl: avg('ctl'), atl: avg('atl'), tsb: avg('tsb') });
+  }
+  return out;
 }
 
 const CTL_COLOR = '#45b8b4';

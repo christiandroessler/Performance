@@ -15,8 +15,14 @@ import { openGlossary } from './glossaryView.js';
 const app = document.getElementById('app');
 
 applyStoredTheme(); // vor dem ersten Render, damit kein kurzes Dunkel-Aufblitzen im Hellmodus entsteht
+registerServiceWorker(); // FA-PWA-01: nur fuer die Installierbarkeits-Heuristik, siehe sw.js
 
 main().catch(showFatalError);
+
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.register('/sw.js').catch((err) => console.warn('Service Worker nicht registriert:', err));
+}
 
 async function main() {
   renderSignIn();

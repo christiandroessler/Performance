@@ -146,7 +146,12 @@ export function renderSportThresholds(container, thresholds) {
 }
 
 /** Rechte-Spalte-Karte, TrainingPeaks-"Peak Performances"-Vorbild: hier die zuletzt erreichten Signatur-Breakthroughs (Medaillen). */
-export function renderRecentBreakthroughs(container, modelState) {
+/**
+ * FA-PWA-02: `lastVisitAt` (ISO-Zeitstempel, gesetzt in dashboardView.js#refresh direkt VOR
+ * diesem Aufruf) markiert Breakthroughs seit dem letzten Besuch mit einem "neu"-Badge - reiner
+ * Datumsvergleich (Tagesgranularitaet, wie der Rest der Signatur-Historie), kein Uhrzeitabgleich.
+ */
+export function renderRecentBreakthroughs(container, modelState, lastVisitAt) {
   container.innerHTML = '';
   const box = document.createElement('div');
   box.className = 'card';
@@ -166,13 +171,16 @@ export function renderRecentBreakthroughs(container, modelState) {
     return;
   }
 
+  const lastVisitDate = lastVisitAt ? lastVisitAt.slice(0, 10) : null;
   const list = document.createElement('div');
   list.className = 'breakthrough-mini-list';
   for (const bt of [...active].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5)) {
     const row = document.createElement('div');
     row.className = 'breakthrough-mini-row';
     const risenLabels = bt.risen.map((k) => PARAM_LABEL[k] || k).join(', ');
-    row.innerHTML = `<span>${MEDAL_LABEL[bt.medal]}</span><span class="breakthrough-mini-date">${bt.date}</span><span class="hint">${risenLabels} gestiegen</span>`;
+    const isNew = lastVisitDate != null && bt.date > lastVisitDate;
+    const newBadge = isNew ? ' <span class="badge badge-accent">neu</span>' : '';
+    row.innerHTML = `<span>${MEDAL_LABEL[bt.medal]}${newBadge}</span><span class="breakthrough-mini-date">${bt.date}</span><span class="hint">${risenLabels} gestiegen</span>`;
     list.appendChild(row);
   }
   box.appendChild(list);

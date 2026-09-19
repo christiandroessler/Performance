@@ -14,7 +14,7 @@ Rechenkern zuerst, getestet mit dem Strava-Datenexport.
 | **M3** | Oberfläche TrainingPeaks/Strava/XERT | fertig gebaut, siehe [`web/README.md`](web/README.md) Abschnitt "M3-Abnahme" |
 | **M4** | 3D-Modell und Kalibrierung | fertig gebaut (FA-SIG-10/11/12), Abnahmekriterien code-seitig geprüft, Live-Abgleich am echten Konto offen, siehe [`web/README.md`](web/README.md) Abschnitt "M4-Status im Detail" |
 | **M5** | Stoffwechselmodell | V1 (Steady-State) gebaut, siehe [`web/README.md`](web/README.md) Abschnitt "M5-Status im Detail" |
-| M6 | Gruppe, Datenschutz, PWA | in Arbeit, siehe [`web/README.md`](web/README.md) Abschnitt "M6-Status im Detail" |
+| **M6** | Gruppe, Datenschutz, PWA | gebaut, Live-Test mit zweitem Testkonto (Einladen/Entfernen/Widerruf) noch offen, siehe [`web/README.md`](web/README.md) Abschnitt "M6-Status im Detail" |
 
 ## M1-Status im Detail
 

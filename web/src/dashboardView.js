@@ -23,7 +23,8 @@ import { renderWeekOverview } from './weekView.js';
 import { renderRecentActivity, renderThisWeekSummary, renderRecentBreakthroughs, renderSportThresholds } from './dashboardExtras.js';
 import { renderLoadResponse } from './loadResponseView.js';
 import { computeCurrentMetabolicProfile, renderMetabolicTiles, renderMetabolicView } from './metabolicView.js';
-import { loadOrInitSettings } from './onboarding.js';
+import { loadOrInitSettings, SETTINGS_FILE } from './onboarding.js';
+import { writeJson } from './storage.js';
 import { mergeSettings, displaySignatureAtDate } from '../vendor/core/src/index.js';
 
 export async function renderDashboard({ overviewContainer, activitiesContainer, weeksContainer, powerCurveContainer, loadResponseContainer, metabolicContainer, breakthroughsContainer }) {
@@ -141,6 +142,8 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
       mmpCurves = await loadMmpCurves();
     });
 
+    const settingsJson = await loadOrInitSettings();
+
     // FA-SIG-10 (M4, Kap. 7.7): belastungsgekoppelte Anzeige zusaetzlich zum rohen
     // Breakthrough-Stand - siehe core/README.md "Belastungsgekoppelter Signaturverlauf".
     // displaySignatureAtDate() gab es schon vorher im Rechenkern, war aber bisher nirgends
@@ -150,7 +153,6 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
     await safeRenderAsync(null, 'Belastungsgekoppelte Anzeige laden', async () => {
       const { series, calibration } = await loadLoadResponse();
       if (series && series.length > 0 && calibration) {
-        const settingsJson = await loadOrInitSettings();
         const settings = mergeSettings(settingsJson.modelSettings || {});
         const latestSeriesDate = series[series.length - 1].date;
         displaySig = displaySignatureAtDate(latestSeriesDate, modelState.history, series, calibration, settings);
@@ -178,7 +180,12 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
     });
     safeRender(pmcChartContainer, 'Performance Management Chart', () => renderPmcChart(pmcChartContainer, pmcSeries));
     safeRender(metricsSidebarContainer, 'Performance Metrics', () => renderMetricsSidebar(metricsSidebarContainer, pmcSeries));
-    safeRender(recentBreakthroughsContainer, 'Neueste Breakthroughs', () => renderRecentBreakthroughs(recentBreakthroughsContainer, modelState));
+    // FA-PWA-02: "neue Medaillen seit letztem Besuch" - lastVisitAt wird ERST NACH dem
+    // Rendern aktualisiert, damit die Markierung noch fuer diesen Aufruf sichtbar ist.
+    const lastVisitAt = settingsJson.lastVisitAt || null;
+    safeRender(recentBreakthroughsContainer, 'Neueste Breakthroughs', () => renderRecentBreakthroughs(recentBreakthroughsContainer, modelState, lastVisitAt));
+    settingsJson.lastVisitAt = new Date().toISOString();
+    writeJson(SETTINGS_FILE, settingsJson).catch((err) => console.warn('lastVisitAt konnte nicht gespeichert werden:', err));
     safeRender(activitiesContainer, 'Aktivitätenliste', () => renderActivityList(activitiesContainer, index));
     safeRender(weeksContainer, 'Wochen-/Kalenderübersicht', () => renderWeekOverview(weeksContainer, index));
     await safeRenderAsync(powerCurveContainer, 'Leistungskurve', () => renderPowerCurve(powerCurveContainer));

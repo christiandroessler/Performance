@@ -1,0 +1,14 @@
+{
+  "name": "Performance App",
+  "short_name": "Performance",
+  "description": "Trainingsanalyse (Critical Power, Trainingsbelastung, Stoffwechselmodell) auf Basis der eigenen Strava-Daten.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#12141f",
+  "theme_color": "#45b8b4",
+  "lang": "de",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
