@@ -21,8 +21,29 @@ bzw. von Google Drive.
 | `src/http.js` | JSON-Antworten, CORS |
 
 Alle Module ausser `strava.js`/`index.js` (die echte Netzwerkaufrufe machen)
-sind mit `node --test` lokal getestet, siehe `test/` (41 Tests, ohne
+sind mit `node --test` lokal getestet, siehe `test/` (43 Tests, ohne
 Cloudflare-Account lauffaehig).
+
+## Endpunkte (`src/index.js`)
+
+| Route | Zweck |
+|---|---|
+| `GET /api/config` | Oeffentliche Konfiguration (Google-Client-ID) |
+| `POST /api/session` | Session pruefen (Google-ID-Token + Allowlist), liefert `{email, role, status}` |
+| `POST /auth/strava/start` / `GET /auth/strava/callback` | Strava-OAuth (Worker haelt das Client Secret) |
+| `GET /api/strava/activities`, `GET /api/strava/activities/:id/streams` | Gedrosselter Proxy zu Strava (FA-SYNC-04) |
+| `GET/POST /api/sync/progress` | Fortschritt eines laufenden Imports (FA-SYNC-03); `POST` mit `body=null` stempelt zusaetzlich `lastSyncAt` auf den Allowlist-Eintrag (FA-USER-04) |
+| `GET /api/admin/members` | Admin-Ansicht: Mitgliederliste inkl. Status/`lastSyncAt`/Importfortschritt (nur Warteschlangen-Laenge, **keine** Trainingsdaten, FA-USER-04) |
+| `POST /api/admin/invite` | Mitglied per E-Mail einladen (Admin, FA-USER-02), 10er-Obergrenze (FA-USER-03) |
+| `DELETE /api/admin/members/:email` | Mitglied entfernen: Strava-Widerruf + Tokens/Fortschritt/Allowlist-Eintrag loeschen (Admin, FA-USER-05) |
+| `POST /api/me/delete` | Self-Service-Variante von oben, fuer sich selbst (FA-USER-07) |
+
+`worker/src/tokenManager.js#getValidAccessToken` erkennt zusaetzlich einen
+von Strava mit 400 (invalid_grant) abgelehnten Refresh Token als
+Strava-seitigen Widerruf (FA-USER-06) - raeumt denselben Zustand wie beim
+Entfernen auf und liefert `strava_access_revoked` statt eines generischen
+Fehlers. Reaktive Erkennung (beim naechsten Sync-Versuch), kein
+Strava-Webhook-Abo.
 
 ## Einmalige Einrichtung
 

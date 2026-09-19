@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { FakeKv } from './fakeKv.js';
 import { importEncryptionKey, generateEncryptionKeyBase64 } from '../src/cryptoTokens.js';
 import { storeInitialTokens, getValidAccessToken } from '../src/tokenManager.js';
-import { getTokenRecord } from '../src/kvStore.js';
+import { getTokenRecord, putAllowlistEntry, getAllowlistEntry, putImportProgress, getImportProgress } from '../src/kvStore.js';
+import { HttpError } from '../src/http.js';
 
 const env = { STRAVA_CLIENT_ID: 'id', STRAVA_CLIENT_SECRET: 'secret' };
 
@@ -70,4 +71,37 @@ test('getValidAccessToken liefert null, wenn der Nutzer Strava nicht verbunden h
     throw new Error('sollte nicht aufgerufen werden');
   });
   assert.equal(token, null);
+});
+
+test('FA-USER-06: ein von Strava mit 400 (invalid_grant) abgelehnter Refresh Token wird als Widerruf gewertet - raeumt Tokens/Import-Fortschritt/Allowlist-Eintrag auf und wirft strava_access_revoked', async () => {
+  const kv = new FakeKv();
+  const key = await importEncryptionKey(generateEncryptionKeyBase64());
+  const now = Math.floor(Date.now() / 1000);
+  await storeInitialTokens(kv, key, 'widerrufen@example.com', { access_token: 'alt', refresh_token: 'alt-refresh', expires_at: now - 10 });
+  await putAllowlistEntry(kv, { email: 'widerrufen@example.com', role: 'member', status: 'strava_connected' });
+  await putImportProgress(kv, 'widerrufen@example.com', { mode: 'incremental', queue: [] });
+
+  const fetchImpl = async () => new Response(JSON.stringify({ message: 'Bad Request' }), { status: 400 });
+
+  await assert.rejects(
+    () => getValidAccessToken(env, kv, key, 'widerrufen@example.com', fetchImpl),
+    (err) => err instanceof HttpError && err.status === 409 && err.message === 'strava_access_revoked'
+  );
+
+  assert.equal(await getTokenRecord(kv, 'widerrufen@example.com'), null);
+  assert.equal(await getAllowlistEntry(kv, 'widerrufen@example.com'), null);
+  assert.equal(await getImportProgress(kv, 'widerrufen@example.com'), null);
+});
+
+test('getValidAccessToken wertet einen voruebergehenden Strava-Fehler (5xx) NICHT als Widerruf - Allowlist-Eintrag bleibt erhalten', async () => {
+  const kv = new FakeKv();
+  const key = await importEncryptionKey(generateEncryptionKeyBase64());
+  const now = Math.floor(Date.now() / 1000);
+  await storeInitialTokens(kv, key, 'ausfall@example.com', { access_token: 'alt', refresh_token: 'alt-refresh', expires_at: now - 10 });
+  await putAllowlistEntry(kv, { email: 'ausfall@example.com', role: 'member', status: 'strava_connected' });
+
+  const fetchImpl = async () => new Response(JSON.stringify({ message: 'Internal Server Error' }), { status: 503 });
+
+  await assert.rejects(() => getValidAccessToken(env, kv, key, 'ausfall@example.com', fetchImpl));
+  assert.notEqual(await getAllowlistEntry(kv, 'ausfall@example.com'), null, 'ein voruebergehender Fehler darf das Mitglied nicht aus der Gruppe werfen');
 });

@@ -334,6 +334,45 @@ ist aufgeloest. Zusaetzlich ein "Datenschutz"-Eintrag im Nutzer-Menue
 (`main.js#buildUserMenu`), damit der Hinweis jederzeit erreichbar ist, nicht
 nur im Onboarding.
 
+**Phase 2, Gruppe/Admin-UI (FA-USER-01 bis 08) - abgeschlossen:** der
+Worker-Backend-Code (Invite/Remove/Self-Delete/Admin-Liste/10er-Obergrenze
+in `worker/src/index.js`) und die Client-Funktionen (`src/api.js`) waren
+bereits fertig, aber nie an eine UI angeschlossen. Neue Datei
+`src/groupView.js` (`renderGroup`): Mitgliederliste (E-Mail, Rolle, Status,
+letzter Sync, Importfortschritt, Entfernen mit Zwei-Schritt-Bestaetigung)
++ Einladeformular, sichtbar nur fuer Admins (`main.js` reicht `session` aus
+`fetchSession()` jetzt bis `renderAppShell` durch, baut den "Gruppe"-Tab
+nur bei `role==='admin'` ein - der Worker prueft `requireAdmin` serverseitig
+ohnehin nochmal). "Meine Daten löschen" (FA-USER-07) jetzt in den
+Einstellungen erreichbar (`settingsView.js`, neue "Konto"-Karte, ebenfalls
+Zwei-Schritt-Bestaetigung, da unwiderruflich).
+
+Zwei echte Backend-Luecken dabei geschlossen (`worker/src/index.js`/
+`tokenManager.js`):
+- **FA-USER-04 "Zeitpunkt des letzten Syncs"** fehlte komplett - die
+  bestehende `POST /api/sync/progress`-Route stempelt jetzt den
+  Allowlist-Eintrag, sobald `body===null` (das bestehende Signal fuer
+  "Sync abgeschlossen", `syncEngine.js`), EIN zusaetzlicher KV-Schreib-
+  zugriff je abgeschlossenem Lauf (nicht je Aktivitaet). Importfortschritt
+  wird jetzt ebenfalls in die Admin-Antwort gemischt (nur Warteschlangen-
+  Laenge, keine Aktivitaetsinhalte).
+- **FA-USER-06 (Auto-Erkennung eines Strava-seitigen Widerrufs)** war noch
+  nicht begonnen - `tokenManager.js#getValidAccessToken` erkennt jetzt
+  einen von Strava mit 400 (invalid_grant) abgelehnten Refresh Token,
+  raeumt Tokens/Import-Fortschritt/Allowlist-Eintrag auf (dieselbe Logik
+  wie FA-USER-05) und wirft `strava_access_revoked` statt eines generischen
+  502. Bewusst NUR bei 400 (nicht bei 5xx-Ausfaellen), sonst wuerde ein
+  voruebergehender Strava-Ausfall Mitglieder faelschlich aus der Gruppe
+  werfen (per Test abgesichert). Reaktive Erkennung beim naechsten
+  Sync-Versuch, kein Strava-Webhook-Abo (unnoetige Komplexitaet fuer eine
+  private 10-Personen-Gruppe).
+
+Neue `groupView.js`-Render-Logik live im Browser-Pane-Preview verifiziert
+(gemockter `fetch`, da kein echter Worker im Preview laeuft): Mitglieder-
+liste, Status-Labels, Zwei-Schritt-Entfernen, Einladen inkl. Fehleranzeige
+bei voller Gruppe. `worker`: 41→43 Tests (neue FA-USER-06-Tests inkl. eines
+Regressionstests, dass ein 5xx-Ausfall NICHT als Widerruf gewertet wird).
+
 ## Ablageformat der Streams (`streams/YYYY-MM.bin`)
 
 In M1 bewusst offengelassen ("wird erst in M2 festgelegt", `core/README.md`).

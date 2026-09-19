@@ -7,6 +7,7 @@ import { fetchSession } from './api.js';
 import { renderOnboarding, loadOrInitSettings } from './onboarding.js';
 import { renderSyncView } from './syncView.js';
 import { renderDashboard } from './dashboardView.js';
+import { renderGroup } from './groupView.js';
 import { applyStoredTheme } from './theme.js';
 import { openSettings } from './settingsView.js';
 import { openGlossary } from './glossaryView.js';
@@ -61,14 +62,16 @@ async function afterSignIn() {
     return renderStravaError(params.get('reason'));
   }
 
+  const onComplete = (settings) => renderAppShell(settings, session);
+
   if (session.status === 'strava_connected') {
     const settings = await loadOrInitSettings();
-    if (settings.weightKg) return renderAppShell(settings);
-    return renderOnboarding(app, { resumeStep: 5, onComplete: renderAppShell });
+    if (settings.weightKg) return renderAppShell(settings, session);
+    return renderOnboarding(app, { resumeStep: 5, onComplete });
   }
 
   const resumeStep = stravaResult === 'connected' ? 5 : 1;
-  renderOnboarding(app, { resumeStep, onComplete: renderAppShell });
+  renderOnboarding(app, { resumeStep, onComplete });
 }
 
 function renderRejected() {
@@ -103,7 +106,7 @@ function renderStravaError(reason) {
   screen.appendChild(btn);
 }
 
-const TABS = [
+const BASE_TABS = [
   { id: 'overview', label: 'Übersicht' },
   { id: 'activities', label: 'Aktivitäten' },
   { id: 'weeks', label: 'Wochen/Kalender' },
@@ -113,8 +116,9 @@ const TABS = [
   { id: 'breakthroughs', label: 'Breakthroughs' },
   { id: 'sync', label: 'Daten' },
 ];
+const ADMIN_TAB = { id: 'group', label: 'Gruppe' }; // FA-USER-04: Admin-Ansicht, nur fuer session.role==='admin'
 
-function renderAppShell(settings) {
+function renderAppShell(settings, session) {
   app.innerHTML = '';
 
   const shell = document.createElement('div');
@@ -127,9 +131,13 @@ function renderAppShell(settings) {
   main.className = 'app-main';
   shell.appendChild(main);
 
+  // FA-USER-04: der "Gruppe"-Tab ist NUR fuer Admins sichtbar - Mitglieder sehen ihn gar
+  // nicht erst, statt sich auf die serverseitige 403-Antwort (requireAdmin) zu verlassen.
+  const tabs = session && session.role === 'admin' ? [...BASE_TABS, ADMIN_TAB] : BASE_TABS;
+
   const panels = {};
   const tabButtons = {};
-  for (const tab of TABS) {
+  for (const tab of tabs) {
     const panel = document.createElement('section');
     panel.className = 'tab-panel';
     panel.dataset.tab = tab.id;
@@ -139,14 +147,14 @@ function renderAppShell(settings) {
   }
 
   function activateTab(id) {
-    for (const tab of TABS) {
+    for (const tab of tabs) {
       panels[tab.id].hidden = tab.id !== id;
       tabButtons[tab.id].classList.toggle('active', tab.id === id);
     }
   }
 
   const header = shell.querySelector('.app-tabs');
-  for (const tab of TABS) {
+  for (const tab of tabs) {
     const btn = document.createElement('button');
     btn.className = 'tab-btn' + (tab.id === 'overview' ? ' active' : '');
     btn.textContent = tab.label;
@@ -166,6 +174,7 @@ function renderAppShell(settings) {
     breakthroughsContainer: panels.breakthroughs,
     weightKg: settings.weightKg,
   }).catch(showFatalError);
+  if (panels.group) renderGroup(panels.group).catch(showFatalError);
 }
 
 function buildHeader() {

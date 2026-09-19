@@ -87,6 +87,18 @@ async function route(request, url, env, ctx) {
     const session = await requireSession(request, env);
     const body = await request.json();
     await putImportProgress(env.ALLOWLIST_KV, session.email, body);
+    // FA-USER-04: body===null ist das einzige Signal fuer "Sync abgeschlossen"
+    // (syncEngine.js#runSync, direkt nach index.lastSyncAt = ...) - genau dann den
+    // Allowlist-Eintrag stempeln, EIN zusaetzlicher KV-Schreibzugriff je abgeschlossenem
+    // Sync-Lauf (nicht je Aktivitaet), Kap. 3.4s 1000-Schreibzugriffe/Tag-Budget bleibt
+    // unangetastet.
+    if (body === null) {
+      const entry = await getAllowlistEntry(env.ALLOWLIST_KV, session.email);
+      if (entry) {
+        entry.lastSyncAt = new Date().toISOString();
+        await putAllowlistEntry(env.ALLOWLIST_KV, entry);
+      }
+    }
     return json({ ok: true }, {}, env);
   }
 
@@ -94,7 +106,17 @@ async function route(request, url, env, ctx) {
     const session = await requireSession(request, env);
     requireAdmin(session);
     const members = await listAllowlist(env.ALLOWLIST_KV);
-    return json({ members }, {}, env); // FA-USER-04: keine Trainingsdaten enthalten
+    // FA-USER-04: Importfortschritt je Mitglied dazumischen - NUR die Warteschlangen-
+    // Laenge/ob ueberhaupt gerade importiert wird, keine Aktivitaetsinhalte (das bleibt
+    // "keine Trainingsdaten"). Max. 10 zusaetzliche KV-Lesezugriffe (Obergrenze FA-USER-03),
+    // unkritisch.
+    const withProgress = await Promise.all(
+      members.map(async (m) => {
+        const progress = await getImportProgress(env.ALLOWLIST_KV, m.email);
+        return { ...m, importing: !!progress, queueRemaining: progress ? progress.queue.length : null };
+      })
+    );
+    return json({ members: withProgress }, {}, env);
   }
 
   if (pathname === '/api/admin/invite' && request.method === 'POST') {

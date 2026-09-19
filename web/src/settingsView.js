@@ -8,8 +8,10 @@
 import { DEFAULT_SETTINGS } from '../vendor/core/src/index.js';
 import { isLightTheme, setTheme } from './theme.js';
 import { loadOrInitSettings, SETTINGS_FILE } from './onboarding.js';
-import { writeJson } from './storage.js';
+import { writeJson, deleteAllFiles } from './storage.js';
 import { recomputeAll } from './compute.js';
+import { deleteMyAccount } from './api.js';
+import { signOut } from './auth.js';
 
 const pct = { toDisplay: (v) => Math.round(v * 1000) / 10, fromDisplay: (v) => v / 100 };
 const identity = { toDisplay: (v) => v, fromDisplay: (v) => v };
@@ -158,6 +160,7 @@ export async function openSettings() {
   renderLabValuesCard();
   renderParamsCard();
   renderChangelogCard();
+  renderAccountCard();
 
   // ---------- Erscheinungsbild ----------
   function renderAppearanceCard() {
@@ -571,5 +574,58 @@ export async function openSettings() {
       row.innerHTML = `<span>${when}</span><span class="hint">${summary}</span>`;
       list.appendChild(row);
     }
+  }
+
+  // ---------- FA-USER-07: "Meine Daten löschen" ----------
+  function renderAccountCard() {
+    const card = document.createElement('div');
+    card.className = 'card';
+    panel.appendChild(card);
+
+    const h = document.createElement('h3');
+    h.textContent = 'Konto';
+    card.appendChild(h);
+
+    const hint = document.createElement('p');
+    hint.className = 'hint';
+    hint.textContent =
+      'Löscht deinen gesamten App-Ordner in deinem Google Drive und trennt die Strava-Verbindung. Unwiderruflich - siehe Datenschutzhinweis.';
+    card.appendChild(hint);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'btn-danger';
+    deleteBtn.textContent = 'Meine Daten löschen';
+    card.appendChild(deleteBtn);
+
+    const statusP = document.createElement('p');
+    card.appendChild(statusP);
+
+    // Zwei-Schritt-Bestaetigung statt Ein-Klick-Loeschen (die Aktion ist irreversibel):
+    // erster Klick zeigt eine explizite "wirklich?"-Rueckfrage mit eigenem Bestaetigungs-
+    // Button, erst der zweite Klick loest die Loeschung tatsaechlich aus.
+    let confirming = false;
+    deleteBtn.onclick = async () => {
+      if (!confirming) {
+        confirming = true;
+        deleteBtn.textContent = 'Wirklich unwiderruflich löschen?';
+        deleteBtn.classList.add('btn-danger-confirm');
+        statusP.className = 'error';
+        statusP.textContent = 'Klicke erneut, um endgültig zu bestätigen.';
+        return;
+      }
+      deleteBtn.disabled = true;
+      statusP.className = 'hint';
+      statusP.textContent = 'Lösche Daten...';
+      try {
+        await deleteMyAccount();
+        await deleteAllFiles();
+        signOut();
+        window.location.reload();
+      } catch (err) {
+        statusP.className = 'error';
+        statusP.textContent = err.message;
+        deleteBtn.disabled = false;
+      }
+    };
   }
 }
