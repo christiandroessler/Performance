@@ -245,7 +245,7 @@ test('holdOutBacktest: leere Belastungsdaten liefern null statt zu werfen', () =
 });
 
 test('displaySignatureAtDate: addiert den kalibrierten Belastungstrend auf die zum Datum gueltige Signatur', () => {
-  const settings = mergeSettings({ loadResponseDisplayDiscountPct: 0 });
+  const settings = mergeSettings({ loadResponseDisplayDiscountPct: 0, signatureDecayMaxPct: 0 }); // Signatur-Verfall hier ausgeschaltet, eigene Tests unten
   const history = [{ date: '2026-01-01', cp: 250, wPrimeJ: 20000, pMax: 1000, source: 'initial' }];
   const series = [{ date: '2026-02-01', cp: { g: 10, h: 0, p: 10 }, wPrime: { g: 5, h: 0, p: 5 }, pMax: { g: 2, h: 0, p: 2 } }];
   const calibration = { cp: { k1: 2, fitted: true, supportCount: 5 }, wPrime: { k1: 1, fitted: false, supportCount: 0 }, pMax: { k1: 3, fitted: true, supportCount: 5 } };
@@ -258,7 +258,7 @@ test('displaySignatureAtDate: addiert den kalibrierten Belastungstrend auf die z
 });
 
 test('displaySignatureAtDate: Anzeige-Abschlag reduziert den Trendanteil proportional', () => {
-  const settings = mergeSettings({ loadResponseDisplayDiscountPct: 20 });
+  const settings = mergeSettings({ loadResponseDisplayDiscountPct: 20, signatureDecayMaxPct: 0 }); // Signatur-Verfall hier ausgeschaltet, eigene Tests unten
   const history = [{ date: '2026-01-01', cp: 250, wPrimeJ: 20000, pMax: 1000, source: 'initial' }];
   const series = [{ date: '2026-02-01', cp: { g: 10, h: 0, p: 10 }, wPrime: { g: 0, h: 0, p: 0 }, pMax: { g: 0, h: 0, p: 0 } }];
   const calibration = { cp: { k1: 1, fitted: true, supportCount: 5 }, wPrime: { k1: 1, fitted: false, supportCount: 0 }, pMax: { k1: 1, fitted: false, supportCount: 0 } };
@@ -273,4 +273,36 @@ test('displaySignatureAtDate: ohne passenden Serieneintrag (z. B. vor der ersten
   const result = displaySignatureAtDate('2026-01-01', history, [], {}, settings);
   assert.equal(result.hasLoadAdjustment, false);
   assert.equal(result.cp, 250);
+  assert.equal(result.decayApplied, false);
+});
+
+test('displaySignatureAtDate: innerhalb der Karenzzeit (Signatur-Verfall) keine Aenderung', () => {
+  const settings = mergeSettings();
+  const history = [{ date: '2026-01-01', cp: 250, wPrimeJ: 20000, pMax: 1000, source: 'initial' }];
+  const result = displaySignatureAtDate(addDaysLocal('2026-01-01', settings.signatureDecayGraceDays), history, [], {}, settings);
+  assert.equal(result.decayApplied, false);
+  assert.equal(result.cp, 250);
+});
+
+test('displaySignatureAtDate: nach der Karenzzeit faellt der Basiswert je System mit eigener Zeitkonstante, nie unter den Boden', () => {
+  const settings = mergeSettings();
+  const history = [{ date: '2026-01-01', cp: 300, wPrimeJ: 30000, pMax: 1200, source: 'initial' }];
+
+  // Kurz nach der Karenzzeit: messbarer, aber kleiner Verfall
+  const soon = displaySignatureAtDate(addDaysLocal('2026-01-01', settings.signatureDecayGraceDays + 10), history, [], {}, settings);
+  assert.equal(soon.decayApplied, true);
+  assert.ok(soon.cp < 300 && soon.cp > 270, `cp=${soon.cp} sollte leicht unter 300 liegen`);
+
+  // TP (schnellste Zeitkonstante) sollte prozentual staerker verfallen sein als HIE, HIE staerker als PP
+  const cpLossPct = (300 - soon.cp) / 300;
+  const wPrimeLossPct = (30000 - soon.wPrimeJ) / 30000;
+  const pMaxLossPct = (1200 - soon.pMax) / 1200;
+  assert.ok(cpLossPct > wPrimeLossPct, 'TP sollte staerker verfallen sein als HIE (kuerzere Zeitkonstante)');
+  assert.ok(wPrimeLossPct > pMaxLossPct, 'HIE sollte staerker verfallen sein als PP (kuerzere Zeitkonstante)');
+
+  // Sehr lange danach: naehert sich dem Boden (1 - signatureDecayMaxPct), unterschreitet ihn nie
+  const farFuture = displaySignatureAtDate(addDaysLocal('2026-01-01', 3650), history, [], {}, settings);
+  const floor = 1 - settings.signatureDecayMaxPct;
+  assert.ok(farFuture.cp >= 300 * floor - 1e-6, `cp=${farFuture.cp} sollte den Boden (${300 * floor}) nie unterschreiten`);
+  assert.ok(Math.abs(farFuture.cp - 300 * floor) < 1, 'cp sollte sich nach sehr langer Zeit dem Boden annaehern');
 });

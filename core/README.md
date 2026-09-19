@@ -32,7 +32,7 @@ Diese Version deckt den **M1-Umfang** ab (Kap. 10):
 
 ## Stand der Verifikation
 
-Alle 98 automatisierten Tests laufen gruen (`npm test` im `core`-Ordner).
+Alle 100 automatisierten Tests laufen gruen (`npm test` im `core`-Ordner).
 Zusaetzlich wurde der komplette Aktivitaetsbestand eines echten Nutzers
 (1977 Rad-Aktivitaeten mit Leistung, 2017–2026, aus der bestehenden
 `strava-dashboard`-Datenbank, siehe `scripts/run-legacy-db.js`) mehrfach
@@ -818,6 +818,79 @@ ersetzt nicht den Breakthrough-Stand" gekennzeichnet, da p=g-h eine
 langsam-minus-schnell-Differenz wie TSB ist (kann je nach juengster
 Belastung ueber ODER unter dem rohen Wert liegen), kein reiner
 Verfall-nach-Zeit.
+
+### Signatur-Verfall (2026-09-19, M1-Festlegung, `signatureDecayGraceDays`/`signatureDecayTauCpDays`/`signatureDecayTauWPrimeDays`/`signatureDecayTauPMaxDays`/`signatureDecayMaxPct`)
+
+Direkte Folgefrage des Nutzers zur UI-Anbindung oben: "warum sinkt TP
+zwischen Breakthroughs nie, obwohl seit dem letzten (Maerz) Monate ohne
+neuen Breakthrough vergangen sind - sollte sich nicht wiederholt
+bestaetigen, sonst absinken?" Recherche in zwei Runden:
+
+**Runde 1 (allgemeine Detraining-Literatur):** Mujika & Padilla 2000/2001
+("Detraining: Loss of Training-Induced Physiological and Performance
+Adaptations", Sports Medicine - die Standardreferenz) belegen einen
+messbaren aeroben Leistungsverlust (VO2max) von ca. 4-7 % innerhalb 2-4
+Wochen kompletter Trainingspause, mit abnehmender Rate danach - der Verlauf
+naehert sich asymptotisch einem "Boden" an, ein trainierter Zustand geht
+nie vollstaendig verloren. Anaerobe/neuromuskulaere Qualitaeten (relevant
+fuer HIE/PP) verfallen dabei LANGSAMER (spaeterer Einsatzpunkt) als die
+aerobe Basis (TP) - qualitativ bestaetigt durch ein XERT-Forum-Nutzerzitat
+("given training loads for high and peak are low, it also moves more
+slowly"). XERT selbst (explizites Lastenheft-Vorbild, eigener
+Literaturverweis "XERT Signature Decay") nutzt ein Hybrid-Modell aus
+echtem Zeit-Verfall PLUS Belastungskopplung - verwarf einen reinen,
+belastungsunabhaengigen Zeit-Verfall explizit als "unreasonable decline".
+Keine dieser Quellen liefert jedoch eine exakte Zeitkonstante fuer TP/HIE/PP.
+
+**Runde 2 (gezielt nach der Kap. 7.7/7.8-Quelle selbst gesucht):**
+identifiziert als Kontro, Mastracci, Cheung, MacInnis, "The
+three-dimensional impulse-response model: Modeling the training process in
+accordance with energy system-specific adaptation" (PLOS ONE 2026, DOI
+10.1371/journal.pone.0341721, Preprint arXiv:2503.14841) - dieselben
+Autor:innen wie die bereits zitierte MPA-Quelle (Pmax-Stabilitaet oben),
+mit EXAKT demselben Fitness-minus-Fatigue-Modell (p=k1*g(t)-k2*h(t), g/h
+als EWMA mit tau1/tau2) und demselben Strain-Score-Konzept, das hier bereits
+implementiert ist. Das Paper selbst sagt explizit: "no published data exist
+to support the energy-system specific model parameters" - bestaetigt, dass
+es keine belastbare Literaturzahl gibt. Es liefert lediglich ein
+illustratives, an EINEM Beispiel-Athleten gefittetes Zahlenbeispiel (kein
+allgemeingueltiger Bereich): tau1(CP)≈52 Tage/tau2≈10 Tage,
+tau1(W')≈5 Tage/tau2≈5 Tage, tau1(Pmax)≈10 Tage/tau2≈4 Tage. **Bewusst NICHT
+uebernommen:** der bestehende `TAU1_MIN_DAYS`/`TAU1_MAX_DAYS`-Suchbereich
+(35-51 Tage) bleibt unveraendert UND gilt weiter fuer alle drei Systeme
+gleich, weil Kap. 7.8 diesen Bereich explizit selbst als "Literaturbereich"
+fuer tau1 vorgibt ("wie in gaengigen Plattformen") - ein einzelnes,
+moeglicherweise verrauschtes Beispiel eines fremden Athleten (das Paper
+selbst warnt, dass die Werte stark individuell variieren) waere keine
+hinreichende Grundlage, um von einer expliziten Lastenheft-Vorgabe
+abzuweichen.
+
+**Wichtigster Befund aus beiden Runden:** WEDER die allgemeine
+Detraining-Literatur NOCH diese konkrete Kontro-Quelle modellieren einen
+echten Verfall UNTER den zuletzt bestaetigten Wert - das g/h-Modell ist
+strukturell eine Fitness-minus-Fatigue-Differenz (wie TSB), die bei
+fehlendem Training gegen 0 (neutral, also zurueck zum rohen Breakthrough-
+Wert) pendelt, niemals darunter. Das Paper simuliert selbst "100 Tage
+Trainingspause" (Fig. 6): Performance steigt zunaechst leicht (Ermuedung
+klingt schneller ab als Fitness), sinkt danach zurueck - aber strukturell
+Richtung Baseline, nicht darunter.
+
+**Umsetzung** (`loadResponse.js#staleDecayFactor`, in `displaySignatureAtDate`
+VOR der g/h-Anpassung auf den Basiswert angewendet): eine eigene,
+zusaetzliche, explizit unbelegte Komponente - exponentieller Verfall des
+Basiswerts nach einer Karenzzeit (`signatureDecayGraceDays`, Standard 14
+Tage, begruendet durch Rundes-1-Literatur: erster messbarer Verlust erst
+nach 1-2 Wochen), mit je Energiesystem EIGENER Zeitkonstante
+(`signatureDecayTauCpDays`=45/`signatureDecayTauWPrimeDays`=75/
+`signatureDecayTauPMaxDays`=90 Tage - RICHTUNG qualitativ aus Runde 1
+begruendet: TP am schnellsten, PP am langsamsten; die genauen Zahlenwerte
+selbst sind, wie schon bei den Pmax-/HIE-Stabilitaets-Schwellen, eine eigene
+Festlegung, NICHT aus der Kontro-Quelle uebernommen), begrenzt auf einen
+Boden `signatureDecayMaxPct` (Standard 0,25 = 25 % maximaler Verfall, nie
+auf 0). Live im Browser-Pane-Preview mit den Nutzer-Realwerten (letzter
+Breakthrough 29.03., ~173 Tage seither) verifiziert: TP faellt von 304 W auf
+230 W, HIE von 21,8 auf 17,0 kJ, PP von 1092 auf 866 W - rechnerisch exakt
+nachvollzogen.
 
 ## Bekannte offene Punkte / Risiken
 

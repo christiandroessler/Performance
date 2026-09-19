@@ -180,10 +180,25 @@ neuen Breakthrough vergangen waren. Antwort: `displaySignatureAtDate`
 Dashboard-Kachel zeigte nur den rohen Breakthrough-Stand. Jetzt zeigt
 `dashboardView.js#renderSignatureTiles` zusaetzlich eine Zeile "Aktuell
 geschätzt (belastungsgekoppelt)" mit dem tatsaechlichen Trend-Wert, klar als
-Trend (nicht als Ersatz fuer den Breakthrough-Stand) gekennzeichnet. Live im
-Preview-Pane verifiziert (synthetische Daten, `renderDashboard` direkt
-importiert und mit manuell in IndexedDB gesetzten `model/*.json`-Dateien
-aufgerufen).
+Trend (nicht als Ersatz fuer den Breakthrough-Stand) gekennzeichnet.
+
+**Signatur-Verfall nachgelegt (2026-09-19):** Nachfrage des Nutzers ergab,
+dass selbst der belastungsgekoppelte Trend strukturell nie unter den
+Breakthrough-Wert faellt (g/h ist eine Fitness-minus-Fatigue-Differenz wie
+TSB, kein echter Verfall - bestaetigt durch ausfuehrliche Recherche
+inklusive der Identifikation der tatsaechlichen Kap. 7.7/7.8-Quelle, siehe
+`core/README.md` Abschnitt "Signatur-Verfall"). Neue, eigene Komponente:
+nach einer Karenzzeit faellt der Basiswert je System mit eigener
+Zeitkonstante exponentiell auf einen Boden - TP am schnellsten, PP am
+langsamsten (Detraining-Literatur), Zahlenwerte selbst als M1-Festlegung
+ausgewiesen (keine Quelle liefert sie). Die Zeile zeigt jetzt zusaetzlich
+"+ Signatur-Verfall" im Label, sobald das greift.
+
+Beide Aenderungen live im Preview-Pane verifiziert (synthetische Daten,
+`renderDashboard` direkt importiert und mit manuell in IndexedDB gesetzten
+`model/*.json`-Dateien aufgerufen) - mit den echten Datumswerten des
+Nutzers (letzter Breakthrough 29.03., ~173 Tage seither) rechnerisch exakt
+nachvollzogen.
 
 **PP/HIE-Ueberschaetzung, zwei Runden (2026-09-18, behoben in
 `core/src/breakthrough.js`/`cpFit.js`, Details in `core/README.md`

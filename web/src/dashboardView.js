@@ -258,19 +258,22 @@ function renderSignatureTiles(container, modelState, mmpCurves, displaySig) {
 }
 
 /**
- * FA-SIG-10 (Kap. 7.7): belastungsgekoppelte Anzeige zusaetzlich zum rohen Breakthrough-Stand
- * oben - kann je nach juengster Belastung ueber ODER unter dem rohen Wert liegen (g-h ist eine
- * langsam-minus-schnell-Differenz wie TSB, kein reiner Verfall). `hasLoadAdjustment: false`
- * (kein Serieneintrag fuer das gewaehlte Datum, z.B. noch keine Strain-Scores) oder eine fehlende
- * Kalibrierung fuer eines der drei Systeme blendet die Zeile ganz aus statt einer falschen Zahl.
+ * FA-SIG-10 (Kap. 7.7) + Signatur-Verfall (core/README.md): belastungsgekoppelte Anzeige
+ * zusaetzlich zum rohen Breakthrough-Stand oben - kann je nach juengster Belastung ueber ODER
+ * unter dem rohen Wert liegen (g-h ist eine langsam-minus-schnell-Differenz wie TSB) UND, seit
+ * einer eigenen zusaetzlichen Komponente, nach einer Karenzzeit ohne neue Bestaetigung
+ * exponentiell auf einen Boden abfaellt (nie auf 0) - siehe `displaySignatureAtDate`. Zeile wird
+ * nur ausgeblendet, wenn WEDER ein Belastungstrend NOCH ein Verfall vorliegt (frische Signatur,
+ * noch keine Strain-Scores), statt einer falschen/nichtssagenden Zahl.
  */
 function renderLoadAdjustedCaption(box, displaySig) {
-  if (!displaySig || !displaySig.hasLoadAdjustment) return;
+  if (!displaySig || (!displaySig.hasLoadAdjustment && !displaySig.decayApplied)) return;
   const p = document.createElement('p');
   p.className = 'stat-tile-caption';
   p.style.marginTop = '0.2rem';
+  const label = displaySig.decayApplied ? 'belastungsgekoppelt + Signatur-Verfall' : 'belastungsgekoppelt';
   p.innerHTML =
-    `Aktuell geschätzt (belastungsgekoppelt, Kap. 7.7): ${Math.round(displaySig.cp)} W · ${(displaySig.wPrimeJ / 1000).toFixed(1)} kJ · ${Math.round(displaySig.pMax)} W ` +
+    `Aktuell geschätzt (${label}, Kap. 7.7): ${Math.round(displaySig.cp)} W · ${(displaySig.wPrimeJ / 1000).toFixed(1)} kJ · ${Math.round(displaySig.pMax)} W ` +
     '<span class="badge badge-muted">Trend, ersetzt nicht den Breakthrough-Stand</span>';
   box.appendChild(p);
 }

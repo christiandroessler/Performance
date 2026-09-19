@@ -208,7 +208,18 @@ seit dem letzten Breakthrough (März) trotz monatelanger Trainingspause nicht
 sinkt - der belastungsgekoppelte Trend war im Rechenkern fertig, aber nie in
 der Dashboard-Kachel angezeigt. Jetzt zeigt die "Leistungssignatur"-Kachel
 zusaetzlich eine als Trend gekennzeichnete Zeile mit dem aktuell
-geschaetzten, belastungsgekoppelten Wert. Details in `web/README.md`.
+geschaetzten, belastungsgekoppelten Wert.
+
+**Signatur-Verfall ergaenzt (2026-09-19):** ausfuehrliche Recherche (inkl.
+Identifikation der tatsaechlichen akademischen Quelle hinter Kap. 7.7/7.8)
+zeigte: weder die Literatur noch diese Quelle modellieren einen echten
+Verfall unter den zuletzt bestaetigten Wert - der belastungsgekoppelte Trend
+pendelt strukturell nur zurueck zur Baseline. Neue, eigene, explizit
+unbelegte Komponente (M1-Festlegung): exponentieller Verfall nach einer
+Karenzzeit, mit je Energiesystem eigener Zeitkonstante (TP am schnellsten,
+PP am langsamsten, qualitativ aus der Detraining-Literatur begruendet), auf
+einen Boden begrenzt. Details in `core/README.md` Abschnitt
+"Signatur-Verfall" und `web/README.md`.
 
 **PP/HIE-Ueberschaetzung, zwei Runden (2026-09-18, behoben, M1-Scope):** der
 Nutzer hatte unabhaengig von FA-SIG-10/12 gemeldet, dass sein Pmax seit

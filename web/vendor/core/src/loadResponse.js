@@ -42,6 +42,10 @@ function addDaysISO(dateStr, days) {
   return d.toISOString().slice(0, 10);
 }
 
+function daysBetweenISO(fromDate, toDate) {
+  return Math.round((new Date(toDate + 'T00:00:00Z') - new Date(fromDate + 'T00:00:00Z')) / 86400000);
+}
+
 function subtractMonthsISO(dateStr, months) {
   const d = new Date(dateStr + 'T00:00:00Z');
   d.setUTCMonth(d.getUTCMonth() - months);
@@ -294,10 +298,32 @@ export function holdOutBacktest(sums, breakthroughs, settings) {
 }
 
 /**
+ * Signatur-Verfall (M1-Festlegung, siehe core/README.md "Signatur-Verfall"): weder das
+ * Lastenheft noch die Kontro et al. 2025-Quelle hinter dem g/h-Modell oben modellieren einen
+ * echten Verfall UNTER den zuletzt bestaetigten Wert - das g/h-Modell ist strukturell eine
+ * "Fitness minus Fatigue"-Differenz (wie TSB), die bei fehlendem Training gegen 0 (neutral)
+ * pendelt, niemals darunter (siehe core/README.md fuer die Herleitung samt Quellen). Diese
+ * Funktion ergaenzt das um eine eigene, explizit unbelegte Komponente: nach einer Karenzzeit
+ * ohne neue Bestaetigung faellt der Basiswert exponentiell auf einen Boden ab (nie auf 0,
+ * ein trainierter Zustand geht laut Detraining-Literatur - Mujika & Padilla 2000/2001 - nie
+ * vollstaendig verloren). Je System eine eigene Zeitkonstante, QUALITATIV begruendet durch
+ * dieselbe Literatur (aerobe Kapazitaet baut messbar schneller ab als anaerobe/neuromuskulaere
+ * Qualitaeten) - KEINE Quelle liefert exakte Tage-Werte fuer TP/HIE/PP speziell, die
+ * Zahlenwerte selbst sind daher eine eigene Festlegung wie k1s Grenzen.
+ */
+function staleDecayFactor(daysSinceConfirmation, graceDays, tauDays, maxPct) {
+  const effectiveDays = daysSinceConfirmation - graceDays;
+  if (effectiveDays <= 0) return 1;
+  const floor = 1 - maxPct;
+  return floor + maxPct * Math.exp(-effectiveDays / tauDays);
+}
+
+/**
  * Geglaettete "Anzeige-Signatur" an einem Datum: die zu diesem Datum gueltige
- * Breakthrough-Signatur (signatureAtDate, unveraendert) plus der belastungsgekoppelte
- * Trend seitdem, abzueglich des Anzeige-Abschlags (Startwert 0, siehe core/README.md und
- * holdOutBacktest fuer eine begruendete Empfehlung).
+ * Breakthrough-Signatur (signatureAtDate), abzueglich des Signatur-Verfalls seit der letzten
+ * Bestaetigung (staleDecayFactor), PLUS der belastungsgekoppelte Trend seitdem, abzueglich des
+ * Anzeige-Abschlags (Startwert 0, siehe core/README.md und holdOutBacktest fuer eine
+ * begruendete Empfehlung).
  * @param {string} date
  * @param {Array} history - result.history aus computeSignatureHistory
  * @param {ReturnType<typeof loadResponseSeries>} series
@@ -308,17 +334,26 @@ export function displaySignatureAtDate(date, history, series, calibration, setti
   const base = signatureAtDate(history, date);
   if (!base) return null;
 
+  const daysSinceConfirmation = daysBetweenISO(base.date, date);
+  const decayApplied = daysSinceConfirmation > settings.signatureDecayGraceDays;
+  const decayed = {
+    cp: base.cp * staleDecayFactor(daysSinceConfirmation, settings.signatureDecayGraceDays, settings.signatureDecayTauCpDays, settings.signatureDecayMaxPct),
+    wPrimeJ: base.wPrimeJ * staleDecayFactor(daysSinceConfirmation, settings.signatureDecayGraceDays, settings.signatureDecayTauWPrimeDays, settings.signatureDecayMaxPct),
+    pMax: base.pMax * staleDecayFactor(daysSinceConfirmation, settings.signatureDecayGraceDays, settings.signatureDecayTauPMaxDays, settings.signatureDecayMaxPct),
+  };
+
   const entry = series.find((e) => e.date === date);
-  if (!entry) return { cp: base.cp, wPrimeJ: base.wPrimeJ, pMax: base.pMax, hasLoadAdjustment: false, calibration };
+  if (!entry) return { cp: decayed.cp, wPrimeJ: decayed.wPrimeJ, pMax: decayed.pMax, hasLoadAdjustment: false, decayApplied, calibration };
 
   const discount = (settings.loadResponseDisplayDiscountPct || 0) / 100;
   const adjust = (system, baseValue) => baseValue + calibration[system].k1 * entry[system].p * (1 - discount);
 
   return {
-    cp: adjust('cp', base.cp),
-    wPrimeJ: adjust('wPrime', base.wPrimeJ),
-    pMax: adjust('pMax', base.pMax),
+    cp: adjust('cp', decayed.cp),
+    wPrimeJ: adjust('wPrime', decayed.wPrimeJ),
+    pMax: adjust('pMax', decayed.pMax),
     hasLoadAdjustment: true,
+    decayApplied,
     calibration,
   };
 }

@@ -88,6 +88,16 @@ const PARAM_GROUPS = [
     ],
   },
   {
+    title: 'Signatur-Verfall (belastungsgekoppelte Anzeige)',
+    params: [
+      { key: 'signatureDecayGraceDays', label: 'Karenzzeit ohne Verfall', unit: 'Tage', min: 0, max: 60, step: 1, ...identity, hint: 'M1-Festlegung, core/README.md' },
+      { key: 'signatureDecayTauCpDays', label: 'Verfall-Zeitkonstante TP', unit: 'Tage', min: 10, max: 180, step: 1, ...identity, hint: 'M1-Festlegung, core/README.md' },
+      { key: 'signatureDecayTauWPrimeDays', label: 'Verfall-Zeitkonstante HIE', unit: 'Tage', min: 10, max: 180, step: 1, ...identity, hint: 'M1-Festlegung, core/README.md' },
+      { key: 'signatureDecayTauPMaxDays', label: 'Verfall-Zeitkonstante PP', unit: 'Tage', min: 10, max: 180, step: 1, ...identity, hint: 'M1-Festlegung, core/README.md' },
+      { key: 'signatureDecayMaxPct', label: 'Maximaler Verfall', unit: '%', min: 0, max: 80, step: 1, ...pct, hint: 'M1-Festlegung, core/README.md' },
+    ],
+  },
+  {
     title: 'Stoffwechselmodell (Kap. 7.9)',
     params: [
       { key: 'activeMusclePctDefault', label: 'Aktive Muskelmasse', unit: '%', min: 15, max: 50, step: 1, ...pct, hint: 'Kap. 7.9, Standard 30% für Radfahren' },

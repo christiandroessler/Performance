@@ -36,6 +36,11 @@ export const DEFAULT_SETTINGS = {
   loadResponseMinBreakthroughsForFit: 3, // M4-Festlegung, siehe core/README.md (FA-SIG-12 Fallback-Schwelle, Phase 1)
   loadResponseDisplayDiscountPct: 0, // M4-Festlegung, siehe core/README.md (Anzeige-Abschlag, Startwert erst mit FA-SIG-12/Backtesting)
   loadResponseHoldOutMonths: 6, // Kap. 12 (FA-SIG-12): Hold-out-Zeitraum fuer den Backtesting-Bericht
+  signatureDecayGraceDays: 14, // M1-Festlegung, siehe core/README.md (Signatur-Verfall) - Detraining-Literatur: erster messbarer Verlust erst nach ~1-2 Wochen
+  signatureDecayTauCpDays: 45, // M1-Festlegung, siehe core/README.md (Signatur-Verfall) - TP/aerob baut am schnellsten ab
+  signatureDecayTauWPrimeDays: 75, // M1-Festlegung, siehe core/README.md (Signatur-Verfall) - HIE/anaerob haelt sich laenger
+  signatureDecayTauPMaxDays: 90, // M1-Festlegung, siehe core/README.md (Signatur-Verfall) - PP/neuromuskulaer haelt sich am laengsten
+  signatureDecayMaxPct: 0.25, // M1-Festlegung, siehe core/README.md (Signatur-Verfall) - maximaler Verfall (nie auf 0, ein trainierter Zustand geht nie vollstaendig verloren)
   activeMusclePctDefault: 0.3, // Kap. 7.9, Standard fuer Radfahren
   metShortDurationSeconds: 360, // M5-Festlegung, siehe core/README.md (Kurzzeitbedingung, Kap. 7.9: "Leistung bei VO2max ~ 6-min-Bestleistung")
   metShortDurationWeight: 1.0, // M5-Festlegung, siehe core/README.md (Gewicht im VO2max-Mittel gegenueber Laborwerten)

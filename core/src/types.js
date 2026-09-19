@@ -67,6 +67,11 @@
  * @property {number} minWprimeEvidenceCount - Standard 2: Mindestanzahl an W'-Evidenz-Stuetzpunkten, sonst bleibt W' beim Refit fixiert
  * @property {number} wprimeEvidenceMinCpMultiple - Standard 1.05: ein Stuetzpunkt zaehlt nur als W'-Evidenz, wenn er mindestens das X-fache der aktuellen TP erreicht
  * @property {number} maxWprimeChangePerBreakthrough - Standard 0.2 (20%): symmetrische Traegheitsbremse fuer W'-Aenderungen je Breakthrough (Anstieg und Abstieg), unabhaengig von der Absenkbremse
+ * @property {number} signatureDecayGraceDays - Standard 14 (Tage): keine Verfall-Anzeige innerhalb dieser Karenzzeit seit der letzten Bestaetigung, siehe core/README.md (Signatur-Verfall)
+ * @property {number} signatureDecayTauCpDays - Standard 45 (Tage): Verfall-Zeitkonstante fuer TP (aerob, schnellster Verfall), siehe core/README.md (Signatur-Verfall)
+ * @property {number} signatureDecayTauWPrimeDays - Standard 75 (Tage): Verfall-Zeitkonstante fuer HIE (anaerob, haelt sich laenger), siehe core/README.md (Signatur-Verfall)
+ * @property {number} signatureDecayTauPMaxDays - Standard 90 (Tage): Verfall-Zeitkonstante fuer PP (neuromuskulaer, haelt sich am laengsten), siehe core/README.md (Signatur-Verfall)
+ * @property {number} signatureDecayMaxPct - Standard 0.25 (25%): maximaler Verfall relativ zum bestaetigten Wert, nie auf 0, siehe core/README.md (Signatur-Verfall)
  * @property {number} thresholdEstimationWindowDays - Standard 180 (FA-TP-03/04): rollierendes Fenster fuer Sportart-Schwellen-Schaetzung
  * @property {number} thresholdEffortSeconds - Standard 1200 (20 Min, FA-TP-03): Zieldauer der "besten Anstrengung" fuer Pace-/HF-Schwellen
  * @property {number} thresholdCyclingPowerTolerance - Standard 0.05 (FA-TP-04): Toleranzband um TP fuer die Rad-Schwellen-HF-Schaetzung
