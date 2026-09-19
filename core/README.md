@@ -799,6 +799,26 @@ unabhaengiger Durchlauf gebaut (gleiches Muster wie
 Strain-Sub-Scores und die Breakthrough-Historie, aendern nichts an der
 bereits verifizierten CP-/Breakthrough-Pipeline.
 
+**UI-Anbindung nachgetragen (2026-09-19):** `displaySignatureAtDate` war seit
+M4 fertig implementiert/getestet, aber in `web/` bis dahin NIRGENDS
+tatsaechlich aufgerufen - die Dashboard-Kachel "Leistungssignatur" zeigte
+nur den rohen Stand vom letzten Breakthrough, der "Belastung"-Tab nur den
+abstrakten g/h/p-Verlauf in Strain-Score-Einheiten (FA-SIG-11). Der Nutzer
+fragte folgerichtig, warum TP zwischen Breakthroughs nie sinkt, obwohl
+seither Monate ohne neuen Breakthrough vergangen waren - die Antwort war
+eine echte Anbindungsluecke, kein Rechenfehler. Jetzt zeigt
+`dashboardView.js#renderSignatureTiles` zusaetzlich eine Zeile "Aktuell
+geschaetzt (belastungsgekoppelt)" mit dem Ergebnis von
+`displaySignatureAtDate` fuer das juengste Datum der geladenen
+`series` (NICHT den heutigen Kalendertag - `loadResponseSeriesForSystem`
+erstreckt sich nur bis zum Datum der letzten Aktivitaet mit Strain-Werten,
+siehe core-Kommentar oben; eine Ausweitung bis zum echten "heute" ohne neue
+Aktivitaet ist bewusst nicht Teil dieser Aenderung). Klar als "Trend,
+ersetzt nicht den Breakthrough-Stand" gekennzeichnet, da p=g-h eine
+langsam-minus-schnell-Differenz wie TSB ist (kann je nach juengster
+Belastung ueber ODER unter dem rohen Wert liegen), kein reiner
+Verfall-nach-Zeit.
+
 ## Bekannte offene Punkte / Risiken
 
 - **FIT-Parser (`src/importers/fit.js`) ist inzwischen gegen eine echte

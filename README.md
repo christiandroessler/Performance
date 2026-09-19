@@ -203,6 +203,13 @@ Jetzt auf eine feste Bandbreite (0,2-5) gekappt, mit Kennzeichnung im UI, wenn
 das greift. Details siehe `web/README.md` Abschnitt "M4-Status im Detail".
 Ein Abgleich am echten Konto des Auftraggebers steht noch aus.
 
+**Anbindungsluecke geschlossen (2026-09-19):** der Nutzer fragte, warum TP
+seit dem letzten Breakthrough (März) trotz monatelanger Trainingspause nicht
+sinkt - der belastungsgekoppelte Trend war im Rechenkern fertig, aber nie in
+der Dashboard-Kachel angezeigt. Jetzt zeigt die "Leistungssignatur"-Kachel
+zusaetzlich eine als Trend gekennzeichnete Zeile mit dem aktuell
+geschaetzten, belastungsgekoppelten Wert. Details in `web/README.md`.
+
 **PP/HIE-Ueberschaetzung, zwei Runden (2026-09-18, behoben, M1-Scope):** der
 Nutzer hatte unabhaengig von FA-SIG-10/12 gemeldet, dass sein Pmax seit
 laengerem zu hoch wirkt. Runde 1: die Nebenbedingungs-Korrektur (Kap. 7.5)

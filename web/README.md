@@ -173,6 +173,18 @@ Fallback-Regel per Test abgesichert, Abschlag-Startwert aus dem Backtesting).
 Ein echter Abgleich am Konto des Auftraggebers (insbesondere ob die
 kalibrierten Werte dort plausibel wirken) steht noch aus.
 
+**Anbindungsluecke geschlossen (2026-09-19):** der Nutzer fragte, warum TP
+zwischen Breakthroughs nie sinkt, obwohl seit dem letzten (März) Monate ohne
+neuen Breakthrough vergangen waren. Antwort: `displaySignatureAtDate`
+(core, oben) war fertig, aber nirgends in der UI verdrahtet - die
+Dashboard-Kachel zeigte nur den rohen Breakthrough-Stand. Jetzt zeigt
+`dashboardView.js#renderSignatureTiles` zusaetzlich eine Zeile "Aktuell
+geschätzt (belastungsgekoppelt)" mit dem tatsaechlichen Trend-Wert, klar als
+Trend (nicht als Ersatz fuer den Breakthrough-Stand) gekennzeichnet. Live im
+Preview-Pane verifiziert (synthetische Daten, `renderDashboard` direkt
+importiert und mit manuell in IndexedDB gesetzten `model/*.json`-Dateien
+aufgerufen).
+
 **PP/HIE-Ueberschaetzung, zwei Runden (2026-09-18, behoben in
 `core/src/breakthrough.js`/`cpFit.js`, Details in `core/README.md`
 "Relative Korrekturgrenze" und "Pmax-Stabilitaet"):**

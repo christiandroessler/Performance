@@ -13,7 +13,7 @@
 // das dortige "Today"-Workout-Widget.
 
 import { loadIndex } from './sync.js';
-import { loadModelState, loadThresholds, loadMmpCurves, recomputeAll } from './compute.js';
+import { loadModelState, loadThresholds, loadMmpCurves, loadLoadResponse, recomputeAll } from './compute.js';
 import { ppPlausibility } from './ppCheck.js';
 import { renderActivityList } from './activityListView.js';
 import { computePmcSeries, renderMetricsSidebar, renderPmcChart } from './pmcView.js';
@@ -23,6 +23,8 @@ import { renderWeekOverview } from './weekView.js';
 import { renderRecentActivity, renderThisWeekSummary, renderRecentBreakthroughs, renderSportThresholds } from './dashboardExtras.js';
 import { renderLoadResponse } from './loadResponseView.js';
 import { computeCurrentMetabolicProfile, renderMetabolicTiles, renderMetabolicView } from './metabolicView.js';
+import { loadOrInitSettings } from './onboarding.js';
+import { mergeSettings, displaySignatureAtDate } from '../vendor/core/src/index.js';
 
 export async function renderDashboard({ overviewContainer, activitiesContainer, weeksContainer, powerCurveContainer, loadResponseContainer, metabolicContainer, breakthroughsContainer }) {
   overviewContainer.innerHTML = '';
@@ -138,7 +140,23 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
     await safeRenderAsync(null, 'Leistungskurven laden', async () => {
       mmpCurves = await loadMmpCurves();
     });
-    safeRender(signatureContainer, 'Leistungssignatur', () => renderSignatureTiles(signatureContainer, modelState, mmpCurves));
+
+    // FA-SIG-10 (M4, Kap. 7.7): belastungsgekoppelte Anzeige zusaetzlich zum rohen
+    // Breakthrough-Stand - siehe core/README.md "Belastungsgekoppelter Signaturverlauf".
+    // displaySignatureAtDate() gab es schon vorher im Rechenkern, war aber bisher nirgends
+    // in der UI verdrahtet (nur der abstrakte g/h/p-Verlauf im "Belastung"-Tab) - genau das,
+    // was der Nutzer als "warum sinkt TP zwischen Breakthroughs nie" gemeldet hat.
+    let displaySig = null;
+    await safeRenderAsync(null, 'Belastungsgekoppelte Anzeige laden', async () => {
+      const { series, calibration } = await loadLoadResponse();
+      if (series && series.length > 0 && calibration) {
+        const settingsJson = await loadOrInitSettings();
+        const settings = mergeSettings(settingsJson.modelSettings || {});
+        const latestSeriesDate = series[series.length - 1].date;
+        displaySig = displaySignatureAtDate(latestSeriesDate, modelState.history, series, calibration, settings);
+      }
+    });
+    safeRender(signatureContainer, 'Leistungssignatur', () => renderSignatureTiles(signatureContainer, modelState, mmpCurves, displaySig));
 
     await safeRenderAsync(metabolicTilesContainer, 'Stoffwechselprofil', async () => {
       const computed = await computeCurrentMetabolicProfile();
@@ -198,7 +216,7 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
 const PP_DEVIATION_WARN_PCT = 0.1;
 
 /** XERT-Vorbild: aktuelle Leistungssignatur (CP/W'/Pmax) prominent als Kacheln. */
-function renderSignatureTiles(container, modelState, mmpCurves) {
+function renderSignatureTiles(container, modelState, mmpCurves, displaySig) {
   container.innerHTML = '';
   if (modelState.needsMoreData || !modelState.history || modelState.history.length === 0) return;
 
@@ -235,7 +253,26 @@ function renderSignatureTiles(container, modelState, mmpCurves) {
   caption.textContent = `Stand: ${latest.date}${latest.source === 'initial' ? ' (Startsignatur)' : ' (nach Breakthrough)'}`;
   box.appendChild(caption);
 
+  renderLoadAdjustedCaption(box, displaySig);
   renderPpPlausibility(box, latest, mmpCurves);
+}
+
+/**
+ * FA-SIG-10 (Kap. 7.7): belastungsgekoppelte Anzeige zusaetzlich zum rohen Breakthrough-Stand
+ * oben - kann je nach juengster Belastung ueber ODER unter dem rohen Wert liegen (g-h ist eine
+ * langsam-minus-schnell-Differenz wie TSB, kein reiner Verfall). `hasLoadAdjustment: false`
+ * (kein Serieneintrag fuer das gewaehlte Datum, z.B. noch keine Strain-Scores) oder eine fehlende
+ * Kalibrierung fuer eines der drei Systeme blendet die Zeile ganz aus statt einer falschen Zahl.
+ */
+function renderLoadAdjustedCaption(box, displaySig) {
+  if (!displaySig || !displaySig.hasLoadAdjustment) return;
+  const p = document.createElement('p');
+  p.className = 'stat-tile-caption';
+  p.style.marginTop = '0.2rem';
+  p.innerHTML =
+    `Aktuell geschätzt (belastungsgekoppelt, Kap. 7.7): ${Math.round(displaySig.cp)} W · ${(displaySig.wPrimeJ / 1000).toFixed(1)} kJ · ${Math.round(displaySig.pMax)} W ` +
+    '<span class="badge badge-muted">Trend, ersetzt nicht den Breakthrough-Stand</span>';
+  box.appendChild(p);
 }
 
 /** FA-SIG-13: Modell-PP gegen die bis dahin gemessene beste 5-s-Leistung. Reine Anzeige, korrigiert das Modell nicht. */
