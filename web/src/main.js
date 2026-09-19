@@ -223,6 +223,7 @@ function buildUserMenu() {
 
   addItem('Einstellungen', openSettings);
   addItem('Begriffe', openGlossary);
+  addItem('Datenschutz', () => window.open('/privacy.html', '_blank', 'noopener')); // NFA-02: jederzeit einsehbar, nicht nur im Onboarding
   const divider = document.createElement('hr');
   divider.className = 'user-menu-divider';
   dropdown.appendChild(divider);

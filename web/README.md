@@ -317,6 +317,23 @@ Verdacht auf eingefrorene Alt-Werte muessen einmalig in Einstellungen →
 Modellparameter → "Auf Startwerte zurücksetzen" klicken (oder den
 betroffenen Wert manuell auf den neuen Default setzen und speichern).
 
+## M6-Status im Detail
+
+FA-USER-01 bis 08 (Gruppe), FA-PWA-01 bis 04 (PWA), NFA-02 (Datenschutz),
+Kap. 6.2/6.10. Vorab-Recherche ergab: der Worker-Backend-Code fuer die
+Gruppenverwaltung war bereits fast vollstaendig fertig (Invite/Remove/
+Self-Delete/Admin-Liste/10er-Obergrenze in `worker/src/index.js`, Client in
+`src/api.js`), aber nie an eine UI angeschlossen; der Datenschutzhinweis
+(`privacy.html`) existierte bereits inhaltlich vollstaendig, war aber
+verwaist (nirgends verlinkt).
+
+**Phase 1, Datenschutz (NFA-02) - abgeschlossen:** `onboarding.js`s erster
+Schritt verlinkt jetzt sichtbar auf `/privacy.html` (neuer Tab, unterbricht
+den Einwilligungs-Fluss nicht), der Platzhalter-Kommentar ("folgt in M6")
+ist aufgeloest. Zusaetzlich ein "Datenschutz"-Eintrag im Nutzer-Menue
+(`main.js#buildUserMenu`), damit der Hinweis jederzeit erreichbar ist, nicht
+nur im Onboarding.
+
 ## Ablageformat der Streams (`streams/YYYY-MM.bin`)
 
 In M1 bewusst offengelassen ("wird erst in M2 festgelegt", `core/README.md`).

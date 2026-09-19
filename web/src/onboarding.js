@@ -97,8 +97,18 @@ export function renderOnboarding(container, { resumeStep, onComplete }) {
       'Deine Trainingsdaten liegen ausschliesslich in deinem eigenen Google-Drive-App-Ordner und im lokalen Browser-Cache. ' +
       'Der Server (Worker) speichert keine Trainingsdaten, nur deinen Verbindungsstatus und ein verschluesseltes Strava-Token. ' +
       'Der Admin hat keinen Zugriff auf deine Trainingsdaten. Du kannst deine Daten jederzeit vollstaendig loeschen.';
-    // Hinweis: vollstaendiger, rechtlich abgestimmter Text folgt in M6 (NFA-02).
     box.appendChild(p);
+
+    // NFA-02: vollstaendiger Datenschutzhinweis (Datenkategorien, Speicherort, Zugriff,
+    // Loeschweg) - eigene Seite, oeffnet in neuem Tab, unterbricht den Einwilligungs-Fluss nicht.
+    const privacyLink = document.createElement('a');
+    privacyLink.href = '/privacy.html';
+    privacyLink.target = '_blank';
+    privacyLink.rel = 'noopener';
+    privacyLink.className = 'hint';
+    privacyLink.textContent = 'Vollständiger Datenschutzhinweis';
+    box.appendChild(privacyLink);
+    box.appendChild(document.createElement('br'));
 
     const label = document.createElement('label');
     label.className = 'checkbox-row';
