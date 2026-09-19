@@ -245,6 +245,23 @@ dynamischen Modells und wird von der V1-Variante bewusst nicht literal
 reproduziert; die Hill-Kinetik-Konstanten sind aus einer PDF-Extraktion
 gewonnen (Tier B), nicht am Original-Python-Code gegengeprueft.
 
+**Bugfix (2026-09-19):** `settingsView.js#renderParamsCard` fror beim
+Klick auf "Speichern" ALLE Modellparameter als expliziten Nutzer-Override
+ein (nicht nur tatsaechlich geaenderte) - jeder Save, egal wofuer, schrieb
+den zu diesem Zeitpunkt angezeigten Wert (Default oder Override) fuer
+jeden einzelnen Parameter fest. Folge: spaetere Aenderungen an
+`DEFAULT_SETTINGS` (core/src/settings.js) wirkten sich fuer Nutzer, die
+schon einmal gespeichert hatten, nie wieder aus - konkret sichtbar daran,
+dass `metShortDurationSeconds` bei einem Nutzer trotz Redesign (15 s → 360 s,
+siehe oben) weiter auf dem alten Startwert (15 s) verharrte. Fix: nur noch
+echte Abweichungen vom AKTUELLEN Startwert werden in `modelSettings`
+persistiert (FA-SET-02/03-konform: "Abweichungen je Nutzer", kein
+Voll-Snapshot). Bereits eingefrorene Alt-Werte aus vor dem Fix gespeicherten
+Einstellungen werden dadurch NICHT rueckwirkend bereinigt - Nutzer mit
+Verdacht auf eingefrorene Alt-Werte muessen einmalig in Einstellungen →
+Modellparameter → "Auf Startwerte zurücksetzen" klicken (oder den
+betroffenen Wert manuell auf den neuen Default setzen und speichern).
+
 ## Ablageformat der Streams (`streams/YYYY-MM.bin`)
 
 In M1 bewusst offengelassen ("wird erst in M2 festgelegt", `core/README.md`).

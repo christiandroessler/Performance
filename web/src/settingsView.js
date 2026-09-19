@@ -469,11 +469,17 @@ export async function openSettings() {
     card.appendChild(statusP);
 
     saveBtn.onclick = async () => {
+      // Nur echte Abweichungen vom aktuellen Startwert persistieren (FA-SET-02/03),
+      // sonst friert jedes Speichern ALLE Parameter beim damaligen Startwert ein und
+      // spaetere Aenderungen an DEFAULT_SETTINGS (core/src/settings.js) wirken sich
+      // fuer diesen Nutzer nie wieder aus - siehe core/README.md "Bekannte offene Punkte".
       const next = {};
       for (const param of ALL_PARAMS) {
         const input = inputs.get(param.key);
         const raw = Number(input.value);
-        if (Number.isFinite(raw)) next[param.key] = param.fromDisplay(raw);
+        if (!Number.isFinite(raw)) continue;
+        const value = param.fromDisplay(raw);
+        if (Math.abs(value - DEFAULT_SETTINGS[param.key]) > 1e-9) next[param.key] = value;
       }
       await applyModelSettings(next, statusP, saveBtn, resetBtn);
     };
