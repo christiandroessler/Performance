@@ -204,12 +204,35 @@ Alle neuen Einstellungen sind jetzt in den Einstellungen unter
 "Nebenbedingungs-Korrektur" bzw. "PP-Stabilität" editierbar (zusammen mit
 den bis dahin dort komplett fehlenden `maxPlausiblePMax`/`maxPlausibleCp`).
 **Live vom Nutzer bestaetigt (2026-09-18):** PP zeigt nach Neuberechnung
-1060 W - "passt erstmal". Das PP-Problem gilt als abgeschlossen. HIE
-(wPrimeJ) bleibt auf Wunsch des Nutzers zurueckgestellt ("machen wir
-später") - zeigt denselben Instabilitaets-Verdacht (rohe Fits landen
-wiederholt exakt auf einem internen Sicherheits-Clamp, 45000 J), noch nicht
-untersucht, ob eine aehnliche Evidenz-/Traegheits-Behandlung sinnvoll waere
-(core/README.md).
+1060 W - "passt erstmal". Das PP-Problem gilt als abgeschlossen.
+
+**HIE-Stabilitaet, Runde 3 (2026-09-19, behoben in `core/src/breakthrough.js`/
+`cpFit.js`, Details in `core/README.md` "HIE-Stabilitaet"):** HIE (wPrimeJ)
+war zunaechst auf Wunsch des Nutzers zurueckgestellt ("machen wir später"),
+zeigte aber denselben Instabilitaets-Verdacht wie Pmax (rohe Fits landeten
+wiederholt exakt auf dem internen 45000-J-Sicherheits-Clamp). Sichtbar
+geworden ueber M5 (Stoffwechselmodell): der Nutzer meldete "VLaMax steht
+immer noch bei 0,8" nach dem Sentiero-Vergleich - Ursache war der
+eingefrorene `wPrimeJ`-Wert, nicht die VLamax-Formel. Auf Nachfrage
+entschied der Nutzer, HIE jetzt doch zu fixen. Gleiche Methode wie bei Pmax
+(Evidenz-Gate + symmetrische Traegheitsbremse), aber mit eigenem, aus der
+Literatur hergeleitetem Dauerbereich (2-20 min statt <=20 s, da W' aus
+nahe-erschoepfenden Mehrminuten-Efforts bestimmt wird, nicht aus Sprints).
+Am echten Datensatz verifiziert: `wPrimeJ` steigt jetzt glatt von 17,4 kJ
+auf 31,4 kJ statt am 45-kJ-Clamp zu haengen; VLamax im Stoffwechselmodell
+faellt dadurch von 0,80 auf 0,52 (13 % statt 33 % Abweichung von Sentieros
+0,6). Neue Einstellungsgruppe "HIE-Stabilität".
+
+**Nebenbefund, ebenfalls behoben (2026-09-19):** die Ursache fuer "VLaMax
+0,8 aendert sich nicht trotz Code-Fix" lag zusaetzlich an einem zweiten,
+unabhaengigen Bug in `settingsView.js`: jeder Klick auf "Speichern" fror
+ALLE Modellparameter als festen Nutzer-Override ein, nicht nur die
+tatsaechlich geaenderten - wer einmal gespeichert hatte, blieb dadurch fuer
+immer auf den damaligen Startwerten haengen, unabhaengig von spaeteren
+Code-Aenderungen an `DEFAULT_SETTINGS`. Fix: nur noch echte Abweichungen
+vom AKTUELLEN Startwert werden persistiert. Nutzer mit Verdacht auf
+eingefrorene Alt-Werte muessen einmalig "Auf Startwerte zurücksetzen"
+klicken (Details unten, M5-Status "Bugfix").
 
 ## M5-Status im Detail
 
@@ -225,17 +248,22 @@ Stunde), Kompakt-Karte in der Uebersicht, neue Kennzahlen in der
 Aktivitaets-Detailansicht (Energie/KH/Fett gesamt + pro Stunde), neue
 Laborwerte-Card in den Einstellungen (FA-MET-02, optionale zusaetzliche
 Bedingung, ueberschreibt nie die TP). Alle Anzeigen sind durchgehend als
-"Modellschätzung" gekennzeichnet (FA-MET-06/NFA-11). `core/`: 93 Tests
-(25 neu, `metabolic.test.js`).
+"Modellschätzung" gekennzeichnet (FA-MET-06/NFA-11). `core/`: 98 Tests
+(25 neu fuer `metabolic.test.js`, 5 weitere fuer den HIE-Stabilitaets-Fix
+unten).
 
 **Validierung gegen Sentiero (2026-09-19):** der Nutzer verglich sein
 Profil mit *Sentiero* (Kap. 6.8, das Lastenheft-Vorbild) anhand seiner
 echten Werte - deckte auf, dass die urspruengliche Kurzzeitbedingung (15 s
 + eigene ATP-Summenformel) VLamax um Faktor ~2 unterschaetzte. Neu:
 6-min-Leistung → VO2max direkt (etablierte "Leistung bei VO2max ≈ 6-min"-
-Konvention), VLamax exakt aus MLSS=TP geloest - jetzt VO2max ~1,3 %,
-VLamax ~20-25 % von Sentiero entfernt. Details in `core/README.md`
-Abschnitt "Stoffwechselmodell".
+Konvention), VLamax exakt aus MLSS=TP geloest. Mit der ECHTEN Signatur aus
+der App zeigte sich danach ein zweites, unabhaengiges Problem: VLamax lag
+bei 0,80 statt der erwarteten Naehe zu Sentieros 0,6 - Ursache war ein
+eingefrorenes `wPrimeJ=45000` (HIE-Stabilitaets-Bug, siehe unten), nicht
+die neue Formel. Nach dessen Fix: VO2max ~1,4 %, VLamax ~13 % von Sentiero
+entfernt (vorher 33 %). Details in `core/README.md` Abschnitte
+"Stoffwechselmodell" und "HIE-Stabilitaet".
 
 **Bewusst noch offen:** kein persistiertes historisches
 Stoffwechselprofil (wird live aus der jeweils aktuellen Signatur

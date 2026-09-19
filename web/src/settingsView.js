@@ -55,6 +55,16 @@ const PARAM_GROUPS = [
     ],
   },
   {
+    title: 'HIE-Stabilität (W\' nur bei nahe-erschöpfender Evidenz aktualisieren)',
+    params: [
+      { key: 'wprimeEvidenceMinSeconds', label: 'Min. Dauer für W\'-Stützpunkte', unit: 's', min: 30, max: 600, step: 10, ...identity, hint: 'M1-Festlegung, core/README.md' },
+      { key: 'wprimeEvidenceMaxSeconds', label: 'Max. Dauer für W\'-Stützpunkte', unit: 's', min: 300, max: 3600, step: 60, ...identity, hint: 'M1-Festlegung, core/README.md' },
+      { key: 'minWprimeEvidenceCount', label: 'Mindestanzahl W\'-Stützpunkte', unit: '', min: 1, max: 10, step: 1, ...identity, hint: 'M1-Festlegung, core/README.md' },
+      { key: 'wprimeEvidenceMinCpMultiple', label: 'Min. Vielfaches von TP für W\'-Stützpunkte', unit: '×', min: 1, max: 2, step: 0.01, ...identity, hint: 'M1-Festlegung, core/README.md' },
+      { key: 'maxWprimeChangePerBreakthrough', label: 'Max. HIE-Änderung je Breakthrough (Trägheitsbremse)', unit: '%', min: 5, max: 100, step: 1, ...pct, hint: 'M1-Festlegung, core/README.md' },
+    ],
+  },
+  {
     title: 'Ausreißerfilter (Leistung)',
     params: [
       { key: 'outlierMaxWatts', label: 'Max. plausible Leistung', unit: 'W', min: 200, max: 5000, step: 10, ...identity, hint: 'M1-Festlegung, Ausreißerregel' },

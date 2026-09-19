@@ -163,6 +163,9 @@ export function computeSignatureHistory(preparedActivities, options = {}) {
         // Refit mangels kurzer Stuetzpunkte (Sprint-Evidenz) Pmax NICHT neu geschaetzt, sondern auf
         // dem bisherigen Wert gehalten hat.
         pMaxHeld: !!(refit.fit && refit.fit.pMaxFixed),
+        // HIE-Stabilitaet (siehe breakthrough.js#refitSignature, core/README.md): analog zu
+        // pMaxHeld, aber fuer W' - mangels Stuetzpunkten im W'-informativen Dauerbereich.
+        wPrimeHeld: !!(refit.fit && refit.fit.wPrimeFixed),
         droppedByBrake: refit.dropped,
         medal,
         risen,

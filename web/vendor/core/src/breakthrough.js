@@ -106,7 +106,23 @@ export function refitSignature({
     (p) => p.t <= settings.pmaxEvidenceMaxSeconds && p.watts >= settings.pmaxEvidenceMinCpMultiple * activeSignature.cp
   ).length;
   const holdPMax = sprintEvidenceCount < settings.minPmaxEvidenceCount;
-  const fit = fitMortonRobust(points, { pMaxHint: activeSignature.pMax, holdPMax });
+  // HIE-Stabilitaet (siehe core/README.md): W' braucht - anders als Pmax, das kurze Sprints
+  // braucht - Stuetzpunkte im klassischen CP-Testprotokoll-Dauerbereich (ca. 2-20 min,
+  // nahe-erschoepfende Anstrengung), sonst ist es aus den vorhandenen Punkten strukturell
+  // schlecht bestimmt (Literatur, siehe core/README.md) und wird gehalten statt frisch geschaetzt.
+  const wPrimeEvidenceCount = points.filter(
+    (p) =>
+      p.t >= settings.wprimeEvidenceMinSeconds &&
+      p.t <= settings.wprimeEvidenceMaxSeconds &&
+      p.watts >= settings.wprimeEvidenceMinCpMultiple * activeSignature.cp
+  ).length;
+  const holdWPrime = wPrimeEvidenceCount < settings.minWprimeEvidenceCount;
+  const fit = fitMortonRobust(points, {
+    pMaxHint: activeSignature.pMax,
+    wPrimeHint: activeSignature.wPrimeJ,
+    holdPMax,
+    holdWPrime,
+  });
   if (!fit) {
     return { signature: activeSignature, dropped: [], fit: null };
   }
@@ -119,8 +135,14 @@ export function refitSignature({
 
   const proposed = {
     cp: fit.cp,
-    wPrimeJ: fit.wPrime,
-    // Pmax-Traegheitsbremse (siehe core/README.md "Pmax-Stabilitaet"): anders als cp/wPrime, wo
+    // HIE-Traegheitsbremse (siehe core/README.md "HIE-Stabilitaet"): derselbe Grund wie bei
+    // Pmax unten - W' ist strukturell schlecht bestimmt ohne echte nahe-erschoepfende
+    // Anstrengungen im informativen Dauerbereich und in der Literatur als das instabilste
+    // CP-Modell-Parameter beschrieben (Test-Retest-Variabilitaet). Deshalb - als dieselbe
+    // bewusste Ausnahme von Kap. 7.5s "Anstiege sind nie gebremst" wie bei Pmax - symmetrisch
+    // auf `maxWprimeChangePerBreakthrough` begrenzt, unabhaengig von "enoughSupport".
+    wPrimeJ: applyInertiaBrake(activeSignature.wPrimeJ, fit.wPrime, settings.maxWprimeChangePerBreakthrough),
+    // Pmax-Traegheitsbremse (siehe core/README.md "Pmax-Stabilitaet"): anders als cp, wo
     // ein Anstieg IMMER voll durchgereicht wird (Kap. 7.5: "Anstiege sind nie gebremst" - ein
     // Breakthrough ist eine belegte neue Bestleistung), schwankt der rohe Pmax-Fit selbst BEI
     // vorhandener Sprint-Evidenz noch stark von Fenster zu Fenster (am echten Datensatz
@@ -128,7 +150,7 @@ export function refitSignature({
     // Abstieg werden deshalb symmetrisch auf `maxPmaxChangePerBreakthrough` je Breakthrough
     // begrenzt, unabhaengig von "enoughSupport" (das gilt nur fuer die separate Absenkbremse
     // unten). `fit.pMax` selbst bleibt unveraendert (Transparenz, `rawFit` in der UI).
-    pMax: fit.pMax != null ? applyPmaxInertia(activeSignature.pMax, fit.pMax, settings.maxPmaxChangePerBreakthrough) : activeSignature.pMax,
+    pMax: fit.pMax != null ? applyInertiaBrake(activeSignature.pMax, fit.pMax, settings.maxPmaxChangePerBreakthrough) : activeSignature.pMax,
   };
 
   const dropped = [];
@@ -145,14 +167,15 @@ export function refitSignature({
 }
 
 /**
- * Pmax-Traegheitsbremse (M1-Festlegung, siehe core/README.md "Pmax-Stabilitaet"):
- * symmetrische Begrenzung der Pmax-AENDERUNG (Anstieg UND Abstieg) je Breakthrough,
- * unabhaengig von der (nur fuer Abstiege geltenden) Absenkbremse unten.
+ * Traegheitsbremse fuer Pmax und W' (M1-Festlegung, siehe core/README.md
+ * "Pmax-Stabilitaet"/"HIE-Stabilitaet"): symmetrische Begrenzung der
+ * AENDERUNG (Anstieg UND Abstieg) je Breakthrough, unabhaengig von der (nur
+ * fuer Abstiege geltenden) Absenkbremse unten.
  */
-function applyPmaxInertia(activePMax, proposedPMax, maxChangePct) {
-  if (!activePMax) return proposedPMax;
-  const maxDelta = activePMax * maxChangePct;
-  return Math.max(activePMax - maxDelta, Math.min(activePMax + maxDelta, proposedPMax));
+function applyInertiaBrake(activeValue, proposedValue, maxChangePct) {
+  if (!activeValue || proposedValue == null) return proposedValue ?? activeValue;
+  const maxDelta = activeValue * maxChangePct;
+  return Math.max(activeValue - maxDelta, Math.min(activeValue + maxDelta, proposedValue));
 }
 
 /**

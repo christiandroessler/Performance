@@ -19,6 +19,11 @@ export const DEFAULT_SETTINGS = {
   minPmaxEvidenceCount: 2, // M1-Festlegung, siehe core/README.md (Pmax-Stabilitaet)
   pmaxEvidenceMinCpMultiple: 1.8, // M1-Festlegung, siehe core/README.md (Pmax-Stabilitaet)
   maxPmaxChangePerBreakthrough: 0.15, // M1-Festlegung, siehe core/README.md (Pmax-Stabilitaet, Traegheitsbremse)
+  wprimeEvidenceMinSeconds: 120, // M1-Festlegung, siehe core/README.md (HIE-Stabilitaet, klassischer CP-Testprotokoll-Bereich)
+  wprimeEvidenceMaxSeconds: 1200, // M1-Festlegung, siehe core/README.md (HIE-Stabilitaet)
+  minWprimeEvidenceCount: 2, // M1-Festlegung, siehe core/README.md (HIE-Stabilitaet)
+  wprimeEvidenceMinCpMultiple: 1.05, // M1-Festlegung, siehe core/README.md (HIE-Stabilitaet)
+  maxWprimeChangePerBreakthrough: 0.2, // M1-Festlegung, siehe core/README.md (HIE-Stabilitaet, Traegheitsbremse)
   maxGapSecondsForWbalContinuity: 1800, // M1-Festlegung, siehe core/README.md
   ctlTau: 42,
   atlTau: 7,

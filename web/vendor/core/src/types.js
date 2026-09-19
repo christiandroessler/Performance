@@ -62,6 +62,11 @@
  * @property {number} minPmaxEvidenceCount - Standard 2: Mindestanzahl an Sprintevidenz-Stuetzpunkten, sonst bleibt Pmax beim Refit fixiert
  * @property {number} pmaxEvidenceMinCpMultiple - Standard 1.8: ein Stuetzpunkt zaehlt nur als Sprintevidenz, wenn er mindestens das X-fache der aktuellen TP erreicht
  * @property {number} maxPmaxChangePerBreakthrough - Standard 0.15 (15%): symmetrische Traegheitsbremse fuer Pmax-Aenderungen je Breakthrough (Anstieg und Abstieg), unabhaengig von der Absenkbremse
+ * @property {number} wprimeEvidenceMinSeconds - Standard 120 (s): Stuetzpunkte muessen mindestens diese Dauer haben, um als W'-Evidenz zu zaehlen (kurze Sprints sind Pmax-, nicht W'-informativ), siehe core/README.md
+ * @property {number} wprimeEvidenceMaxSeconds - Standard 1200 (s): Stuetzpunkte bis zu dieser Dauer zaehlen als W'-Evidenz (klassischer CP-Testprotokoll-Bereich ~2-20 min), siehe core/README.md
+ * @property {number} minWprimeEvidenceCount - Standard 2: Mindestanzahl an W'-Evidenz-Stuetzpunkten, sonst bleibt W' beim Refit fixiert
+ * @property {number} wprimeEvidenceMinCpMultiple - Standard 1.05: ein Stuetzpunkt zaehlt nur als W'-Evidenz, wenn er mindestens das X-fache der aktuellen TP erreicht
+ * @property {number} maxWprimeChangePerBreakthrough - Standard 0.2 (20%): symmetrische Traegheitsbremse fuer W'-Aenderungen je Breakthrough (Anstieg und Abstieg), unabhaengig von der Absenkbremse
  * @property {number} thresholdEstimationWindowDays - Standard 180 (FA-TP-03/04): rollierendes Fenster fuer Sportart-Schwellen-Schaetzung
  * @property {number} thresholdEffortSeconds - Standard 1200 (20 Min, FA-TP-03): Zieldauer der "besten Anstrengung" fuer Pace-/HF-Schwellen
  * @property {number} thresholdCyclingPowerTolerance - Standard 0.05 (FA-TP-04): Toleranzband um TP fuer die Rad-Schwellen-HF-Schaetzung

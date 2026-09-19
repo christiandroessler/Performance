@@ -116,6 +116,9 @@ export async function renderBreakthroughs(container, modelState, onChanged) {
     if (bt.pMaxHeld) {
       info.innerHTML += '<br><span class="hint">PP nicht neu geschätzt (keine kurze Sprint-Anstrengung in diesem Refit) - bisheriger Wert beibehalten.</span>';
     }
+    if (bt.wPrimeHeld) {
+      info.innerHTML += '<br><span class="hint">HIE nicht neu geschätzt (keine nahe-erschöpfende 2-20-min-Anstrengung in diesem Refit) - bisheriger Wert beibehalten.</span>';
+    }
     row.appendChild(info);
 
     if (bt.discarded) {

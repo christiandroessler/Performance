@@ -106,10 +106,11 @@ test('Nebenbedingungs-Korrektur laeuft bei unerfuellbaren Daten nicht unbegrenzt
   const expectedPMaxCeiling = Math.min(settings.maxPlausiblePMax, activeSignature.pMax * (1 + settings.maxMpaCorrectionPct));
   assert.equal(result.constraintUnsatisfied, true);
   // Die exakte Konvergenzstelle haengt vom genauen Iterationspfad ab (z. B. ob der
-  // pMax-Hebel zwischendurch kurz mitwirkt, siehe Kommentar oben) - deshalb Toleranz statt
-  // exakter Gleichheit, wie schon beim analogen Fall unten ("keine runde, unabhaengig
-  // herleitbare Zahl").
-  assert.ok(Math.abs(result.signature.cp - expectedCpCeiling) < 5, `cp=${result.signature.cp} sollte nahe der (engeren) relativen Grenze ${expectedCpCeiling} stehen bleiben`);
+  // pMax-Hebel zwischendurch kurz mitwirkt, siehe Kommentar oben, oder ob W' mangels
+  // Evidenz im informativen Dauerbereich gehalten wird statt frei mitzufitten, siehe
+  // core/README.md "HIE-Stabilitaet") - deshalb Toleranz statt exakter Gleichheit, wie
+  // schon beim analogen Fall unten ("keine runde, unabhaengig herleitbare Zahl").
+  assert.ok(Math.abs(result.signature.cp - expectedCpCeiling) < 15, `cp=${result.signature.cp} sollte nahe der (engeren) relativen Grenze ${expectedCpCeiling} stehen bleiben`);
   // pMax muss die relative Grenze nicht zwingend AUSSCHOEPFEN (die Schleife kann vorher mit
   // konstantem cp an der Grenze abbrechen, sobald der cp-Hebel selbst ausgereizt ist und der
   // pMax-Hebel bei voller Entladung ohnehin kaum noch wirkt) - entscheidend ist, dass sie NICHT
@@ -309,4 +310,69 @@ test('Pmax-Stabilitaet: ein Breakthrough MIT kurzen Stuetzpunkten (echte Sprint-
 
   assert.equal(result.fit.pMaxFixed, false, 'mit echten Sprint-Stuetzpunkten sollte Pmax frei gefittet werden');
   assert.notEqual(result.fit.pMax, 1000, 'Pmax sollte sich an die neuen Sprint-Daten anpassen, nicht beim alten Wert verharren');
+});
+
+test('HIE-Stabilitaet: ein Breakthrough ohne Stuetzpunkte im W\'-informativen Dauerbereich (2-20 min, nahe-erschoepfend) haelt W\' exakt fest, aendert TP aber normal', () => {
+  // Alle Stuetzpunkte liegen entweder ausserhalb des informativen Dauerbereichs (< 120 s
+  // oder > 1200 s) oder zu nah an CP (< 1.05x), um als echte nahe-erschoepfende Anstrengung
+  // zu zaehlen - genau der reale Fall, der real dazu fuehrte, dass W' am internen
+  // LM-Sicherheitsclamp (45000 J) landete statt an einem echten Fit, siehe core/README.md
+  // "HIE-Stabilitaet".
+  const settings = mergeSettings();
+  const n = 1200; // 20 min
+  const watts = new Float64Array(n).fill(275); // spuerbar ueber der alten CP=250, aber genau am Rand der Max-Dauer
+  const mask = new Uint8Array(n).fill(1);
+
+  const activeSignature = { cp: 250, wPrimeJ: 20000, pMax: 1000 };
+  const nearMpaPts = [
+    { t: 60, watts: 290 }, // zu kurz (< 120s)
+    { t: 1200, watts: 275 }, // zu lang (> 1200s Max fuer W'-Evidenz, siehe settings.wprimeEvidenceMaxSeconds)
+    { t: 1800, watts: 258 }, // zu lang UND zu nah an CP (258 < 250*1.05)
+  ];
+  const envelopePts = [
+    { t: 3600, watts: 240, support: 5, supportingActivityIds: new Set(['a', 'b']) }, // zu lang, zu nah an CP
+  ];
+
+  const result = refitSignature({
+    activeSignature,
+    nearMpaPts,
+    envelopePts,
+    breakthroughWatts: watts,
+    breakthroughMask: mask,
+    breakthroughWindows: [{ start: 0, end: n }],
+    settings,
+  });
+
+  assert.equal(result.fit.wPrimeFixed, true, 'der rohe Fit sollte W\' mangels informativer Stuetzpunkte gehalten haben');
+  assert.equal(result.fit.wPrime, 20000, 'W\' sollte exakt beim bisherigen Wert bleiben');
+  assert.equal(result.signature.wPrimeJ, 20000, 'auch nach Absenkbremse/Nebenbedingung sollte W\' unveraendert sein');
+  assert.notEqual(result.signature.cp, activeSignature.cp, 'TP sollte trotzdem normal aus dem staerkeren Schwelleneffort aktualisiert werden');
+});
+
+test('HIE-Stabilitaet: ein Breakthrough MIT Stuetzpunkten im W\'-informativen Dauerbereich darf W\' normal aktualisieren', () => {
+  const settings = mergeSettings();
+  const n = 300; // 5 min, klar im informativen Bereich
+  const watts = new Float64Array(n).fill(310); // deutlich > 1.05x CP=250, nahe-erschoepfender Schwelleneffort
+  const mask = new Uint8Array(n).fill(1);
+
+  const activeSignature = { cp: 250, wPrimeJ: 20000, pMax: 1000 };
+  const nearMpaPts = [
+    { t: 150, watts: 320 },
+    { t: 300, watts: 305 },
+    { t: 600, watts: 285 },
+    { t: 1200, watts: 265 },
+  ];
+
+  const result = refitSignature({
+    activeSignature,
+    nearMpaPts,
+    envelopePts: [],
+    breakthroughWatts: watts,
+    breakthroughMask: mask,
+    breakthroughWindows: [{ start: 0, end: n }],
+    settings,
+  });
+
+  assert.equal(result.fit.wPrimeFixed, false, 'mit echten nahe-erschoepfenden Stuetzpunkten sollte W\' frei gefittet werden');
+  assert.notEqual(result.fit.wPrime, 20000, 'W\' sollte sich an die neuen Daten anpassen, nicht beim alten Wert verharren');
 });

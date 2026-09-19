@@ -217,7 +217,18 @@ Traegheitsbremse gedaempft (max. 15 % Aenderung je Breakthrough) - am echten
 Datensatz verifiziert: PP steigt jetzt glatt von 898W auf 1114W statt
 zwischen 450-1500W zu springen. Details in `core/README.md` Abschnitt
 "Pmax-Stabilitaet". **Live vom Nutzer bestaetigt (2026-09-18): PP=1060W,
-passt.** HIE bleibt auf Nutzerwunsch zurueckgestellt.
+passt.**
+
+**HIE-Stabilitaet, Runde 3 (2026-09-19, behoben):** HIE (wPrimeJ) war
+zunaechst auf Nutzerwunsch zurueckgestellt, zeigte aber denselben
+Clamp-Verdacht wie Pmax (roher Fit landete wiederholt exakt auf dem
+internen 45000-J-Sicherheitsclamp). Ueber M5 (Stoffwechselmodell) sichtbar
+geworden: der Nutzer meldete "VLaMax steht immer noch bei 0,8" - Ursache
+war der eingefrorene `wPrimeJ`-Wert, nicht die neue VLamax-Formel. Gleiche
+Methode wie bei Pmax (Evidenz-Gate + Traegheitsbremse), aber mit eigenem
+Dauerbereich (2-20 min statt <=20 s, W' wird aus nahe-erschoepfenden
+Mehrminuten-Efforts bestimmt, nicht aus Sprints). Details in
+`core/README.md` Abschnitt "HIE-Stabilitaet".
 
 ## M5-Status im Detail
 
@@ -234,15 +245,18 @@ Einstellungen. Alle Design-Entscheidungen (Kurzzeitbedingung, Zonenschema,
 Substrat-/Energieaufteilung, Vertrauensniveau der Konstanten) sind in
 `core/README.md` Abschnitt "Stoffwechselmodell" dokumentiert, Details zur
 Web-Integration in `web/README.md` Abschnitt "M5-Status im Detail". `core/`:
-93 Tests.
+98 Tests.
 
 **Validierung gegen Sentiero (2026-09-19):** der Nutzer verglich sein
 Profil live mit *Sentiero* (Kap. 6.8, das Lastenheft-Vorbild fuer den
 MET-Block) anhand seiner echten Werte (62 kg, TP 309 W, 6-min 383 W) -
 deckte dabei auf, dass die urspruengliche Kurzzeitbedingung (15 s + eine
 eigene ATP-Summenformel) VLamax um Faktor ~2 unterschaetzte. Nach der
-Umstellung auf die 6-Minuten-Konvention: VO2max ~1,3 % und VLamax ~20-25 %
-von Sentieros Werten entfernt - deutliche Verbesserung, aber noch nicht
+Umstellung auf die 6-Minuten-Konvention zeigte sich mit der ECHTEN
+App-Signatur ein zweites Problem (VLamax=0,80) - Ursache war der
+eingefrorene `wPrimeJ`-Wert (siehe "HIE-Stabilitaet" oben), nicht die neue
+Formel. Nach dessen Fix: VO2max ~1,4 % und VLamax ~13 % von Sentieros
+Werten entfernt (vorher 33 %) - deutliche Verbesserung, aber noch nicht
 exakt (Details/moegliche Restursachen in `core/README.md`).
 
 ## Ausgangslage

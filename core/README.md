@@ -32,7 +32,7 @@ Diese Version deckt den **M1-Umfang** ab (Kap. 10):
 
 ## Stand der Verifikation
 
-Alle 93 automatisierten Tests laufen gruen (`npm test` im `core`-Ordner).
+Alle 98 automatisierten Tests laufen gruen (`npm test` im `core`-Ordner).
 Zusaetzlich wurde der komplette Aktivitaetsbestand eines echten Nutzers
 (1977 Rad-Aktivitaeten mit Leistung, 2017–2026, aus der bestehenden
 `strava-dashboard`-Datenbank, siehe `scripts/run-legacy-db.js`) mehrfach
@@ -382,16 +382,81 @@ PP 1060 W - "sieht jetzt besser aus ... passt erstmal". Das PP-Problem gilt
 damit als abgeschlossen. HIE (wPrimeJ) bleibt auf Wunsch des Auftraggebers
 bewusst zurueckgestellt ("machen wir spaeter") - siehe der Absatz unten.
 
-**Noch offen** (separat von PP, nicht Teil dieser Anfrage): `wPrimeJ` (HIE)
-landet im rohen Fit ebenfalls mehrfach exakt auf 45000 J - dem internen
-LM-Optimierungs-Clamp in `cpFit.js` (`CLAMP[1]`), einer numerischen
-Stabilitaetsgrenze, keiner physiologischen. Der Nutzer hatte HIE
-unabhaengig davon ebenfalls als zu hoch gemeldet; ob HIE von einer
-aehnlichen Evidenz-/Traegheits-Behandlung profitieren wuerde, ist nicht
-untersucht - anders als bei Pmax gibt es dafuer aber keine ebenso klare
-Literatur-/Produktvorlage (W' wird ueblicherweise aus laengeren
-Erschoepfungstests geschaetzt, nicht aus Sprints), das muesste eigens
-hergeleitet werden.
+### HIE-Stabilitaet (2026-09-19, M1-Festlegung, `wprimeEvidenceMinSeconds`/`wprimeEvidenceMaxSeconds`/`minWprimeEvidenceCount`/`wprimeEvidenceMinCpMultiple`/`maxWprimeChangePerBreakthrough`)
+
+Nach dem Pmax-Fix (oben) blieb `wPrimeJ` (HIE) im rohen Fit mehrfach exakt
+auf 45000 J stehen - dem internen LM-Optimierungs-Clamp in `cpFit.js`
+(`CLAMP[1]`), einer numerischen Stabilitaetsgrenze, keiner physiologischen.
+Konkret sichtbar geworden ueber das Stoffwechselmodell (M5): mit einem
+eingefrorenen `wPrimeJ=45000` modellierte `mortonPower(360s, ...)` eine zu
+hohe Kurzzeitleistung, was VO2max und VLamax spuerbar ueberschaetzte -
+VLamax lag beim Vergleich gegen *Sentiero* (siehe "Stoffwechselmodell"
+unten) bei 0,80 statt der erwarteten ~0,6-0,8. Der Auftraggeber hatte HIE
+ausserdem unabhaengig davon schon als zu hoch gemeldet und explizit auf
+"machen wir spaeter" zurueckgestellt (siehe Pmax-Stabilitaet oben) - dieser
+Fund war der Ausloeser, es doch jetzt anzugehen.
+
+Anders als bei Pmax gibt es fuer W' keine ebenso direkte Produktvorlage
+(XERT trennt Peak-Power-Sprints explizit von Threshold/HIE-Tests), aber die
+Literatur bestaetigt ein analoges Identifizierbarkeits-Problem mit einem
+ANDEREN informativen Dauerbereich:
+
+- Klassische CP/W'-Testprotokolle nutzen mehrere nahe-erschoepfende
+  Anstrengungen im Bereich von etwa 3-12 min (z. B. 12/7/3-min-Zeitfahren
+  mit Pause dazwischen), nicht Sprints - Sprints sind Pmax-informativ, nicht
+  W'-informativ (siehe `mortonPower`: bei kleinem t dominiert der
+  Pmax-Term, W' wird erst im Bereich weniger Minuten bis ~20 min
+  bestimmend).
+- W' gilt in der Literatur als das instabilste/rauschendste Critical-
+  Power-Parameter ueberhaupt (Test-Retest-Variabilitaet auch unter
+  Laborbedingungen); eine Intervals.icu-Forum-Diskussion zu genau diesem
+  Praxisproblem (W'-Schaetzung aus Felddaten) bestaetigt: eine belastbare
+  Neuschaetzung braucht echte maximale Anstrengungen, nicht beliebige
+  submaximale Ausfahrten.
+
+**Fuenf Bausteine**, symmetrisch zur Pmax-Stabilitaet aufgebaut, aber mit
+eigenem Dauerbereich/eigener Schwelle statt einer Kopie der Pmax-Werte:
+
+1. **W'-Evidenz-Schwelle**: ein Stuetzpunkt zaehlt nur als "W'-Evidenz", wenn
+   er (a) zwischen `wprimeEvidenceMinSeconds` (Standard 120 s) und
+   `wprimeEvidenceMaxSeconds` (Standard 1200 s = 20 min) dauert UND (b)
+   mindestens `wprimeEvidenceMinCpMultiple` (Standard 1,05) mal die
+   aktuelle TP erreicht - deutlich naeher an TP als bei Pmax (1,8), weil ein
+   nahe-erschoepfender Mehrminuten-Effort bei einer moderaten TP-Ueberschreitung
+   liegt, nicht beim Vielfachen.
+2. **W'-Halte-Modus** (`cpFit.js#fitMortonCP`s neue `fixedWPrime`-Option,
+   `fitMortonRobust`s `holdWPrime`, analog zu `fixedPMax`/`holdPMax`):
+   unterhalb `minWprimeEvidenceCount` (Standard 2) qualifizierender
+   Stuetzpunkte bleibt W' waehrend der GESAMTEN Optimierung auf dem
+   bisherigen Wert fixiert (effektiv ein 2-Parameter-Fit fuer cp/pMax) -
+   gilt auch fuer den <4-Punkte-2-Parameter-Fallback, der W' sonst
+   ungebremst aus der linearen Regression uebernehmen wuerde.
+   `fit.wPrimeFixed`/das Breakthrough-Feld `wPrimeHeld` machen das
+   transparent (UI: "HIE nicht neu geschaetzt").
+3. **W'-Traegheitsbremse** (`applyInertiaBrake`, dieselbe Funktion wie fuer
+   Pmax, nur mit `maxWprimeChangePerBreakthrough`, Standard 0,2 = 20 % -
+   etwas grosszuegiger als Pmaxs 15 %, da W' laut Literatur noch rauschender
+   ist): begrenzt die W'-AENDERUNG (Anstieg UND Abstieg) je Breakthrough,
+   dieselbe bewusste Ausnahme von Kap. 7.5s "Anstiege sind nie gebremst" wie
+   bei Pmax, aus demselben Grund (ein einzelner Effort beweist keinen
+   dauerhaft hoeheren Wert).
+4. **Reihenfolge**: wie bei Pmax - Evidenz-Pruefung (Pmax UND W' getrennt,
+   beide vor dem gemeinsamen Fit) -> gemeinsamer Fit (ggf. mit fixiertem
+   Pmax und/oder fixiertem W') -> beide Traegheitsbremsen -> Absenkbremse ->
+   Nebenbedingungs-Korrektur.
+5. Settings-UI-Gruppe "HIE-Stabilitaet" (analog "PP-Stabilitaet").
+
+**Verifiziert gegen den echten Datensatz** (letztes synchronisiertes Jahr,
+Standard-Einstellungen): vor diesem Fix landete die aktuelle Signatur bei
+`wPrimeJ=45000` (Clamp-Wert, kein echter Fit). Danach steigt `wPrimeJ` ueber
+6 Signatur-Eintraege glatt von 17428 J auf 31368 J (keiner der 5
+Breakthroughs im Zeitraum musste W' halten - genug Evidenz vorhanden, die
+Traegheitsbremse allein reicht bereits, um das fruehere Clamp-Pinning zu
+verhindern). Die aktuelle Signatur lautet cp=303,7 W / wPrimeJ=31368 J /
+pMax=1136 W. Auswirkung auf das Stoffwechselmodell (siehe unten,
+"Validierung gegen Sentiero"): VLamax faellt von 0,80 auf **0,52** -
+deutlich naeher an Sentieros 0,6 (13 % statt 33 % Abweichung), VO2max
+bleibt bei 76,2 (1,4 % Abweichung).
 
 ### Stoffwechselmodell (FA-MET-01 bis 07, Kap. 7.9, M5-Festlegung)
 
@@ -486,6 +551,21 @@ Restunsicherheit in den Tier-B-Hill-Kinetik-Konstanten (siehe
 "Vertrauensniveau" oben - nicht am MetaboliSim-Originalcode gegengeprueft).
 `test/metabolic.test.js` haelt diesen Vergleich als Regressionstest fest
 (Toleranzband, keine exakte Uebereinstimmung erwartet).
+
+**Nachtrag (2026-09-19):** der obige Vergleich nutzte einen SYNTHETISCH
+konstruierten Testfall (cp/wPrimeJ/pMax passend zu Sentieros eigener
+Testableitung gewaehlt), nicht die tatsaechlich vom Rechenkern gefittete
+Signatur. Mit der ECHTEN Signatur aus der App (damals cp=293 W,
+wPrimeJ=45000 J, pMax=1060 W) ergab sich VLamax=0,80 - deutlich schlechter
+als der 0,48-Validierungswert. Ursache war NICHT die VLamax-Formel selbst,
+sondern `wPrimeJ=45000`: exakt der interne LM-Clamp aus `cpFit.js`, also
+kein echter Fit-Wert (siehe "HIE-Stabilitaet" oben - derselbe Fund loeste
+diesen Fix aus). Nach dem HIE-Stabilitaets-Fix liefert dieselbe reale
+Signatur (jetzt cp=303,7 W, wPrimeJ=31368 J, pMax=1136 W) VLamax=0,52 -
+13 % statt 33 % Abweichung von Sentieros 0,6. Die verbleibende Luecke
+duerfte damit tatsaechlich ueberwiegend an den oben genannten Restursachen
+liegen (aktive Muskelmasse, Tier-B-Konstanten), nicht mehr an einem
+verzerrten Eingabewert.
 
 **Zonenschema (FA-MET-03, M5-Festlegung):** 5 Zonen, %TP-verankert (55 %/
 75 %/95 %), MLSS=TP exakt als obere Z4-Grenze. Begruendung: das Modell
@@ -769,12 +849,12 @@ bereits verifizierten CP-/Breakthrough-Pipeline.
   Nebenbedingungs-Korrektur (Kap. 7.5) durfte cp/pMax bis zur absoluten
   Plausibilitaetsgrenze anheben, unabhaengig davon, wie weit das vom rohen
   Fit entfernt war - jetzt zusaetzlich durch `maxMpaCorrectionPct` (relativ
-  zum rohen Fit) begrenzt. Zwei Nebenbefunde bleiben offen: (1) `wPrimeJ`
-  landete im rohen Fit mehrfach exakt auf 45000 J, dem internen
-  LM-Optimierungs-Clamp in `cpFit.js` (numerische Stabilitaetsgrenze, keine
-  Plausibilitaetsgrenze) - unklar, ob der Fit ohne diesen Clamp noch hoeher
-  gelaufen waere; noch nicht separat untersucht. (2) Die Haeufung stark
-  korrekturbeduerftiger Breakthroughs in dicht aufeinanderfolgenden
+  zum rohen Fit) begrenzt. `wPrimeJ` (HIE) landete danach im rohen Fit
+  weiterhin mehrfach exakt auf 45000 J, dem internen LM-Optimierungs-Clamp
+  in `cpFit.js` - behoben (2026-09-19, siehe "HIE-Stabilitaet" oben) durch
+  dieselbe Evidenz-/Traegheits-Behandlung wie bei Pmax, nur mit eigenem
+  Dauerbereich (2-20 min statt <=20 s). Ein Nebenbefund bleibt offen: die
+  Haeufung stark korrekturbeduerftiger Breakthroughs in dicht aufeinanderfolgenden
   Trainingsbloecken deutet auf Wiederholungssprint-/Intervall-Einheiten hin,
   bei denen ein einzelnes statisches 3-Parameter-Modell strukturell an seine
   Grenzen kommt (W'bal-Erholungsdynamik zwischen Efforts, Kap. 9 "Individuelle
@@ -788,11 +868,13 @@ bereits verifizierten CP-/Breakthrough-Pipeline.
   Abnahmekriterium fuer die V1-Steady-State-Variante zu verwenden). Die volle
   dynamische Simulation (PCr-/pH-Kinetik, S-Prioritaet) ist nicht gebaut.
   Gegen ECHTE Nutzerdaten verglichen mit Sentiero (siehe "Validierung gegen
-  Sentiero" oben): VO2max trifft nah (~1,3 % Abweichung), VLamax bleibt
-  ~20-25 % zu niedrig - Ursache nicht abschliessend geklaert (moeglich:
-  abweichende Annahme der aktiven Muskelmasse, oder Restunsicherheit in den
-  Tier-B-Hill-Kinetik-Konstanten, die aus einer PDF-Extraktion stammen und
-  nicht am MetaboliSim-Originalcode gegengeprueft sind).
+  Sentiero" oben): VO2max trifft nah (~1,4 % Abweichung), VLamax bleibt nach
+  dem HIE-Stabilitaets-Fix noch ~13 % zu niedrig (war 33 %, solange
+  `wPrimeJ` am LM-Clamp haengengeblieben ist) - Ursache nicht abschliessend
+  geklaert (moeglich: abweichende Annahme der aktiven Muskelmasse, oder
+  Restunsicherheit in den Tier-B-Hill-Kinetik-Konstanten, die aus einer
+  PDF-Extraktion stammen und nicht am MetaboliSim-Originalcode gegengeprueft
+  sind).
 
 ## Verwendung
 

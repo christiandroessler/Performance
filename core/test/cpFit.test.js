@@ -54,6 +54,40 @@ test('fitMortonRobust mit holdPMax haelt Pmax ueber alle IRLS-Iterationen exakt 
   assert.notEqual(free.pMax, 950, 'ohne holdPMax sollte der Fit frei zu einem anderen Wert konvergieren');
 });
 
+test('fitMortonCP mit fixedWPrime haelt W\' exakt fest, auch wenn die Daten selbst einen anderen Wert nahelegen wuerden (HIE-Stabilitaet)', () => {
+  const trueCp = 260;
+  const trueWPrime = 18000; // die Daten selbst "wollen" 18000
+  const truePMax = 1100;
+  const grid = [60, 120, 180, 300, 600, 1200];
+  const points = grid.map((t) => ({ t, watts: mortonPower(t, trueCp, trueWPrime, truePMax) }));
+
+  const held = fitMortonCP(points, { fixedWPrime: 20000 });
+  assert.equal(held.wPrime, 20000, 'W\' sollte exakt beim uebergebenen Fixwert bleiben, nicht bei 18000 landen');
+  assert.equal(held.wPrimeFixed, true);
+  assert.ok(Math.abs(held.cp - trueCp) < 15, `cp=${held.cp} sollte trotzdem sinnvoll an die Daten angepasst werden`);
+});
+
+test('fitMortonRobust mit holdWPrime haelt W\' ueber alle IRLS-Iterationen exakt fest', () => {
+  const grid = [60, 120, 180, 300, 600, 1200];
+  const points = grid.map((t) => ({ t, watts: mortonPower(t, 260, 18000, 1100) }));
+
+  const held = fitMortonRobust(points, { wPrimeHint: 20000, holdWPrime: true });
+  assert.equal(held.wPrime, 20000);
+
+  const free = fitMortonRobust(points, { wPrimeHint: 20000, holdWPrime: false });
+  assert.notEqual(free.wPrime, 20000, 'ohne holdWPrime sollte der Fit frei zu einem anderen Wert konvergieren');
+});
+
+test('fitMortonCP mit fixedWPrime UND < 4 Punkten (2-Parameter-Fallback) haelt W\' trotzdem fest', () => {
+  const points = [
+    { t: 300, watts: 320 },
+    { t: 1200, watts: 280 },
+  ];
+  const held = fitMortonCP(points, { fixedWPrime: 20000 });
+  assert.equal(held.wPrime, 20000);
+  assert.equal(held.wPrimeFixed, true);
+});
+
 test('fitMortonCP ist deterministisch (gleiche Eingabe -> gleiche Ausgabe)', () => {
   const points = [
     { t: 5, watts: 900 },

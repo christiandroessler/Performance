@@ -69,16 +69,26 @@ export function mortonPower(t, cp, wPrime, pMax) {
  * `refitSignature`) strukturell schlecht bestimmt - ein Ergebnis wird nicht
  * "unbelegt frisch geschaetzt" zurueckgegeben, sondern haelt den bisherigen
  * Wert, bis echte kurze Anstrengungen vorliegen.
+ *
+ * `fixedWPrime` (siehe core/README.md "HIE-Stabilitaet"): analog zu
+ * `fixedPMax`, aber fuer W' (HIE) - haelt W' fest, solange keine echten
+ * Stuetzpunkte im W'-informativen Dauerbereich (klassische CP-Testprotokolle:
+ * ca. 2-20 min nahe-erschoepfende Anstrengungen) vorliegen. Gilt auch fuer
+ * den <4-Punkte-2-Parameter-Fallback (`two`), der sonst W' ungebremst aus
+ * der linearen Regression uebernehmen wuerde.
  */
-export function fitMortonCP(points, { pMaxHint, weights, fixedPMax } = {}) {
+export function fitMortonCP(points, { pMaxHint, wPrimeHint, weights, fixedPMax, fixedWPrime } = {}) {
   const pts = (points || []).filter((p) => p.watts > 0 && p.t > 0).sort((a, b) => a.t - b.t);
   const w = weights || pts.map(() => 1);
   const two = fit2ParamCP(pts, w);
-  if (pts.length < 4) return two;
+  if (pts.length < 4) {
+    if (two && fixedWPrime != null) return { ...two, wPrime: Math.round(fixedWPrime), wPrimeFixed: true };
+    return two;
+  }
 
   const maxP = Math.max(...pts.map((p) => p.watts));
   let cp = two ? two.cp : 250;
-  let wPrime0 = two ? two.wPrime : 15000;
+  let wPrime0 = fixedWPrime != null ? fixedWPrime : two ? two.wPrime : wPrimeHint || 15000;
   let pmax = fixedPMax != null ? fixedPMax : clamp(Math.max(pMaxHint || 0, maxP * 1.05, cp * 2), cp + 80, 2500);
 
   const CLAMP = [
@@ -88,7 +98,7 @@ export function fitMortonCP(points, { pMaxHint, weights, fixedPMax } = {}) {
   ];
   const applyClamp = (v) => [
     clamp(v[0], CLAMP[0][0], CLAMP[0][1]),
-    clamp(v[1], CLAMP[1][0], CLAMP[1][1]),
+    fixedWPrime != null ? fixedWPrime : clamp(v[1], CLAMP[1][0], CLAMP[1][1]),
     fixedPMax != null ? fixedPMax : clamp(v[2], Math.max(v[0] + 60, 450), 2600),
   ];
 
@@ -166,7 +176,7 @@ export function fitMortonCP(points, { pMaxHint, weights, fixedPMax } = {}) {
     !Number.isFinite(pmF) ||
     pmF <= cpF + 50 ||
     (two && rmse > two.rmse * 1.05);
-  if (bad) return two;
+  if (bad) return two && fixedWPrime != null ? { ...two, wPrime: Math.round(fixedWPrime), wPrimeFixed: true } : two;
 
   const tMin = pts[0].t;
   const tMax = pts[pts.length - 1].t;
@@ -182,6 +192,7 @@ export function fitMortonCP(points, { pMaxHint, weights, fixedPMax } = {}) {
     r2: Math.round(r2 * 1000) / 1000,
     confidence: Math.round(confidence * 100) / 100,
     pMaxFixed: fixedPMax != null,
+    wPrimeFixed: fixedWPrime != null,
   };
 }
 
@@ -194,14 +205,16 @@ export function fitMortonCP(points, { pMaxHint, weights, fixedPMax } = {}) {
  * `holdPMax`: haelt Pmax fest auf `pMaxHint` (siehe `fitMortonCP`s
  * `fixedPMax`) - siehe core/README.md "Pmax-Stabilitaet" fuer die
  * Entscheidung, WANN das gilt (keine Stuetzpunkte im Sprint-Dauernbereich).
+ * `holdWPrime`: analog fuer W' (HIE), siehe core/README.md "HIE-Stabilitaet".
  */
-export function fitMortonRobust(points, { pMaxHint, iterations = 3, tukeyC = 4.685, holdPMax = false } = {}) {
+export function fitMortonRobust(points, { pMaxHint, wPrimeHint, iterations = 3, tukeyC = 4.685, holdPMax = false, holdWPrime = false } = {}) {
   const pts = (points || []).filter((p) => p.watts > 0 && p.t > 0);
   if (pts.length === 0) return null;
   const fixedPMax = holdPMax ? pMaxHint : undefined;
+  const fixedWPrime = holdWPrime ? wPrimeHint : undefined;
 
   let weights = pts.map(() => 1);
-  let result = fitMortonCP(pts, { pMaxHint, weights, fixedPMax });
+  let result = fitMortonCP(pts, { pMaxHint, wPrimeHint, weights, fixedPMax, fixedWPrime });
   if (!result) return null;
 
   for (let iter = 0; iter < iterations; iter++) {
@@ -219,7 +232,7 @@ export function fitMortonRobust(points, { pMaxHint, iterations = 3, tukeyC = 4.6
     });
     if (weights.every((w) => w === 0)) break; // Degeneriert, letztes Ergebnis behalten
 
-    const next = fitMortonCP(pts, { pMaxHint, weights, fixedPMax });
+    const next = fitMortonCP(pts, { pMaxHint, wPrimeHint, weights, fixedPMax, fixedWPrime });
     if (!next) break;
     result = next;
   }
