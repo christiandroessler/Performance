@@ -12,6 +12,36 @@
 import * as drive from './drive.js';
 import { idbGet, idbPut, idbDelete, idbClearAll } from './idb.js';
 
+const LAST_CACHE_USER_KEY = 'performance-app-last-cache-user';
+
+/**
+ * Der lokale IndexedDB-Cache ist NICHT pro Google-Konto getrennt (ein Store fuer die gesamte
+ * Origin, Dateinamen wie "index.json" als Schluessel) - meldet sich auf demselben Browser ein
+ * ANDERES Konto an, wuerde readFile() sonst weiterhin den Cache des vorherigen Kontos liefern,
+ * OHNE je Drive zu befragen (Cache-Hit schlaegt fehl bevor Drive ueberhaupt geprueft wird). Da
+ * der Cache laut Kap. 5.1 ohnehin "jederzeit aus Drive wiederherstellbar" ist (idb.js), ist
+ * Leeren bei einem Kontowechsel die einfachste korrekte Loesung - kein Aufwand fuer eine
+ * Pro-Konto-Schluesselung. Muss aufgerufen werden, BEVOR irgendein anderer storage.js-Aufruf
+ * fuer die neu angemeldete Sitzung passiert (main.js#afterSignIn, direkt nach fetchSession()).
+ */
+export async function ensureCacheMatchesUser(email) {
+  if (!email) return;
+  let lastUser;
+  try {
+    lastUser = localStorage.getItem(LAST_CACHE_USER_KEY);
+  } catch {
+    lastUser = null;
+  }
+  if (lastUser && lastUser !== email) {
+    await idbClearAll().catch(() => {});
+  }
+  try {
+    localStorage.setItem(LAST_CACHE_USER_KEY, email);
+  } catch {
+    // Privater Modus o.ae. - dann bleibt der Cache im Zweifel einmal stehen, kein Absturz.
+  }
+}
+
 export async function readFile(name) {
   const cached = await idbGet(name).catch(() => undefined);
   if (cached) return cached.content;

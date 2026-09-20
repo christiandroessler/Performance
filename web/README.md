@@ -526,6 +526,36 @@ Ermuedungs-/Trend-Aussage.
 `web`: weiterhin 52 Tests gruen (reine View-Datei; `powerDurationCurve`
 selbst ist bereits ueber core-Tests abgedeckt).
 
+### Bugfix (2026-09-20): lokaler Cache war nicht pro Google-Konto getrennt
+
+Beim Live-Test mit einem zweiten Google-Konto (fuer die M6-Gruppenfunktion)
+gemeldet: nach der Anmeldung mit Konto B zeigte die Kopfzeile korrekt
+Konto B, aber die gesamte App (Uebersicht, Aktivitaeten, ...) zeigte
+weiterhin die Trainingsdaten von Konto A. Ursache: der lokale
+IndexedDB-Cache (`idb.js`, ein Store fuer die gesamte Origin) ist NICHT
+pro Konto geschluesselt - Dateinamen wie `"index.json"` sind der Schluessel,
+unabhaengig davon, welches Google-Konto gerade angemeldet ist.
+`storage.js#readFile` liefert bei einem Cache-Treffer sofort den
+Cache-Inhalt zurueck, OHNE je Drive zu befragen - meldet sich auf
+demselben Browser ein anderes Konto an, bekommt es also weiterhin die
+Daten des vorherigen Kontos aus dem Cache. Ein vorbestehender Fehler,
+nicht durch das UI-Redesign verursacht, aber erst durch dessen
+Live-Test entdeckt.
+
+**Fix:** neue `storage.js#ensureCacheMatchesUser(email)` - vergleicht die
+E-Mail des gerade angemeldeten Kontos mit einem in `localStorage`
+gemerkten "letzter Cache-Nutzer"-Marker; weicht sie ab, wird der gesamte
+IndexedDB-Cache geleert (`idbClearAll()`, laut Kap. 5.1 ohnehin "jederzeit
+aus Drive wiederherstellbar" - keine Pro-Konto-Schluesselung noetig).
+Aufgerufen in `main.js#afterSignIn()` direkt nach `fetchSession()`, vor
+jedem anderen `storage.js`-Zugriff - der einzige Punkt, an dem jede
+Sitzung (normale Anmeldung UND die neue stille Wiederanmeldung aus Phase 3)
+zusammenlaeuft, bevor Uebersicht/Einstellungen/Profil ueberhaupt rendern.
+Ueber Preview verifiziert (IndexedDB direkt seeden, Funktion mit
+gleichem/anderem Kontonamen aufrufen, Cache-Zustand pruefen) - `web`:
+weiterhin 52 Tests gruen (Drive-/IndexedDB-Code ist wie ueblich nicht per
+`node --test` pruefbar, siehe bisheriges Muster).
+
 ## Ablageformat der Streams (`streams/YYYY-MM.bin`)
 
 In M1 bewusst offengelassen ("wird erst in M2 festgelegt", `core/README.md`).

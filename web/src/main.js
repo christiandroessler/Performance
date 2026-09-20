@@ -12,7 +12,7 @@ import { applyStoredTheme } from './theme.js';
 import { openSettings } from './settingsView.js';
 import { openProfile, PROFILE_PHOTO_FILE } from './profileView.js';
 import { openGlossary } from './glossaryView.js';
-import { readFile } from './storage.js';
+import { readFile, ensureCacheMatchesUser } from './storage.js';
 
 const app = document.getElementById('app');
 
@@ -85,6 +85,11 @@ async function afterSignIn() {
     if (err.status === 403) return renderRejected(); // FA-AUTH-01: neutrale Ablehnung
     throw err;
   }
+
+  // Muss VOR jedem anderen storage.js-Zugriff passieren: der lokale IndexedDB-Cache ist nicht
+  // pro Konto getrennt - meldet sich hier ein anderes Google-Konto an als zuletzt auf diesem
+  // Browser, wuerde sonst der Cache des vorherigen Kontos angezeigt (siehe storage.js).
+  await ensureCacheMatchesUser(getSignedInEmail());
 
   const params = new URLSearchParams(window.location.search);
   const stravaResult = params.get('strava');
