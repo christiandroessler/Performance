@@ -18,8 +18,9 @@ Rechenkern zuerst, getestet mit dem Strava-Datenexport.
 
 Nach dem Live-Test von M6 hat der Auftraggeber konkrete UI-Aenderungswuensche
 zurueckgemeldet (Navigation, Uebersicht-Layout, neues Profil, neuer
-Start-/Login-Screen, Leistungsvorhersage) - Umsetzung in Phasen, siehe
-[`web/README.md`](web/README.md) Abschnitt "UI-Redesign nach M6".
+Start-/Login-Screen, Leistungsvorhersage) - alle 4 Phasen gebaut, code-seitig
+verifiziert (core 101 / web 52 Tests gruen), Live-Test durch den Nutzer noch
+offen, siehe [`web/README.md`](web/README.md) Abschnitt "UI-Redesign nach M6".
 
 ## M1-Status im Detail
 
