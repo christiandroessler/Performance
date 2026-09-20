@@ -126,3 +126,23 @@ test('requireAdmin wirft 403 fuer ein normales Mitglied', () => {
 test('requireAdmin laesst einen Admin durch', () => {
   requireAdmin({ role: 'admin' }); // wirft nicht
 });
+
+test('session enthaelt stravaAthleteName aus dem Allowlist-Eintrag, oder null falls (noch) nicht verbunden', async () => {
+  const kv = new FakeKv();
+  await putAllowlistEntry(kv, {
+    email: 'mitglied@example.com',
+    role: 'member',
+    status: 'strava_connected',
+    invitedAt: 'x',
+    connectedAt: 'y',
+    stravaAthleteName: 'Max Mustermann',
+  });
+  await putAllowlistEntry(kv, { email: 'ohne-strava@example.com', role: 'member', status: 'google_connected', invitedAt: 'x', connectedAt: null });
+  const env = { GOOGLE_CLIENT_ID: AUDIENCE, ADMIN_EMAIL: 'admin@example.com', ALLOWLIST_KV: kv };
+
+  const withStrava = await requireSession(makeRequest(await signJwt('mitglied@example.com')), env);
+  assert.equal(withStrava.stravaAthleteName, 'Max Mustermann');
+
+  const withoutStrava = await requireSession(makeRequest(await signJwt('ohne-strava@example.com')), env);
+  assert.equal(withoutStrava.stravaAthleteName, null);
+});

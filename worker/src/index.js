@@ -133,6 +133,10 @@ async function route(request, url, env, ctx) {
     return handleRemoveMember(request, env, session.email, true);
   }
 
+  if (pathname === '/api/me/disconnect-strava' && request.method === 'POST') {
+    return handleDisconnectStrava(request, env);
+  }
+
   return json({ error: 'not_found' }, { status: 404 }, env);
 }
 
@@ -174,9 +178,48 @@ async function handleStravaCallback(url, env) {
 
   entry.status = 'strava_connected';
   entry.connectedAt = new Date().toISOString();
+  // Nur beim initialen Code-Tausch liefert Strava ein Athleten-Objekt mit (nicht bei einem
+  // spaeteren Token-Refresh) - deshalb hier einmalig einfangen und dauerhaft merken, damit der
+  // Nutzer jederzeit sehen kann, mit welchem Strava-Konto er tatsaechlich verbunden ist.
+  entry.stravaAthleteName = formatAthleteName(tokens.athlete);
   await putAllowlistEntry(env.ALLOWLIST_KV, entry);
 
   return Response.redirect(`${redirectBase}?strava=connected`, 302);
+}
+
+export function formatAthleteName(athlete) {
+  if (!athlete) return null;
+  const name = [athlete.firstname, athlete.lastname].filter(Boolean).join(' ').trim();
+  if (name) return name;
+  return athlete.id ? `Strava-Athlet #${athlete.id}` : null;
+}
+
+/**
+ * Selbstbedienung: NUR die Strava-Verbindung trennen (Token widerrufen/loeschen, Status auf
+ * "google_connected" zuruecksetzen) - im Unterschied zu FA-USER-07 ("Meine Daten loeschen",
+ * handleRemoveMember) bleibt der Allowlist-Eintrag UND alle Drive-Daten erhalten, der Nutzer
+ * kann direkt danach ein (anderes) Strava-Konto neu verbinden, ohne erneut eingeladen werden zu
+ * muessen.
+ */
+async function handleDisconnectStrava(request, env) {
+  const session = await requireSession(request, env);
+
+  const encryptionKey = await importEncryptionKey(env.TOKEN_ENCRYPTION_KEY);
+  const accessToken = await getValidAccessToken(env, env.ALLOWLIST_KV, encryptionKey, session.email).catch(() => null);
+  if (accessToken) await revokeAccessToken(env, accessToken).catch((err) => console.error('Strava-Widerruf fehlgeschlagen:', err));
+
+  await forgetTokens(env.ALLOWLIST_KV, session.email);
+  await deleteImportProgress(env.ALLOWLIST_KV, session.email);
+
+  const entry = await getAllowlistEntry(env.ALLOWLIST_KV, session.email);
+  if (entry) {
+    entry.status = 'google_connected';
+    entry.connectedAt = null;
+    delete entry.stravaAthleteName;
+    await putAllowlistEntry(env.ALLOWLIST_KV, entry);
+  }
+
+  return json({ ok: true }, {}, env);
 }
 
 /** FA-SYNC-01/04: inkrementeller Sync, app-weite Drosselung vor jedem Aufruf pruefen. */

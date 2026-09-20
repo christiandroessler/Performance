@@ -69,6 +69,12 @@ export async function deleteMyAccount() {
   if (!res.ok) throw await workerError(res);
 }
 
+/** Trennt NUR die Strava-Verbindung (Konto/Drive-Daten bleiben erhalten) - siehe settingsView.js. */
+export async function disconnectStrava() {
+  const res = await workerFetch('/api/me/disconnect-strava', { method: 'POST' });
+  if (!res.ok) throw await workerError(res);
+}
+
 export async function listMembers() {
   const res = await workerFetch('/api/admin/members');
   if (!res.ok) throw await workerError(res);

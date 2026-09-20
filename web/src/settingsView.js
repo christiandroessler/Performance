@@ -12,7 +12,7 @@ import { isLightTheme, setTheme } from './theme.js';
 import { loadOrInitSettings, SETTINGS_FILE } from './onboarding.js';
 import { writeJson, deleteAllFiles } from './storage.js';
 import { recomputeAll } from './compute.js';
-import { deleteMyAccount } from './api.js';
+import { deleteMyAccount, disconnectStrava, fetchSession } from './api.js';
 import { signOut } from './auth.js';
 
 const pct = { toDisplay: (v) => Math.round(v * 1000) / 10, fromDisplay: (v) => v / 100 };
@@ -126,6 +126,11 @@ function formatParamValue(param, rawValue) {
 
 export async function openSettings() {
   let settings = await loadOrInitSettings();
+  // Fuer die "Strava-Verbindung"-Karte unten - ein eigener, frischer Aufruf statt eines
+  // durchgereichten Werts, damit der Verbindungsstatus beim Oeffnen der Einstellungen immer
+  // aktuell ist (z. B. nachdem Strava zwischenzeitlich getrennt/neu verbunden wurde). Scheitert
+  // der Aufruf (z. B. Netzwerk), bleibt die Karte einfach weg statt die ganze Ansicht zu blockieren.
+  const session = await fetchSession().catch(() => null);
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
@@ -161,6 +166,7 @@ export async function openSettings() {
   renderLabValuesCard();
   renderParamsCard();
   renderChangelogCard();
+  if (session) renderStravaConnectionCard();
   renderAccountCard();
 
   // ---------- Erscheinungsbild ----------
@@ -490,6 +496,60 @@ export async function openSettings() {
       row.innerHTML = `<span>${when}</span><span class="hint">${summary}</span>`;
       list.appendChild(row);
     }
+  }
+
+  // ---------- Strava-Verbindung: welches Konto ist verbunden + trennen (ohne Konto zu loeschen) ----------
+  function renderStravaConnectionCard() {
+    const card = document.createElement('div');
+    card.className = 'card';
+    panel.appendChild(card);
+
+    const h = document.createElement('h3');
+    h.textContent = 'Strava-Verbindung';
+    card.appendChild(h);
+
+    const p = document.createElement('p');
+    if (session.status === 'strava_connected') {
+      p.innerHTML = `Verbunden mit Strava-Konto: <strong>${session.stravaAthleteName || 'unbekannt'}</strong>`;
+    } else {
+      p.className = 'hint';
+      p.textContent = 'Keine Strava-Verbindung aktiv.';
+    }
+    card.appendChild(p);
+
+    if (session.status !== 'strava_connected') return;
+
+    const disconnectBtn = document.createElement('button');
+    disconnectBtn.className = 'btn-danger';
+    disconnectBtn.textContent = 'Strava-Verbindung trennen';
+    card.appendChild(disconnectBtn);
+
+    const statusP = document.createElement('p');
+    card.appendChild(statusP);
+
+    // Zwei-Schritt-Bestaetigung wie beim Konto-loeschen unten (irreversibel bis zum Neu-Verbinden).
+    let confirming = false;
+    disconnectBtn.onclick = async () => {
+      if (!confirming) {
+        confirming = true;
+        disconnectBtn.textContent = 'Wirklich trennen?';
+        disconnectBtn.classList.add('btn-danger-confirm');
+        statusP.className = 'error';
+        statusP.textContent = 'Klicke erneut zum Bestätigen. Du kannst danach ein (anderes) Strava-Konto neu verbinden - dein Konto/deine Daten bleiben erhalten.';
+        return;
+      }
+      disconnectBtn.disabled = true;
+      statusP.className = 'hint';
+      statusP.textContent = 'Trenne Verbindung...';
+      try {
+        await disconnectStrava();
+        window.location.reload(); // fuehrt zurueck zum Strava-Verbinden-Schritt im Onboarding
+      } catch (err) {
+        statusP.className = 'error';
+        statusP.textContent = err.message;
+        disconnectBtn.disabled = false;
+      }
+    };
   }
 
   // ---------- FA-USER-07: "Meine Daten löschen" ----------

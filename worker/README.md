@@ -20,23 +20,25 @@ bzw. von Google Drive.
 | `src/kvStore.js` | KV-Wrapper: Allowlist, Token-Records, OAuth-State, Ratelimit, Import-Fortschritt |
 | `src/http.js` | JSON-Antworten, CORS |
 
-Alle Module ausser `strava.js`/`index.js` (die echte Netzwerkaufrufe machen)
-sind mit `node --test` lokal getestet, siehe `test/` (43 Tests, ohne
-Cloudflare-Account lauffaehig).
+Alle Module ausser `strava.js`/`index.js` (die echte Netzwerkaufrufe machen -
+`index.js`s `formatAthleteName` ist als einzige reine Funktion dort trotzdem
+direkt getestet) sind mit `node --test` lokal getestet, siehe `test/`
+(48 Tests, ohne Cloudflare-Account lauffaehig).
 
 ## Endpunkte (`src/index.js`)
 
 | Route | Zweck |
 |---|---|
 | `GET /api/config` | Oeffentliche Konfiguration (Google-Client-ID) |
-| `POST /api/session` | Session pruefen (Google-ID-Token + Allowlist), liefert `{email, role, status}` |
-| `POST /auth/strava/start` / `GET /auth/strava/callback` | Strava-OAuth (Worker haelt das Client Secret) |
+| `POST /api/session` | Session pruefen (Google-ID-Token + Allowlist), liefert `{email, role, status, stravaAthleteName}` |
+| `POST /auth/strava/start` / `GET /auth/strava/callback` | Strava-OAuth (Worker haelt das Client Secret); der Callback merkt beim initialen Verbinden zusaetzlich `stravaAthleteName` (aus Stravas `athlete`-Antwort, `formatAthleteName`) im Allowlist-Eintrag |
 | `GET /api/strava/activities`, `GET /api/strava/activities/:id/streams` | Gedrosselter Proxy zu Strava (FA-SYNC-04) |
 | `GET/POST /api/sync/progress` | Fortschritt eines laufenden Imports (FA-SYNC-03); `POST` mit `body=null` stempelt zusaetzlich `lastSyncAt` auf den Allowlist-Eintrag (FA-USER-04) |
 | `GET /api/admin/members` | Admin-Ansicht: Mitgliederliste inkl. Status/`lastSyncAt`/Importfortschritt (nur Warteschlangen-Laenge, **keine** Trainingsdaten, FA-USER-04) |
 | `POST /api/admin/invite` | Mitglied per E-Mail einladen (Admin, FA-USER-02), 10er-Obergrenze (FA-USER-03) |
 | `DELETE /api/admin/members/:email` | Mitglied entfernen: Strava-Widerruf + Tokens/Fortschritt/Allowlist-Eintrag loeschen (Admin, FA-USER-05) |
-| `POST /api/me/delete` | Self-Service-Variante von oben, fuer sich selbst (FA-USER-07) |
+| `POST /api/me/delete` | Self-Service-Variante von oben, fuer sich selbst (FA-USER-07) - entfernt den gesamten Allowlist-Eintrag |
+| `POST /api/me/disconnect-strava` | Neu (2026-09-20): trennt NUR die Strava-Verbindung (Token widerrufen+loeschen, Status zurueck auf `google_connected`) - Allowlist-Eintrag/Drive-Daten bleiben erhalten, direktes Neu-Verbinden moeglich |
 
 `worker/src/tokenManager.js#getValidAccessToken` erkennt zusaetzlich einen
 von Strava mit 400 (invalid_grant) abgelehnten Refresh Token als

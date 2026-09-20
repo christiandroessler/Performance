@@ -597,6 +597,39 @@ gruen, Live-Nachtest durch den Nutzer noetig. Der Cache-Fix aus Teil 1
 bleibt zusaetzlich sinnvoll (begrenzt den Schaden, falls trotz `hint`
 nochmal ein falsches Konto durchrutschen sollte).
 
+### Neu (2026-09-20): welches Strava-Konto ist verbunden + Strava-Verbindung selbst trennen
+
+Direkte Folge des Kontoverwechslungs-Bugs oben: es gab bisher KEINE
+Moeglichkeit zu sehen, mit welchem Strava-Konto man tatsaechlich verbunden
+ist - das haette die Verwechslung sofort sichtbar gemacht. Zwei Ergaenzungen:
+
+- **Worker:** `handleStravaCallback` faengt jetzt das `athlete`-Objekt aus
+  Stravas Token-Antwort ein (nur beim initialen Code-Tausch vorhanden, nicht
+  bei einem spaeteren Refresh) und merkt einen Anzeigenamen
+  (`formatAthleteName`, `worker/src/index.js`) dauerhaft im Allowlist-
+  Eintrag (`stravaAthleteName`). `requireSession` (`session.js`) reicht das
+  Feld ab jetzt in jeder Session-Antwort durch.
+- **Neuer Endpunkt `POST /api/me/disconnect-strava`**
+  (`handleDisconnectStrava`): trennt NUR die Strava-Verbindung (Token
+  widerrufen + loeschen, Status zurueck auf `google_connected`) - im
+  Unterschied zu FA-USER-07 ("Meine Daten loeschen") bleiben Allowlist-
+  Eintrag UND alle Drive-Daten erhalten, der Nutzer kann direkt danach ein
+  (anderes) Strava-Konto neu verbinden, ohne erneut eingeladen werden zu
+  muessen. Es gab bisher keine Selbstbedienungs-Moeglichkeit dafuer, nur die
+  vollstaendige Konto-Loeschung.
+- **Frontend:** neue Karte "Strava-Verbindung" in den Einstellungen
+  (`settingsView.js#renderStravaConnectionCard`, vor der "Konto"-
+  Danger-Zone) - zeigt "Verbunden mit Strava-Konto: NAME" und einen
+  "Strava-Verbindung trennen"-Button (gleiche Zwei-Schritt-Bestaetigung wie
+  beim Konto-loeschen, da irreversibel bis zum Neu-Verbinden). `openSettings()`
+  ruft dafuer einmalig frisch `fetchSession()` auf.
+
+`worker`: 48 Tests gruen (4 neue fuer `formatAthleteName`, 1 neuer Test fuer
+`stravaAthleteName` in `requireSession`). `web`: weiterhin 52 Tests gruen.
+Per Preview verifiziert (Session-Antwort gemockt, Karte + Zwei-Schritt-
+Bestaetigung geprueft) - der eigentliche Trenn-Aufruf selbst braucht einen
+echten Worker und ist nur live pruefbar.
+
 ## Ablageformat der Streams (`streams/YYYY-MM.bin`)
 
 In M1 bewusst offengelassen ("wird erst in M2 festgelegt", `core/README.md`).

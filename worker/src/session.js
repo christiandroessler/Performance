@@ -35,7 +35,7 @@ export async function requireSession(request, env) {
 
   if (!entry) throw new HttpError(403, 'not_on_allowlist');
 
-  return { email, role: entry.role, status: entry.status, name: identity.name };
+  return { email, role: entry.role, status: entry.status, name: identity.name, stravaAthleteName: entry.stravaAthleteName || null };
 }
 
 export function requireAdmin(session) {
