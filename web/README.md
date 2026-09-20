@@ -657,14 +657,48 @@ Browser-Cache leeren muss. Per Preview verifiziert (alter unversionierter
 Marker + gleiche E-Mail -> trotzdem einmalig geleert; danach normaler
 Kontowechsel-Vergleich wie gewohnt). `web`: weiterhin 52 Tests gruen.
 
-Falls nach diesem Deploy + einem erneuten Login IMMER NOCH fremde
-Aktivitaeten auftauchen, waere das ein Hinweis, dass nicht nur der lokale
-Cache, sondern das Testkonto-eigene Drive selbst kontaminiert wurde
-(waere dann nur ueber "Meine Daten loeschen" + Admin-Neueinladung sicher
-zu bereinigen) - basierend auf der Analyse aber unwahrscheinlich, da
-Christians eigenes Konto durchgehend denselben (fehlerhaften) Drive-Zugriff
-hatte und das Testkonto-Drive dadurch vermutlich nie tatsaechlich
-beschrieben wurde.
+**Nachtrag:** Teil 3 hat das Problem NICHT geloest - nach einem
+vollstaendigen "Websitedaten loeschen" (IndexedDB + localStorage + HTTP-
+Cache komplett, nicht nur neu geladen) zeigte das Testkonto immer noch
+denselben Mix aus beiden Konten. Das schliesst sowohl einen veralteten
+Browser-Cache der App-Dateien selbst als auch Teil 1s Cache-Kontamination
+als Ursache aus - der `hint`-Fix aus Teil 2 funktioniert also in der Praxis
+offenbar NICHT zuverlaessig (Google garantiert bei einer STILLEN
+Token-Anfrage (`prompt:''`) trotz `hint` nicht, dass tatsaechlich das
+angeforderte Konto verwendet wird, wenn mehrere Google-Sitzungen im
+Browser aktiv sind).
+
+### Bugfix (2026-09-20, Teil 4): Drive-Zugriffstoken wird jetzt aktiv gegen das angemeldete Konto verifiziert, statt `hint` blind zu vertrauen
+
+`auth.js#requestDriveAccess()` prueft das von Google erhaltene Access-
+Token jetzt aktiv nach, BEVOR es irgendwo verwendet wird:
+`verifyDriveTokenAccount()` ruft `https://oauth2.googleapis.com/tokeninfo`
+mit dem Token auf und vergleicht das zurueckgegebene `sub` (Googles
+stabile Konto-ID) gegen das `sub` aus dem eigenen ID-Token. Bei Abweichung
+wird ein Fehler geworfen statt das Token stillschweigend zu verwenden -
+der bestehende Ablauf faengt das automatisch ab: schlaegt die STILLE
+Anfrage (`prompt:''`) dadurch fehl, faellt der Code wie schon bisher auf
+den SICHTBAREN Consent-Dialog zurueck (der Nutzer waehlt/bestaetigt das
+Konto dort explizit selbst) - schlaegt sogar DAS fehl, wird der Fehler an
+den Aufrufer durchgereicht statt falsche Daten anzuzeigen. Verwandelt
+damit einen stillen Datenmix zuverlaessig in entweder einen zusaetzlichen
+sichtbaren Google-Dialog oder eine klare Fehlermeldung.
+
+Per Preview verifiziert (Google-SDK + `tokeninfo`-Endpunkt gemockt): (1)
+stille Anfrage liefert falsches Konto -> wird abgelehnt -> Fallback auf
+sichtbaren Dialog -> liefert richtiges Konto -> Erfolg; (2) selbst der
+sichtbare Dialog liefert nur ein falsches Konto -> Fehler wird korrekt bis
+zum Aufrufer durchgereicht, kein stilles Weitermachen. `web`: weiterhin
+52 Tests gruen.
+
+**Falls das IMMER NOCH nicht reicht:** dann muesste entweder der
+sichtbare Consent-Dialog selbst (trotz Nutzerbestaetigung) ein falsches
+Token liefern (sehr ungewoehnlich), oder - wahrscheinlicher - das
+Testkonto-eigene Drive enthaelt bereits real gespeicherte kontaminierte
+Daten aus der Zeit vor diesem Fix. Dann hilft nur noch ein vollstaendiger
+Reset: "Meine Daten loeschen" (Einstellungen -> Konto) auf dem Testkonto,
+danach Neueinladung durch den Admin (Gruppe-Tab) und kompletter Neuaufbau
+(Google anmelden, Drive-Zugriff erteilen, Strava neu verbinden, Erstimport).
 
 ## Ablageformat der Streams (`streams/YYYY-MM.bin`)
 

@@ -117,19 +117,38 @@ function decodeJwtPayload(jwt) {
 }
 
 /**
+ * Absicherung: `hint` (siehe unten) garantiert bei Google NICHT zuverlaessig, dass die STILLE
+ * Token-Erneuerung (`prompt:''`) tatsaechlich fuer das angeforderte Konto ausgestellt wird, wenn
+ * im selben Browser mehrere Google-Sitzungen aktiv sind - genau das wurde live beobachtet (Kopf-
+ * zeile zeigte korrekt Konto B, Drive-Zugriff kam trotz `hint` weiterhin von Konto A). Statt dem
+ * `hint` blind zu vertrauen, wird das tatsaechlich erhaltene Token aktiv gegen `sub` (Googles
+ * stabile Konto-ID, aus dem ID-Token) geprueft, BEVOR es irgendwo verwendet wird. Bei Abweichung
+ * wird NICHT stillschweigend weitergemacht (das waere exakt der Fehler von vorher), sondern ein
+ * Fehler geworfen - der Aufrufer unten faellt dann auf den SICHTBAREN Consent-Dialog zurueck
+ * (der Nutzer bestaetigt das Konto dort explizit selbst), statt Trainingsdaten eines falschen
+ * Kontos zu laden.
+ */
+async function verifyDriveTokenAccount(accessToken, expectedSub) {
+  const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(accessToken)}`);
+  if (!res.ok) throw new Error('Drive-Zugriffstoken konnte nicht geprueft werden.');
+  const info = await res.json();
+  if (info.sub !== expectedSub) {
+    throw new Error('Drive-Zugriff wurde fuer ein anderes Google-Konto erteilt als angemeldet - abgebrochen, um keine falschen Daten zu laden.');
+  }
+}
+
+/**
  * FA-AUTH-02 Schritt 3: expliziter Drive-Zugriff (Scope drive.appdata), zeitlich getrennt von
  * der Anmeldung (Schritt 1). Die Google-Sign-In-Identitaet (ID-Token, Schritt 1) und dieser
- * Drive-OAuth-Grant sind ZWEI unabhaengige Google-Ablaeufe - ohne `hint` (login_hint) kann die
- * stille Token-Erneuerung unten (`prompt:''`) ein ANDERES Google-Konto liefern als das gerade
- * angemeldete, wenn im selben Browser mehrere Google-Sitzungen aktiv sind (beobachtet: Kopfzeile
- * zeigte korrekt Konto B, aber alle Trainingsdaten waren die von Konto A - weil der
- * Drive-Zugriffstoken weiterhin fuer Konto A ausgestellt wurde). `hint` bindet den Drive-Grant
- * explizit an dieselbe E-Mail wie der ID-Token.
+ * Drive-OAuth-Grant sind ZWEI unabhaengige Google-Ablaeufe - `hint` bindet den Drive-Grant an
+ * dieselbe E-Mail wie der ID-Token, `verifyDriveTokenAccount` oben prueft das Ergebnis zusaetzlich
+ * aktiv nach (siehe deren Kommentar).
  */
 export async function requestDriveAccess() {
   await waitForGis();
   const { googleClientId } = await getPublicConfig();
   const hint = getSignedInEmail() || undefined;
+  const expectedSub = idTokenPayload && idTokenPayload.sub;
 
   if (!tokenClient) {
     tokenClient = window.google.accounts.oauth2.initTokenClient({
@@ -142,8 +161,14 @@ export async function requestDriveAccess() {
 
   const tryWithPrompt = (prompt) =>
     new Promise((resolve, reject) => {
-      tokenClient.callback = (response) => {
+      tokenClient.callback = async (response) => {
         if (response.error) return reject(new Error(response.error));
+        try {
+          if (expectedSub) await verifyDriveTokenAccount(response.access_token, expectedSub);
+        } catch (err) {
+          reject(err);
+          return;
+        }
         driveAccessToken = response.access_token;
         driveAccessTokenExpiry = Date.now() + (response.expires_in || 3600) * 1000 - 60_000;
         resolve(driveAccessToken);
