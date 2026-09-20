@@ -507,17 +507,15 @@ Preview): App schliessen, neu oeffnen - sollte ohne Klick direkt zur
 Uebersicht kommen, solange man bei Google im Browser angemeldet bleibt.
 
 **Phase 4 (Leistungsvorhersage per Regler):** neue Karte "Leistungsvorhersage"
-im "Leistungskurve"-Tab (`powerCurveView.js#renderPredictionCard`), direkt
-unter der empirischen Leistungskurve. Nutzt ausschliesslich bereits
-vorhandenen Kern-Code - `powerDurationCurve(sig, [t])`
+im "Leistungskurve"-Tab (`powerCurveView.js#renderPredictionCard`), steht
+VOR der empirischen Leistungskurve (Kundenwunsch, siehe Korrektur unten).
+Nutzt ausschliesslich bereits vorhandenen Kern-Code - `powerDurationCurve(sig, [t])`
 (`core/src/cpFit.js`, Morton-CP-Fit `P(t) = cp + wPrime/(t + wPrime/(pMax-cp))`)
 war bereits exportiert, aber nirgends in der UI aufgerufen (dasselbe
 "Backend/Kern fertig, nie verdrahtet"-Muster wie schon bei M6 und dem
 Signatur-Verfall in dieser Session). Regler (`<input type="range">`, neue
-`.slider`-CSS-Klasse - erste Regler-Komponente in diesem Projekt) nutzt
-dieselben Zeitpunkte wie die X-Achsen-Beschriftung oben (`DURATION_TICKS`,
-1s bis 3h, log-artig gestuft statt linear - bei dieser Zeitspanne waere
-linear unbrauchbar), Standardstellung 20 Minuten. Rechnet bewusst mit dem
+`.slider`-CSS-Klasse - erste Regler-Komponente in diesem Projekt) ist
+stufenlos (1-Sekunden-Schritte, 1 bis 60 Minuten), rechnet bewusst mit dem
 ROHEN Breakthrough-Stand (wie die Leistungssignatur-Kacheln auf der
 Uebersicht), nicht der belastungsgekoppelten Anzeige (Kap. 7.7) - eine
 Vorhersage ist eine Kapazitaetsaussage ("was ist maximal moeglich"), keine
@@ -525,6 +523,21 @@ Ermuedungs-/Trend-Aussage.
 
 `web`: weiterhin 52 Tests gruen (reine View-Datei; `powerDurationCurve`
 selbst ist bereits ueber core-Tests abgedeckt).
+
+**Korrektur (2026-09-20, Kundenwunsch nach erstem Test):** drei Anpassungen
+an der Leistungsvorhersage-Karte: (1) steht jetzt VOR statt nach dem
+Leistungskurve-Diagramm (Container-Reihenfolge in
+`renderPowerCurve` getauscht - die Karte laedt jetzt auch unabhaengig vom
+`curves.length === 0`-Fruehausstieg der Leistungskurve, zeigt bei fehlenden
+MMP-Kurven aber weiterhin korrekt "Noch keine Leistungssignatur vorhanden.",
+falls auch das noch fehlt). (2) Regler ist jetzt stufenlos (Sekundenwert
+direkt als Reglerwert, `step="1"`) statt der elf festen `DURATION_TICKS`-
+Raststufen (1s/5s/.../3h). (3) Bereich auf 1-60 Minuten begrenzt (vorher
+1s-3h) - laengere Vorhersagen sind fuer diese Kapazitaetsaussage nicht mehr
+sinnvoll. Anzeige jetzt `mm:ss min` (z. B. "12:34 min") statt gerundeter
+Minutenlabel, passend zur feineren Aufloesung. Per Preview verifiziert
+(Regler auf Minimum/Maximum gezogen, Watt-Werte gegen Handrechnung
+geprueft). `web`: weiterhin 52 Tests gruen.
 
 ### Bugfix (2026-09-20): lokaler Cache war nicht pro Google-Konto getrennt
 

@@ -50,6 +50,18 @@ function weightAtDate(settings, date) {
 
 export async function renderPowerCurve(container) {
   container.innerHTML = '';
+
+  // Leistungsvorhersage steht bewusst VOR dem Diagramm (Kundenwunsch 2026-09-20) - eigene Karte,
+  // haengt nur an der Leistungssignatur, nicht an den MMP-Kurven unten, laedt daher unabhaengig.
+  const predictionContainer = document.createElement('div');
+  container.appendChild(predictionContainer);
+  try {
+    const modelState = await loadModelState();
+    renderPredictionCard(predictionContainer, modelState);
+  } catch (err) {
+    console.error('[Leistungskurve] Leistungsvorhersage fehlgeschlagen:', err);
+  }
+
   const box = document.createElement('div');
   box.className = 'card';
   container.appendChild(box);
@@ -157,18 +169,6 @@ export async function renderPowerCurve(container) {
   wkgCheckbox.onchange = render;
   render();
 
-  // Leistungsvorhersage: Modellwert (Morton-CP-Fit) fuer eine frei waehlbare Dauer, direkt unter
-  // der empirischen Kurve oben - ergaenzt "was war die beste gemessene Leistung" um "was ist bei
-  // dieser Dauer aktuell modelliert zu erwarten".
-  const predictionContainer = document.createElement('div');
-  container.appendChild(predictionContainer);
-  try {
-    const modelState = await loadModelState();
-    renderPredictionCard(predictionContainer, modelState);
-  } catch (err) {
-    console.error('[Leistungskurve] Leistungsvorhersage fehlgeschlagen:', err);
-  }
-
   // Sportart-Schwellen (FA-TP-03/04): von der Uebersicht hierher umgezogen, da sie inhaltlich
   // zur Leistungskurve gehoeren (beide leiten sich aus Bestwerten je Sportart her) und auf der
   // Uebersicht selbst weniger zentral waren als Performance Metrics/Leistungssignatur.
@@ -219,24 +219,40 @@ function renderPredictionCard(container, modelState) {
   readout.style.marginBottom = '0.9rem';
   box.appendChild(readout);
 
+  // Stufenlos (Kundenwunsch 2026-09-20) statt fester Raststufen (1/5/10/20 min, ...) - Sekunden
+  // direkt als Reglerwert, kein Umweg ueber DURATION_TICKS-Indizes. Endet bei 1h: laengere
+  // Vorhersagen sind fuer diese Kapazitaetsaussage nicht mehr sinnvoll (Kundenwunsch).
+  const MIN_SECONDS = 60;
+  const MAX_SECONDS = 3600;
   const slider = document.createElement('input');
   slider.type = 'range';
   slider.className = 'slider';
-  slider.min = '0';
-  slider.max = String(DURATION_TICKS.length - 1);
+  slider.min = String(MIN_SECONDS);
+  slider.max = String(MAX_SECONDS);
   slider.step = '1';
-  const defaultIndex = DURATION_TICKS.findIndex((t) => t.t === 1200); // 20 min - gaengiger Testdauer-Referenzwert
-  slider.value = String(defaultIndex >= 0 ? defaultIndex : Math.floor(DURATION_TICKS.length / 2));
+  slider.value = '1200'; // 20 min - gaengiger Testdauer-Referenzwert
   box.appendChild(slider);
+
+  const rangeLabels = document.createElement('div');
+  rangeLabels.className = 'hint';
+  rangeLabels.style.cssText = 'display:flex;justify-content:space-between;margin-top:0.2rem;';
+  rangeLabels.innerHTML = '<span>1 min</span><span>60 min</span>';
+  box.appendChild(rangeLabels);
 
   const sig = { cp: latest.cp, wPrime: latest.wPrimeJ, pMax: latest.pMax };
 
+  function formatMinSec(sec) {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${String(s).padStart(2, '0')} min`;
+  }
+
   function update() {
-    const tick = DURATION_TICKS[Number(slider.value)];
-    const [point] = powerDurationCurve(sig, [tick.t]);
+    const t = Number(slider.value);
+    const [point] = powerDurationCurve(sig, [t]);
     readout.innerHTML = `
       <div class="stat-tile accent">
-        <span class="stat-tile-label">${tick.label}</span>
+        <span class="stat-tile-label">${formatMinSec(t)}</span>
         <span class="stat-tile-value">${point ? Math.round(point.watts) : '-'}<span class="unit">W</span></span>
       </div>
     `;
