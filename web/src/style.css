@@ -244,6 +244,33 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .btn-row { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; }
 
+/* ---------- Regler (Leistungsvorhersage) ---------- */
+
+input[type='range'].slider {
+  width: 100%;
+  min-height: 24px;
+  appearance: none;
+  background: transparent;
+  padding: 0;
+  border: none;
+}
+input[type='range'].slider::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: var(--border-strong); }
+input[type='range'].slider::-moz-range-track { height: 6px; border-radius: 3px; background: var(--border-strong); }
+input[type='range'].slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg-elevated);
+  margin-top: -7px;
+  cursor: pointer;
+}
+input[type='range'].slider::-moz-range-thumb {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg-elevated);
+  cursor: pointer;
+}
+
 .filter-row { margin-bottom: 0.5rem; }
 .filter-row input[type='search'] { min-width: 220px; flex: 1 1 220px; }
 .filter-date-label { flex-direction: row; align-items: center; gap: 0.4rem; margin-bottom: 0; font-size: 0.78rem; color: var(--text-muted); }

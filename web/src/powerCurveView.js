@@ -5,8 +5,8 @@
 // das Aggregieren ueber wenige Dutzend Stuetzpunkte je Aktivitaet ist auch bei
 // mehreren tausend Aktivitaeten schnell genug, um die UI nicht zu blockieren.
 
-import { aggregateMMP, DEFAULT_GRID } from '../vendor/core/src/index.js';
-import { loadMmpCurves, loadThresholds } from './compute.js';
+import { aggregateMMP, DEFAULT_GRID, powerDurationCurve } from '../vendor/core/src/index.js';
+import { loadMmpCurves, loadThresholds, loadModelState } from './compute.js';
 import { readJson } from './storage.js';
 import { renderSportThresholds } from './dashboardExtras.js';
 
@@ -157,6 +157,18 @@ export async function renderPowerCurve(container) {
   wkgCheckbox.onchange = render;
   render();
 
+  // Leistungsvorhersage: Modellwert (Morton-CP-Fit) fuer eine frei waehlbare Dauer, direkt unter
+  // der empirischen Kurve oben - ergaenzt "was war die beste gemessene Leistung" um "was ist bei
+  // dieser Dauer aktuell modelliert zu erwarten".
+  const predictionContainer = document.createElement('div');
+  container.appendChild(predictionContainer);
+  try {
+    const modelState = await loadModelState();
+    renderPredictionCard(predictionContainer, modelState);
+  } catch (err) {
+    console.error('[Leistungskurve] Leistungsvorhersage fehlgeschlagen:', err);
+  }
+
   // Sportart-Schwellen (FA-TP-03/04): von der Uebersicht hierher umgezogen, da sie inhaltlich
   // zur Leistungskurve gehoeren (beide leiten sich aus Bestwerten je Sportart her) und auf der
   // Uebersicht selbst weniger zentral waren als Performance Metrics/Leistungssignatur.
@@ -168,6 +180,69 @@ export async function renderPowerCurve(container) {
   } catch (err) {
     console.error('[Leistungskurve] Sportart-Schwellen fehlgeschlagen:', err);
   }
+}
+
+/**
+ * Leistungsvorhersage: "was kann ich aktuell fuer X Minuten fahren" als Regler statt Tabelle.
+ * Nutzt die bereits im Kern vorhandene `powerDurationCurve` (Morton-CP-Fit, `cpFit.js`) auf dem
+ * ROHEN Breakthrough-Stand (wie die Leistungssignatur-Kacheln auf der Uebersicht) - bewusst
+ * NICHT die belastungsgekoppelte Anzeige (Kap. 7.7), da eine Vorhersage eine Kapazitaetsaussage
+ * ist ("was ist maximal moeglich"), keine "wie fit bin ich heute unter Ermuedung"-Aussage.
+ */
+function renderPredictionCard(container, modelState) {
+  container.innerHTML = '';
+  const box = document.createElement('div');
+  box.className = 'card';
+  container.appendChild(box);
+
+  const header = document.createElement('div');
+  header.className = 'card-header';
+  header.innerHTML = '<h2>Leistungsvorhersage</h2>';
+  box.appendChild(header);
+
+  const latest = modelState && modelState.history && modelState.history.length ? modelState.history[modelState.history.length - 1] : null;
+  if (!latest) {
+    const p = document.createElement('p');
+    p.className = 'hint';
+    p.textContent = 'Noch keine Leistungssignatur vorhanden.';
+    box.appendChild(p);
+    return;
+  }
+
+  const hint = document.createElement('p');
+  hint.className = 'hint';
+  hint.textContent = 'Modellierte maximale Leistung (Morton-CP-Fit) für eine frei wählbare Dauer, aus der aktuellen Leistungssignatur - keine Belastungs-/Ermüdungsanpassung.';
+  box.appendChild(hint);
+
+  const readout = document.createElement('div');
+  readout.className = 'stat-grid';
+  readout.style.marginBottom = '0.9rem';
+  box.appendChild(readout);
+
+  const slider = document.createElement('input');
+  slider.type = 'range';
+  slider.className = 'slider';
+  slider.min = '0';
+  slider.max = String(DURATION_TICKS.length - 1);
+  slider.step = '1';
+  const defaultIndex = DURATION_TICKS.findIndex((t) => t.t === 1200); // 20 min - gaengiger Testdauer-Referenzwert
+  slider.value = String(defaultIndex >= 0 ? defaultIndex : Math.floor(DURATION_TICKS.length / 2));
+  box.appendChild(slider);
+
+  const sig = { cp: latest.cp, wPrime: latest.wPrimeJ, pMax: latest.pMax };
+
+  function update() {
+    const tick = DURATION_TICKS[Number(slider.value)];
+    const [point] = powerDurationCurve(sig, [tick.t]);
+    readout.innerHTML = `
+      <div class="stat-tile accent">
+        <span class="stat-tile-label">${tick.label}</span>
+        <span class="stat-tile-value">${point ? Math.round(point.watts) : '-'}<span class="unit">W</span></span>
+      </div>
+    `;
+  }
+  slider.oninput = update;
+  update();
 }
 
 /** Leistungskurve als Grafik (log-Dauer-Achse, da 1s bis mehrere Stunden auf einer Skala nicht ablesbar waeren). */

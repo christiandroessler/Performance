@@ -506,6 +506,26 @@ Live-Test (nur durch den Nutzer moeglich, kein echtes Google-Konto in der
 Preview): App schliessen, neu oeffnen - sollte ohne Klick direkt zur
 Uebersicht kommen, solange man bei Google im Browser angemeldet bleibt.
 
+**Phase 4 (Leistungsvorhersage per Regler):** neue Karte "Leistungsvorhersage"
+im "Leistungskurve"-Tab (`powerCurveView.js#renderPredictionCard`), direkt
+unter der empirischen Leistungskurve. Nutzt ausschliesslich bereits
+vorhandenen Kern-Code - `powerDurationCurve(sig, [t])`
+(`core/src/cpFit.js`, Morton-CP-Fit `P(t) = cp + wPrime/(t + wPrime/(pMax-cp))`)
+war bereits exportiert, aber nirgends in der UI aufgerufen (dasselbe
+"Backend/Kern fertig, nie verdrahtet"-Muster wie schon bei M6 und dem
+Signatur-Verfall in dieser Session). Regler (`<input type="range">`, neue
+`.slider`-CSS-Klasse - erste Regler-Komponente in diesem Projekt) nutzt
+dieselben Zeitpunkte wie die X-Achsen-Beschriftung oben (`DURATION_TICKS`,
+1s bis 3h, log-artig gestuft statt linear - bei dieser Zeitspanne waere
+linear unbrauchbar), Standardstellung 20 Minuten. Rechnet bewusst mit dem
+ROHEN Breakthrough-Stand (wie die Leistungssignatur-Kacheln auf der
+Uebersicht), nicht der belastungsgekoppelten Anzeige (Kap. 7.7) - eine
+Vorhersage ist eine Kapazitaetsaussage ("was ist maximal moeglich"), keine
+Ermuedungs-/Trend-Aussage.
+
+`web`: weiterhin 52 Tests gruen (reine View-Datei; `powerDurationCurve`
+selbst ist bereits ueber core-Tests abgedeckt).
+
 ## Ablageformat der Streams (`streams/YYYY-MM.bin`)
 
 In M1 bewusst offengelassen ("wird erst in M2 festgelegt", `core/README.md`).
