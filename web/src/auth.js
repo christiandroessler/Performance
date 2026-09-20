@@ -116,15 +116,26 @@ function decodeJwtPayload(jwt) {
   return JSON.parse(json);
 }
 
-/** FA-AUTH-02 Schritt 3: expliziter Drive-Zugriff (Scope drive.appdata), zeitlich getrennt von der Anmeldung (Schritt 1). */
+/**
+ * FA-AUTH-02 Schritt 3: expliziter Drive-Zugriff (Scope drive.appdata), zeitlich getrennt von
+ * der Anmeldung (Schritt 1). Die Google-Sign-In-Identitaet (ID-Token, Schritt 1) und dieser
+ * Drive-OAuth-Grant sind ZWEI unabhaengige Google-Ablaeufe - ohne `hint` (login_hint) kann die
+ * stille Token-Erneuerung unten (`prompt:''`) ein ANDERES Google-Konto liefern als das gerade
+ * angemeldete, wenn im selben Browser mehrere Google-Sitzungen aktiv sind (beobachtet: Kopfzeile
+ * zeigte korrekt Konto B, aber alle Trainingsdaten waren die von Konto A - weil der
+ * Drive-Zugriffstoken weiterhin fuer Konto A ausgestellt wurde). `hint` bindet den Drive-Grant
+ * explizit an dieselbe E-Mail wie der ID-Token.
+ */
 export async function requestDriveAccess() {
   await waitForGis();
   const { googleClientId } = await getPublicConfig();
+  const hint = getSignedInEmail() || undefined;
 
   if (!tokenClient) {
     tokenClient = window.google.accounts.oauth2.initTokenClient({
       client_id: googleClientId,
       scope: 'https://www.googleapis.com/auth/drive.appdata',
+      hint,
       callback: () => {}, // wird pro Aufruf unten ueberschrieben
     });
   }
@@ -137,7 +148,7 @@ export async function requestDriveAccess() {
         driveAccessTokenExpiry = Date.now() + (response.expires_in || 3600) * 1000 - 60_000;
         resolve(driveAccessToken);
       };
-      tokenClient.requestAccessToken({ prompt });
+      tokenClient.requestAccessToken({ prompt, hint });
     });
 
   // Erst still versuchen (funktioniert oft nach einem Seiten-Neuladen, z. B.

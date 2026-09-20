@@ -556,6 +556,34 @@ gleichem/anderem Kontonamen aufrufen, Cache-Zustand pruefen) - `web`:
 weiterhin 52 Tests gruen (Drive-/IndexedDB-Code ist wie ueblich nicht per
 `node --test` pruefbar, siehe bisheriges Muster).
 
+### Bugfix (2026-09-20, Teil 2): Drive-Zugriffstoken war nicht an das angemeldete Konto gebunden
+
+Der Cache-Fix oben allein hat das gemeldete Problem NICHT vollstaendig
+geloest - nach erneutem Live-Test war die Kopfzeile weiterhin korrekt
+(Konto B), aber alle Trainingsdaten weiterhin die von Konto A. Tieferer,
+eigentlicher Grund: `auth.js#requestDriveAccess()` hat den Drive-OAuth-
+Token (`google.accounts.oauth2.initTokenClient`/`requestAccessToken`,
+Scope `drive.appdata`) ohne `hint` (login_hint) angefordert. Die
+Google-Sign-In-Identitaet (ID-Token) und dieser separate Drive-OAuth-Grant
+sind ZWEI unabhaengige Google-Ablaeufe - ohne `hint` kann die STILLE
+Token-Erneuerung (`prompt:''`, laeuft bei jedem App-Start/alle ~55 Min.)
+ein ANDERES Google-Konto liefern als das gerade per ID-Token angemeldete,
+wenn im selben Browser mehrere Google-Sitzungen aktiv sind (z. B. zwei
+Test-Konten im selben Browser-Profil) - der Worker/die Session-Pruefung
+sieht dabei zu jeder Zeit korrekt Konto B (das laeuft ueber das ID-Token),
+aber ALLE Drive-Lesezugriffe (Aktivitaeten, Einstellungen, Modell-Dateien)
+liefen client-seitig unbemerkt weiter gegen Konto As Drive-Ablage.
+
+**Fix:** `requestDriveAccess()` uebergibt jetzt `hint: getSignedInEmail()`
+sowohl bei `initTokenClient()` als auch bei jedem `requestAccessToken()`-
+Aufruf (beide Stellen unterstuetzen `hint` als Override) - bindet den
+Drive-Grant explizit an dieselbe E-Mail wie das ID-Token. Kann nicht per
+Preview verifiziert werden (echte Mehrkonten-Google-OAuth-Sitzung noetig,
+in der Preview-Technik nicht simulierbar) - `web`: weiterhin 52 Tests
+gruen, Live-Nachtest durch den Nutzer noetig. Der Cache-Fix aus Teil 1
+bleibt zusaetzlich sinnvoll (begrenzt den Schaden, falls trotz `hint`
+nochmal ein falsches Konto durchrutschen sollte).
+
 ## Ablageformat der Streams (`streams/YYYY-MM.bin`)
 
 In M1 bewusst offengelassen ("wird erst in M2 festgelegt", `core/README.md`).
