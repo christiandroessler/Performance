@@ -480,6 +480,32 @@ kein Stammdatum).
 `web`: weiterhin 52 Tests gruen (reine View-Datei, wie beim bisherigen
 Muster ueber Preview statt Unit-Test verifiziert).
 
+**Phase 3 (Startscreen + "angemeldet bleiben"):**
+
+- **Neuer Startscreen** (`main.js#renderSignIn`): zentrierte Karte
+  (`.signin-card`) mit App-Icon (`icon.svg`, bereits seit M6/PWA vorhanden),
+  App-Name, kurzem Untertitel, Google-Sign-In-Button zentriert darunter -
+  statt der bisherigen schmucklosen Textzeile.
+- **"Angemeldet bleiben"** (`auth.js#trySilentSignIn`, neu): beim App-Start
+  wird zuerst versucht, OHNE Klick ein frisches ID-Token zu bekommen (Google
+  One Tap/FedCM, `auto_select: true` + `google.accounts.id.prompt()`) -
+  klappt nur, wenn der Browser noch bei Google angemeldet ist und der
+  Nutzer sich nicht zuletzt aktiv abgemeldet hat (`signOut()` ruft weiterhin
+  `disableAutoSelect()`). Liefert `trySilentSignIn()` ein Token, geht es
+  direkt zur Session-Pruefung (`afterSignIn()`), sonst zeigt `main()` den
+  Startscreen mit sichtbarem Button. Bewusst KEINE serverseitige
+  Sitzung/Cookie (Abwaegung mit dem Nutzer): der Worker bleibt zustandslos,
+  keine neue KV-Sitzungsverwaltung noetig - Kompromiss ist, dass die stille
+  Wiederanmeldung nicht funktioniert, wenn der Browser Drittanbieter-/
+  Google-Cookies blockiert (dann einfach der sichtbare Button wie bisher).
+  Dasselbe Zeitlimit-gegen-haengenden-Callback-Muster wie bei
+  `requestDriveAccess()` (bereits vorhanden) - `trySilentSignIn()` wirft nie,
+  liefert im Zweifel einfach `null`.
+
+Live-Test (nur durch den Nutzer moeglich, kein echtes Google-Konto in der
+Preview): App schliessen, neu oeffnen - sollte ohne Klick direkt zur
+Uebersicht kommen, solange man bei Google im Browser angemeldet bleibt.
+
 ## Ablageformat der Streams (`streams/YYYY-MM.bin`)
 
 In M1 bewusst offengelassen ("wird erst in M2 festgelegt", `core/README.md`).

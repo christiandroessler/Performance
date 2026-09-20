@@ -2,7 +2,7 @@
 // (FA-AUTH-02) oder die App-Oberflaeche (Kopfzeile mit angemeldetem Nutzer +
 // Tab-Navigation Uebersicht/Aktivitaeten/Leistungskurve/Breakthroughs/Daten).
 
-import { signInWithGoogle, getSignedInEmail, signOut } from './auth.js';
+import { signInWithGoogle, trySilentSignIn, getSignedInEmail, signOut } from './auth.js';
 import { fetchSession } from './api.js';
 import { renderOnboarding, loadOrInitSettings } from './onboarding.js';
 import { renderSyncView } from './syncView.js';
@@ -27,7 +27,24 @@ function registerServiceWorker() {
 }
 
 async function main() {
+  renderCheckingScreen();
+  // "Angemeldet bleiben": erst still versuchen, ohne dass der Nutzer klicken muss (Google One
+  // Tap/FedCM) - klappt nur, wenn der Browser noch bei Google angemeldet ist. trySilentSignIn()
+  // haengt/wirft nie (siehe auth.js), daher reicht hier ein einfaches await ohne eigenes Zeitlimit.
+  const silentToken = await trySilentSignIn();
+  if (silentToken) return afterSignIn();
   renderSignIn();
+}
+
+function renderCheckingScreen() {
+  app.innerHTML = '';
+  const screen = document.createElement('div');
+  screen.className = 'centered-screen';
+  app.appendChild(screen);
+  const p = document.createElement('p');
+  p.className = 'hint';
+  p.textContent = 'Anmeldung wird geprüft...';
+  screen.appendChild(p);
 }
 
 function renderSignIn() {
@@ -36,20 +53,26 @@ function renderSignIn() {
   screen.className = 'centered-screen';
   app.appendChild(screen);
 
-  const mark = document.createElement('div');
-  mark.className = 'brand-mark';
-  mark.style.width = '40px';
-  mark.style.height = '6px';
-  screen.appendChild(mark);
+  const card = document.createElement('div');
+  card.className = 'card signin-card';
+  screen.appendChild(card);
+
+  const icon = document.createElement('img');
+  icon.src = '/icon.svg';
+  icon.alt = '';
+  icon.className = 'signin-icon';
+  card.appendChild(icon);
 
   const h = document.createElement('h1');
   h.textContent = 'Performance App';
-  screen.appendChild(h);
+  card.appendChild(h);
   const p = document.createElement('p');
-  p.textContent = 'Bitte mit deinem Google-Konto anmelden.';
-  screen.appendChild(p);
+  p.className = 'hint';
+  p.textContent = 'Leistungssignatur, Trainingsbelastung und Stoffwechselmodell an einem Ort.';
+  card.appendChild(p);
   const container = document.createElement('div');
-  screen.appendChild(container);
+  container.className = 'signin-button-row';
+  card.appendChild(container);
 
   signInWithGoogle(container).then(afterSignIn).catch(showFatalError);
 }

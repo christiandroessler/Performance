@@ -45,6 +45,53 @@ export async function signInWithGoogle(container) {
   });
 }
 
+/**
+ * "Angemeldet bleiben": versucht beim App-Start ein frisches ID-Token OHNE Klick zu bekommen
+ * (Google One Tap/FedCM, funktioniert nur wenn der Browser noch bei Google angemeldet ist und
+ * `disableAutoSelect()` seit dem letzten Login nicht aufgerufen wurde, siehe signOut() unten).
+ * Liefert das Token bei Erfolg, sonst `null` - NIE einen Fehler/Hang, damit main.js in jedem
+ * Fall (kein Google-Cookie, Tracking-Schutz blockiert den stillen Callback fuer immer wie bei
+ * requestDriveAccess() oben beobachtet, Nutzer hat frueher abgelehnt) einfach auf den sichtbaren
+ * Sign-in-Button zurueckfallen kann.
+ */
+export async function trySilentSignIn() {
+  await waitForGis();
+  const { googleClientId } = await getPublicConfig();
+
+  const attempt = () =>
+    new Promise((resolve) => {
+      let settled = false;
+      const finish = (token) => {
+        if (settled) return;
+        settled = true;
+        resolve(token);
+      };
+      window.google.accounts.id.initialize({
+        client_id: googleClientId,
+        auto_select: true,
+        callback: (response) => {
+          try {
+            setIdToken(response.credential);
+            finish(currentIdToken);
+          } catch {
+            finish(null);
+          }
+        },
+      });
+      window.google.accounts.id.prompt((notification) => {
+        if (notification.isNotDisplayed?.() || notification.isSkippedMoment?.() || notification.isDismissedMoment?.()) {
+          finish(null);
+        }
+      });
+    });
+
+  try {
+    return await withTimeout(attempt(), 5000, 'stille Google-Wiederanmeldung');
+  } catch {
+    return null;
+  }
+}
+
 function setIdToken(idToken) {
   currentIdToken = idToken;
   idTokenPayload = decodeJwtPayload(idToken);
