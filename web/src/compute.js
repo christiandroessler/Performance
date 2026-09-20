@@ -151,6 +151,7 @@ export async function recomputeAll({ settingsOverrides, discardedBreakthroughIds
     }
     a.hasSignature = r.hasSignature;
     a.np = r.np ?? null;
+    a.avgHr = r.avgHr ?? null;
     a.if = r.if ?? null;
     a.tss = r.tss ?? null;
     // FA-TP-05: 'power'/'hr'/'pace' erklaert, WIE der TSS zustande kam (fuer die UI-Kennzeichnung

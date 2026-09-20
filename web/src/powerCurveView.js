@@ -6,8 +6,9 @@
 // mehreren tausend Aktivitaeten schnell genug, um die UI nicht zu blockieren.
 
 import { aggregateMMP, DEFAULT_GRID } from '../vendor/core/src/index.js';
-import { loadMmpCurves } from './compute.js';
+import { loadMmpCurves, loadThresholds } from './compute.js';
 import { readJson } from './storage.js';
+import { renderSportThresholds } from './dashboardExtras.js';
 
 const WINDOWS = [
   { days: 42, label: '42 Tage' },
@@ -155,6 +156,18 @@ export async function renderPowerCurve(container) {
   windowSelect.onchange = render;
   wkgCheckbox.onchange = render;
   render();
+
+  // Sportart-Schwellen (FA-TP-03/04): von der Uebersicht hierher umgezogen, da sie inhaltlich
+  // zur Leistungskurve gehoeren (beide leiten sich aus Bestwerten je Sportart her) und auf der
+  // Uebersicht selbst weniger zentral waren als Performance Metrics/Leistungssignatur.
+  const thresholdsContainer = document.createElement('div');
+  container.appendChild(thresholdsContainer);
+  try {
+    const thresholds = await loadThresholds();
+    renderSportThresholds(thresholdsContainer, thresholds);
+  } catch (err) {
+    console.error('[Leistungskurve] Sportart-Schwellen fehlgeschlagen:', err);
+  }
 }
 
 /** Leistungskurve als Grafik (log-Dauer-Achse, da 1s bis mehrere Stunden auf einer Skala nicht ablesbar waeren). */

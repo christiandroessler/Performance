@@ -195,11 +195,6 @@ export async function openActivityDetail(activityId) {
     const activityBundle = bundle ? bundle.activities[activityId] : null;
 
     panel.innerHTML = '';
-    const closeBtn = document.createElement('button');
-    closeBtn.className = 'btn-ghost modal-close-btn';
-    closeBtn.textContent = 'Schließen ✕';
-    closeBtn.onclick = close;
-    panel.appendChild(closeBtn);
 
     const heading = document.createElement('h2');
     heading.textContent = `${meta.type} · ${meta.date}`;
@@ -447,5 +442,13 @@ export async function openActivityDetail(activityId) {
       btCard.innerHTML = `<h3>Breakthrough</h3><p>${meta.breakthrough.medal ? MEDAL_LABEL[meta.breakthrough.medal] : ''}${meta.breakthrough.discarded ? ' · verworfen' : ''}</p>`;
       panel.appendChild(btCard);
     }
+
+    // Schliessen-Button steht bewusst am Ende (unten im Fenster), nicht oben - damit er nach dem
+    // Durchlesen erreichbar ist, statt beim Scrollen aus dem Blick zu geraten.
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'btn-ghost modal-close-btn-bottom';
+    closeBtn.textContent = 'Schließen ✕';
+    closeBtn.onclick = close;
+    panel.appendChild(closeBtn);
   }
 }

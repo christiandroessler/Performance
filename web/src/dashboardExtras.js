@@ -40,6 +40,8 @@ export function renderRecentActivity(container, index) {
     <div class="stat-tile"><span class="stat-tile-label">Sportart</span><span class="stat-tile-value">${a.type}</span></div>
     <div class="stat-tile"><span class="stat-tile-label">Dauer</span><span class="stat-tile-value">${formatDuration(a.movingTimeSec)}</span></div>
     <div class="stat-tile"><span class="stat-tile-label">Distanz</span><span class="stat-tile-value">${formatDistance(a.distanceM)}</span></div>
+    ${a.np != null ? `<div class="stat-tile"><span class="stat-tile-label">NP</span><span class="stat-tile-value">${a.np}<span class="unit">W</span></span></div>` : ''}
+    ${a.avgHr != null ? `<div class="stat-tile"><span class="stat-tile-label">⌀ Puls</span><span class="stat-tile-value">${a.avgHr}<span class="unit">bpm</span></span></div>` : ''}
     ${a.tss != null ? `<div class="stat-tile accent"><span class="stat-tile-label">TSS</span><span class="stat-tile-value">${a.tss}</span></div>` : ''}
   `;
   box.appendChild(grid);
@@ -56,7 +58,7 @@ export function renderRecentActivity(container, index) {
 export function renderThisWeekSummary(container, index) {
   container.innerHTML = '';
   const box = document.createElement('div');
-  box.className = 'card';
+  box.className = 'card card-highlight';
   container.appendChild(box);
 
   const header = document.createElement('div');

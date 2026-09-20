@@ -415,6 +415,46 @@ View-Dateien selbst - konsistent mit dem bisherigen Muster des Projekts,
 *View.js-Dateien werden ueber Preview/Live-Checks statt `node --test`
 verifiziert).
 
+## UI-Redesign nach M6 (2026-09-20)
+
+Konkrete Aenderungswuensche des Auftraggebers nach dem Live-Test von M6,
+umgesetzt in mehreren Phasen. Phase 1 (Navigation + Uebersicht):
+
+- **Hamburger-Menue** (`main.js#buildUserMenu`): der Nutzerbereich rechts
+  oben hat jetzt einen eigenen Toggle-Button (drei Striche) statt den
+  gesamten Chip klickbar zu machen; der Chip ruckt dadurch sichtbar nach
+  links. Dabei ein **echter Vorab-Bug gefunden und behoben**: die
+  Dropdown-Klasse `.user-menu-dropdown` setzte selbst `display: flex`, was
+  bei gleicher CSS-Spezifitaet die `[hidden]`-Regel der UA-Stylesheet
+  ueberstimmte - das Menue war dadurch nie wirklich zugeklappt, unabhaengig
+  vom `hidden`-Attribut. Exakt dasselbe Muster wie `.tab-panel[hidden]`
+  (bereits vorhanden) jetzt auch fuer `.user-menu-dropdown[hidden]`
+  ergaenzt (`style.css`). Das war mit hoher Wahrscheinlichkeit der
+  eigentliche Grund fuer die Nutzer-Meldung "Menue muss zugeklappt sein".
+- **Performance Metrics + Leistungssignatur** stehen jetzt ganz oben, volle
+  Breite, an der Stelle der fruehreren "Status"-Karte
+  (`dashboardView.js`). Die Status-/Neuberechnen-Funktion ist in den
+  "Daten"-Tab umgezogen (`syncView.js#renderRecomputeCard`, neue
+  "Kennzahlen"-Karte) - `dashboardView.js#renderDashboard` gibt dafuer
+  `{ refresh }` zurueck, das `main.js` an `renderSyncView` durchreicht,
+  damit ein Klick auf "Kennzahlen neu berechnen" danach auch die
+  Uebersicht aktualisiert.
+- **Sportart-Schwellen** sind von der Uebersicht in den
+  "Leistungskurve"-Tab umgezogen (`powerCurveView.js`, inhaltlich naeher
+  dran), **"Diese Woche"** ruckt dafuer an die erste Stelle der linken
+  Spalte und bekommt ein akzentuiertes Karten-Design (`.card-highlight`).
+- **Letzte Aktivitaet** zeigt jetzt zusaetzlich NP und Durchschnittspuls.
+  `avgHr` ist dafuer neu in `core/src/signature.js`s
+  `activityResults`-Eintrag (Wiederverwendung von `pace.js#averageHeartRate`,
+  bereits fuer `thresholds.js` vorhanden), durchgereicht wie `np` bereits
+  war (`compute.js`).
+- **Aktivitaets-Detailansicht**: der Schliessen-Button steht jetzt am Ende
+  des Panels (unten), nicht mehr oben rechts (`activityDetailView.js`,
+  neue Klasse `.modal-close-btn-bottom` statt `float: right`).
+
+`core`: 101 Tests gruen (neuer Test fuer `avgHr`). `web`: weiterhin 52
+Tests gruen.
+
 ## Ablageformat der Streams (`streams/YYYY-MM.bin`)
 
 In M1 bewusst offengelassen ("wird erst in M2 festgelegt", `core/README.md`).

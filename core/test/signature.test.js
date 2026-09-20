@@ -117,6 +117,33 @@ test('FA-SIG-07: Reaktivieren (leere discardedBreakthroughIds) stellt exakt den 
   assert.deepEqual(serializable(reactivated), serializable(original));
 });
 
+test('avgHr: mittlere Herzfrequenz einer Aktivitaet landet im activityResult (Grundlage fuer "Letzte Aktivitaet" in der UI)', () => {
+  const settings = mergeSettings();
+  const raw = [
+    { id: 'base1', date: '2026-01-01', startTime: '2026-01-01T08:00:00Z', points: buildBaselinePoints() },
+    { id: 'base2', date: '2026-01-15', startTime: '2026-01-15T08:00:00Z', points: buildBaselinePoints() },
+    { id: 'base3', date: '2026-02-01', startTime: '2026-02-01T08:00:00Z', points: buildBaselinePoints() },
+    {
+      id: 'withHr',
+      date: '2026-06-01',
+      startTime: '2026-06-01T08:00:00Z',
+      points: buildAfterPoints().map((p) => ({ ...p, heartrate: 140 })),
+    },
+    { id: 'noHr', date: '2026-06-10', startTime: '2026-06-10T08:00:00Z', points: buildAfterPoints() },
+  ];
+  const prepared = raw.map((r) => prepareActivity(r, settings));
+  const result = computeSignatureHistory(prepared, { settings });
+
+  const withHrResult = result.activityResults.find((r) => r.id === 'withHr');
+  assert.ok(withHrResult && withHrResult.hasSignature, 'Aktivitaet nach dem Startfenster sollte ein vollstaendiges Ergebnis haben');
+  assert.equal(withHrResult.avgHr, 140);
+
+  // Aktivitaeten ganz ohne Herzfrequenz-Messung liefern null statt 0/NaN.
+  const noHrResult = result.activityResults.find((r) => r.id === 'noHr');
+  assert.ok(noHrResult && noHrResult.hasSignature);
+  assert.equal(noHrResult.avgHr, null);
+});
+
 function serializable(x) {
   return JSON.parse(
     JSON.stringify(x, (key, value) => {

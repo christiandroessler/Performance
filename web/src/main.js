@@ -169,8 +169,10 @@ function renderAppShell(settings, session) {
     tabButtons[tab.id] = btn;
   }
 
-  renderSyncView(panels.sync).catch(showFatalError);
-  renderDashboard({
+  // dashboardPromise wird an renderSyncView durchgereicht, damit "Kennzahlen neu berechnen"
+  // (jetzt im "Daten"-Tab, siehe syncView.js) die Uebersicht danach aktualisieren kann - beide
+  // Views starten weiterhin parallel, das Neuberechnen wartet nur bis zum tatsaechlichen Klick.
+  const dashboardPromise = renderDashboard({
     overviewContainer: panels.overview,
     activitiesContainer: panels.activities,
     weeksContainer: panels.weeks,
@@ -179,6 +181,12 @@ function renderAppShell(settings, session) {
     metabolicContainer: panels.metabolic,
     breakthroughsContainer: panels.breakthroughs,
     weightKg: settings.weightKg,
+  }).catch(showFatalError);
+  renderSyncView(panels.sync, {
+    onRecomputed: async () => {
+      const dashboard = await dashboardPromise;
+      if (dashboard) await dashboard.refresh();
+    },
   }).catch(showFatalError);
   if (panels.group) renderGroup(panels.group).catch(showFatalError);
 }
@@ -201,7 +209,7 @@ function buildHeader() {
   return header;
 }
 
-/** Klick auf den Nutzerbereich oeffnet ein Menue (Einstellungen/Begriffe/Abmelden) statt einzelner Buttons. */
+/** Klick auf den Hamburger-Button (drei Striche) oeffnet ein Menue (Einstellungen/Begriffe/Abmelden); der Chip ist reine Anzeige. */
 function buildUserMenu() {
   const email = getSignedInEmail() || '';
 
@@ -218,6 +226,14 @@ function buildUserMenu() {
     </div>
   `;
   wrap.appendChild(chip);
+
+  const toggleBtn = document.createElement('button');
+  toggleBtn.className = 'menu-toggle';
+  toggleBtn.type = 'button';
+  toggleBtn.setAttribute('aria-label', 'Menü');
+  toggleBtn.setAttribute('aria-expanded', 'false');
+  toggleBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+  wrap.appendChild(toggleBtn);
 
   const dropdown = document.createElement('div');
   dropdown.className = 'user-menu-dropdown';
@@ -253,11 +269,13 @@ function buildUserMenu() {
 
   function openDropdown() {
     dropdown.hidden = false;
+    toggleBtn.setAttribute('aria-expanded', 'true');
     document.addEventListener('click', onOutsideClick);
     document.addEventListener('keydown', onKeydown);
   }
   function closeDropdown() {
     dropdown.hidden = true;
+    toggleBtn.setAttribute('aria-expanded', 'false');
     document.removeEventListener('click', onOutsideClick);
     document.removeEventListener('keydown', onKeydown);
   }
@@ -268,7 +286,7 @@ function buildUserMenu() {
     if (e.key === 'Escape') closeDropdown();
   }
 
-  chip.onclick = (e) => {
+  toggleBtn.onclick = (e) => {
     e.stopPropagation();
     if (dropdown.hidden) openDropdown();
     else closeDropdown();

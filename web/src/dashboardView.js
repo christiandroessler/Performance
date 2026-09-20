@@ -13,14 +13,14 @@
 // das dortige "Today"-Workout-Widget.
 
 import { loadIndex } from './sync.js';
-import { loadModelState, loadThresholds, loadMmpCurves, loadLoadResponse, recomputeAll } from './compute.js';
+import { loadModelState, loadMmpCurves, loadLoadResponse, recomputeAll } from './compute.js';
 import { ppPlausibility } from './ppCheck.js';
 import { renderActivityList } from './activityListView.js';
 import { computePmcSeries, renderMetricsSidebar, renderPmcChart } from './pmcView.js';
 import { renderBreakthroughs } from './breakthroughView.js';
 import { renderPowerCurve } from './powerCurveView.js';
 import { renderWeekOverview } from './weekView.js';
-import { renderRecentActivity, renderThisWeekSummary, renderRecentBreakthroughs, renderSportThresholds } from './dashboardExtras.js';
+import { renderRecentActivity, renderThisWeekSummary, renderRecentBreakthroughs } from './dashboardExtras.js';
 import { renderLoadResponse } from './loadResponseView.js';
 import { computeCurrentMetabolicProfile, renderMetabolicTiles, renderMetabolicView } from './metabolicView.js';
 import { loadOrInitSettings, SETTINGS_FILE } from './onboarding.js';
@@ -30,23 +30,13 @@ import { mergeSettings, displaySignatureAtDate } from '../vendor/core/src/index.
 export async function renderDashboard({ overviewContainer, activitiesContainer, weeksContainer, powerCurveContainer, loadResponseContainer, metabolicContainer, breakthroughsContainer }) {
   overviewContainer.innerHTML = '';
 
-  const statusCard = document.createElement('div');
-  statusCard.className = 'card';
-  overviewContainer.appendChild(statusCard);
-
-  const statusHeader = document.createElement('div');
-  statusHeader.className = 'card-header';
-  const statusHeading = document.createElement('h2');
-  statusHeading.textContent = 'Status';
-  statusHeader.appendChild(statusHeading);
-  const recomputeBtn = document.createElement('button');
-  recomputeBtn.className = 'btn-primary';
-  recomputeBtn.textContent = 'Kennzahlen neu berechnen';
-  statusHeader.appendChild(recomputeBtn);
-  statusCard.appendChild(statusHeader);
-
-  const statusP = document.createElement('p');
-  statusCard.appendChild(statusP);
+  // Performance Metrics + Leistungssignatur sind die zentralen Kennzahlen und stehen daher ganz
+  // oben, volle Breite - TrainingPeaks-Vorbild. Die fruehere "Status"-Karte (Neuberechnen-Button)
+  // ist in den "Daten"-Tab umgezogen (syncView.js), da sie inhaltlich zum Sync-Bereich gehoert.
+  const topMetricsContainer = document.createElement('div');
+  const topSignatureContainer = document.createElement('div');
+  overviewContainer.appendChild(topMetricsContainer);
+  overviewContainer.appendChild(topSignatureContainer);
 
   const grid = document.createElement('div');
   grid.className = 'dashboard-grid';
@@ -62,23 +52,19 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
   grid.appendChild(middleCol);
   grid.appendChild(rightCol);
 
-  const signatureContainer = document.createElement('div');
-  const metabolicTilesContainer = document.createElement('div');
-  const thresholdsContainer = document.createElement('div');
+  // "Diese Woche" steht bewusst an erster Stelle (hochgesetzt) - die Sportart-Schwellen-Karte,
+  // die vorher hier stand, ist in den "Leistungskurve"-Tab umgezogen (powerCurveView.js).
   const thisWeekContainer = document.createElement('div');
-  leftCol.appendChild(signatureContainer);
-  leftCol.appendChild(metabolicTilesContainer);
-  leftCol.appendChild(thresholdsContainer);
+  const metabolicTilesContainer = document.createElement('div');
   leftCol.appendChild(thisWeekContainer);
+  leftCol.appendChild(metabolicTilesContainer);
 
   const recentActivityContainer = document.createElement('div');
   const pmcChartContainer = document.createElement('div');
   middleCol.appendChild(recentActivityContainer);
   middleCol.appendChild(pmcChartContainer);
 
-  const metricsSidebarContainer = document.createElement('div');
   const recentBreakthroughsContainer = document.createElement('div');
-  rightCol.appendChild(metricsSidebarContainer);
   rightCol.appendChild(recentBreakthroughsContainer);
 
   // Eine einzelne Karte darf nicht mehr die gesamte Uebersicht mitreissen (genau das ist
@@ -133,10 +119,6 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
     const index = await loadIndex();
     const modelState = await loadModelState();
 
-    const uncomputed = index.activities.filter((a) => a.hasSignature === undefined).length;
-    statusP.className = '';
-    statusP.textContent = uncomputed > 0 ? `${uncomputed} Aktivität(en) noch ohne berechnete Kennzahlen - "Kennzahlen neu berechnen" klicken.` : 'Alle Aktivitäten sind berechnet.';
-
     let mmpCurves = [];
     await safeRenderAsync(null, 'Leistungskurven laden', async () => {
       mmpCurves = await loadMmpCurves();
@@ -158,18 +140,12 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
         displaySig = displaySignatureAtDate(latestSeriesDate, modelState.history, series, calibration, settings);
       }
     });
-    safeRender(signatureContainer, 'Leistungssignatur', () => renderSignatureTiles(signatureContainer, modelState, mmpCurves, displaySig));
+    safeRender(topSignatureContainer, 'Leistungssignatur', () => renderSignatureTiles(topSignatureContainer, modelState, mmpCurves, displaySig));
 
     await safeRenderAsync(metabolicTilesContainer, 'Stoffwechselprofil', async () => {
       const computed = await computeCurrentMetabolicProfile();
       renderMetabolicTiles(metabolicTilesContainer, computed);
     });
-
-    let thresholds = { pace: {}, hr: {} };
-    await safeRenderAsync(null, 'Sportart-Schwellen laden', async () => {
-      thresholds = await loadThresholds();
-    });
-    safeRender(thresholdsContainer, 'Sportart-Schwellen', () => renderSportThresholds(thresholdsContainer, thresholds));
 
     safeRender(thisWeekContainer, 'Diese Woche', () => renderThisWeekSummary(thisWeekContainer, index));
     safeRender(recentActivityContainer, 'Letzte Aktivität', () => renderRecentActivity(recentActivityContainer, index));
@@ -179,7 +155,7 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
       pmcSeries = computePmcSeries(index, modelState);
     });
     safeRender(pmcChartContainer, 'Performance Management Chart', () => renderPmcChart(pmcChartContainer, pmcSeries));
-    safeRender(metricsSidebarContainer, 'Performance Metrics', () => renderMetricsSidebar(metricsSidebarContainer, pmcSeries));
+    safeRender(topMetricsContainer, 'Performance Metrics', () => renderMetricsSidebar(topMetricsContainer, pmcSeries));
     // FA-PWA-02: "neue Medaillen seit letztem Besuch" - lastVisitAt wird ERST NACH dem
     // Rendern aktualisiert, damit die Markierung noch fuer diesen Aufruf sichtbar ist.
     const lastVisitAt = settingsJson.lastVisitAt || null;
@@ -195,26 +171,18 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
     return { index, modelState };
   }
 
-  async function triggerRecompute() {
-    recomputeBtn.disabled = true;
-    statusP.className = '';
-    statusP.textContent = 'Berechne Kennzahlen (Web Worker, blockiert die Seite nicht)...';
-    try {
-      await recomputeAll();
-      await refresh();
-    } catch (err) {
-      statusP.className = 'error';
-      statusP.textContent = err.message;
-    }
-    recomputeBtn.disabled = false;
-  }
-
-  recomputeBtn.onclick = triggerRecompute;
-
   const { index, modelState } = await refresh();
   if (index.activities.length > 0 && !modelState.computedAt) {
-    await triggerRecompute(); // Erstberechnung nach dem allerersten Sync
+    // Erstberechnung nach dem allerersten Sync - kein Button noetig, das sichtbare
+    // "Kennzahlen neu berechnen" lebt jetzt im "Daten"-Tab (syncView.js).
+    await recomputeAll();
+    await refresh();
   }
+
+  // refresh() wird main.js zurueckgegeben, damit der "Kennzahlen neu berechnen"-Button im
+  // "Daten"-Tab (syncView.js) die Uebersicht danach aktualisieren kann, ohne dass die Uebersicht
+  // selbst etwas von "Daten" wissen muss.
+  return { refresh };
 }
 
 // FA-SIG-13: ab dieser Abweichung wird die PP-Plausibilisierung als auffaellig markiert (rot statt

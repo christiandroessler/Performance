@@ -4,6 +4,7 @@
 
 import { getSyncProgress } from './api.js';
 import { loadIndex, runSync, isDesktopViewport } from './sync.js';
+import { recomputeAll } from './compute.js';
 
 const WINDOW_OPTIONS = [
   { days: 30, label: 'Letzte 30 Tage' },
@@ -17,7 +18,7 @@ const REASON_TEXT = {
   daily_quota_exhausted: 'Heutiges Strava-Tageskontingent erreicht. Der Import setzt sich morgen automatisch fort.',
 };
 
-export async function renderSyncView(container) {
+export async function renderSyncView(container, { onRecomputed } = {}) {
   const index = await loadIndex();
   const inFlight = await getSyncProgress();
   const hasData = index.activities.length > 0;
@@ -178,6 +179,51 @@ export async function renderSyncView(container) {
     setProgressFraction(1, 1);
     start(); // FA-SYNC-01: inkrementeller Sync beim Oeffnen der App
   }
+
+  // Uebersicht-Redesign 2026-09: die fruehere "Status"-Karte (Neuberechnen-Button) stand vorher
+  // auf der Uebersicht selbst, ist aber inhaltlich ein Datenbetrieb wie der Sync - deshalb hier.
+  if (hasData) renderRecomputeCard(container, index, onRecomputed);
+}
+
+function renderRecomputeCard(container, index, onRecomputed) {
+  const box = document.createElement('div');
+  box.className = 'card';
+  container.appendChild(box);
+
+  const header = document.createElement('div');
+  header.className = 'card-header';
+  header.innerHTML = '<h2>Kennzahlen</h2>';
+  const btn = document.createElement('button');
+  btn.className = 'btn-primary';
+  btn.textContent = 'Kennzahlen neu berechnen';
+  header.appendChild(btn);
+  box.appendChild(header);
+
+  const statusP = document.createElement('p');
+  box.appendChild(statusP);
+
+  function setRecomputeStatus() {
+    const uncomputed = index.activities.filter((a) => a.hasSignature === undefined).length;
+    statusP.className = '';
+    statusP.textContent = uncomputed > 0 ? `${uncomputed} Aktivität(en) noch ohne berechnete Kennzahlen - "Kennzahlen neu berechnen" klicken.` : 'Alle Aktivitäten sind berechnet.';
+  }
+  setRecomputeStatus();
+
+  btn.onclick = async () => {
+    btn.disabled = true;
+    statusP.className = '';
+    statusP.textContent = 'Berechne Kennzahlen (Web Worker, blockiert die Seite nicht)...';
+    try {
+      await recomputeAll();
+      index.activities = (await loadIndex()).activities;
+      setRecomputeStatus();
+      if (onRecomputed) await onRecomputed(); // Uebersicht (dashboardView.js#refresh) mit den neuen Werten aktualisieren
+    } catch (err) {
+      statusP.className = 'error';
+      statusP.textContent = err.message;
+    }
+    btn.disabled = false;
+  };
 }
 
 function renderDesktopOnlyNotice(container) {

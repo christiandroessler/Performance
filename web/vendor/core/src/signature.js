@@ -19,6 +19,7 @@ import {
 import { checkTwoParamConsistency } from './twoParamCheck.js';
 import { computeStrainScore } from './strain.js';
 import { normalizedPowerForActivity, trainingStressScore, intensityFactor } from './npTss.js';
+import { averageHeartRate } from './pace.js';
 
 function addDaysISO(dateStr, days) {
   const d = new Date(dateStr + 'T00:00:00Z');
@@ -186,6 +187,7 @@ export function computeSignatureHistory(preparedActivities, options = {}) {
     const tss = trainingStressScore(movingSeconds, np, active.cp);
     const ifValue = intensityFactor(np, active.cp);
     const strain = computeStrainScore(act.recoveryWatts, mpa, active.cp, active.pMax);
+    const avgHr = averageHeartRate(act.stream);
 
     result.activityResults.push({
       id: act.id,
@@ -193,6 +195,7 @@ export function computeSignatureHistory(preparedActivities, options = {}) {
       hasSignature: true,
       signature: active, // zum Aktivitaetsdatum gueltige Schwelle, siehe core/README.md
       np: Math.round(np),
+      avgHr: avgHr != null ? Math.round(avgHr) : null,
       if: ifValue != null ? Math.round(ifValue * 1000) / 1000 : null,
       tss: Math.round(tss * 10) / 10,
       strain,

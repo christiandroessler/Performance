@@ -16,6 +16,11 @@ Rechenkern zuerst, getestet mit dem Strava-Datenexport.
 | **M5** | Stoffwechselmodell | V1 (Steady-State) gebaut, siehe [`web/README.md`](web/README.md) Abschnitt "M5-Status im Detail" |
 | **M6** | Gruppe, Datenschutz, PWA | gebaut, Live-Test mit zweitem Testkonto (Einladen/Entfernen/Widerruf) noch offen, siehe [`web/README.md`](web/README.md) Abschnitt "M6-Status im Detail" |
 
+Nach dem Live-Test von M6 hat der Auftraggeber konkrete UI-Aenderungswuensche
+zurueckgemeldet (Navigation, Uebersicht-Layout, neues Profil, neuer
+Start-/Login-Screen, Leistungsvorhersage) - Umsetzung in Phasen, siehe
+[`web/README.md`](web/README.md) Abschnitt "UI-Redesign nach M6".
+
 ## M1-Status im Detail
 
 Siehe [`core/README.md`](core/README.md) fuer den vollstaendigen Funktionsumfang
