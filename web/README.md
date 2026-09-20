@@ -455,6 +455,31 @@ umgesetzt in mehreren Phasen. Phase 1 (Navigation + Uebersicht):
 `core`: 101 Tests gruen (neuer Test fuer `avgHr`). `web`: weiterhin 52
 Tests gruen.
 
+**Phase 2 (Profil):** neue Datei `profileView.js#openProfile()` (gleiches
+Modal-Muster wie `settingsView.js#openSettings`), erreichbar ueber einen
+neuen "Profil"-Menuepunkt (zwischen "Einstellungen" und "Begriffe"). Bündelt
+persoenliche Stammdaten getrennt von der Modell-Kalibrierung:
+- **Profilfoto**: Upload wird clientseitig auf ein quadratisches 256x256-JPEG
+  zugeschnitten/komprimiert (`<canvas>`, keine neue Abhaengigkeit) und ueber
+  `storage.js#writeFile` als `profile-photo.jpg` genauso wie jede andere
+  Datei dieser App im Drive-Speicher des Nutzers abgelegt - kein
+  Backend-/Worker-Wandel noetig. Der Chip-Avatar in `main.js#buildUserMenu`
+  zeigt das Foto, sobald eines existiert, statt des Buchstaben-Kreises.
+- **Persoenliche Daten**: E-Mail (nur Anzeige, aus dem Google-Konto),
+  Geburtsdatum, Groesse (cm) - neu unter `settings.json#profile`.
+- **Gewichtsverlauf** ist von "Einstellungen" hierher verschoben (Gewicht
+  ist eine persoenliche Kenngroesse, keine Modell-Kalibrierung) - Code
+  unveraendert, nur der Ort.
+
+Recherche (TrainingPeaks/branchenueblich, siehe Help-Center-Artikel zu
+Athleten-Profilen): Profile enthalten typischerweise Name, Foto,
+Geburtsdatum/Alter, Groesse, Gewicht; FTP/Schwellenwerte gehoeren bei TP
+zum Profil, bleiben hier aber bewusst in "Einstellungen" (Kalibrierung,
+kein Stammdatum).
+
+`web`: weiterhin 52 Tests gruen (reine View-Datei, wie beim bisherigen
+Muster ueber Preview statt Unit-Test verifiziert).
+
 ## Ablageformat der Streams (`streams/YYYY-MM.bin`)
 
 In M1 bewusst offengelassen ("wird erst in M2 festgelegt", `core/README.md`).

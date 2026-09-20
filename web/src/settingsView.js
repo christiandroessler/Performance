@@ -1,9 +1,11 @@
-// FA-SET-01 bis 04 (Lastenheft Kap. 6.9, Kap. 12): Gewichtsverlauf mit Datum, alle
-// einstellbaren Modellparameter aus Kap. 12 einsehbar/aenderbar, jede Aenderung loest die
-// chronologische Neuberechnung (compute.js#recomputeAll) aus und wird protokolliert, Reset auf
-// die Startwerte. "Auf Kalibrierungswerte zuruecksetzen" (FA-SET-04, Prioritaet S) faellt bis zur
-// individuellen Kalibrierung (M4, FA-SIG-10/12) mit "Auf Literaturwerte zuruecksetzen" zusammen -
-// beide fuehren bis dahin auf dieselben Startwerte (core/src/settings.js#DEFAULT_SETTINGS).
+// FA-SET-01 bis 04 (Lastenheft Kap. 6.9, Kap. 12): alle einstellbaren Modellparameter aus
+// Kap. 12 einsehbar/aenderbar, jede Aenderung loest die chronologische Neuberechnung
+// (compute.js#recomputeAll) aus und wird protokolliert, Reset auf die Startwerte. "Auf
+// Kalibrierungswerte zuruecksetzen" (FA-SET-04, Prioritaet S) faellt bis zur individuellen
+// Kalibrierung (M4, FA-SIG-10/12) mit "Auf Literaturwerte zuruecksetzen" zusammen - beide
+// fuehren bis dahin auf dieselben Startwerte (core/src/settings.js#DEFAULT_SETTINGS).
+// Gewichtsverlauf + persoenliche Stammdaten sind in profileView.js ("Profil"-Menuepunkt) -
+// Einstellungen hier ist Modell-Kalibrierung, kein persoenliches Profil.
 
 import { DEFAULT_SETTINGS } from '../vendor/core/src/index.js';
 import { isLightTheme, setTheme } from './theme.js';
@@ -156,7 +158,6 @@ export async function openSettings() {
   panel.appendChild(heading);
 
   renderAppearanceCard();
-  renderWeightCard();
   renderLabValuesCard();
   renderParamsCard();
   renderChangelogCard();
@@ -197,91 +198,6 @@ export async function openSettings() {
       refresh();
     };
     refresh();
-  }
-
-  // ---------- FA-SET-01: Gewichtsverlauf ----------
-  function renderWeightCard() {
-    const card = document.createElement('div');
-    card.className = 'card';
-    panel.appendChild(card);
-
-    const h = document.createElement('h3');
-    h.textContent = 'Gewichtsverlauf';
-    card.appendChild(h);
-
-    const hint = document.createElement('p');
-    hint.className = 'hint';
-    hint.textContent = 'Wird für W/kg-Kennzahlen verwendet (jeweils das zum Aktivitätsdatum gültige Gewicht) - siehe Leistungskurve.';
-    card.appendChild(hint);
-
-    const list = document.createElement('div');
-    list.className = 'threshold-list';
-    card.appendChild(list);
-
-    const addRow = document.createElement('div');
-    addRow.className = 'btn-row';
-    addRow.style.marginTop = '0.75rem';
-    const dateInput = document.createElement('input');
-    dateInput.type = 'date';
-    dateInput.value = new Date().toISOString().slice(0, 10);
-    const kgInput = document.createElement('input');
-    kgInput.type = 'number';
-    kgInput.min = '30';
-    kgInput.max = '250';
-    kgInput.step = '0.1';
-    kgInput.placeholder = 'kg';
-    kgInput.style.width = '90px';
-    const addBtn = document.createElement('button');
-    addBtn.className = 'btn-primary';
-    addBtn.textContent = 'Hinzufügen';
-    addRow.appendChild(dateInput);
-    addRow.appendChild(kgInput);
-    addRow.appendChild(addBtn);
-    card.appendChild(addRow);
-
-    addBtn.onclick = async () => {
-      const kg = Number(kgInput.value);
-      const date = dateInput.value;
-      if (!date || !kg || kg < 30 || kg > 250) return;
-      settings.weightHistory = [...(settings.weightHistory || []).filter((w) => w.date !== date), { date, kg }];
-      await persistWeight();
-      kgInput.value = '';
-      renderList();
-    };
-
-    async function persistWeight() {
-      const sorted = [...(settings.weightHistory || [])].sort((a, b) => a.date.localeCompare(b.date));
-      settings.weightKg = sorted.length ? sorted[sorted.length - 1].kg : null;
-      await writeJson(SETTINGS_FILE, settings);
-    }
-
-    function renderList() {
-      list.innerHTML = '';
-      const sorted = [...(settings.weightHistory || [])].sort((a, b) => b.date.localeCompare(a.date));
-      if (sorted.length === 0) {
-        const p = document.createElement('p');
-        p.className = 'hint';
-        p.textContent = 'Noch kein Gewicht hinterlegt.';
-        list.appendChild(p);
-        return;
-      }
-      for (const entry of sorted) {
-        const row = document.createElement('div');
-        row.className = 'threshold-row';
-        row.innerHTML = `<span>${entry.date}</span><span class="threshold-value">${entry.kg} kg</span>`;
-        const delBtn = document.createElement('button');
-        delBtn.className = 'btn-ghost';
-        delBtn.textContent = 'Entfernen';
-        delBtn.onclick = async () => {
-          settings.weightHistory = (settings.weightHistory || []).filter((w) => w.date !== entry.date);
-          await persistWeight();
-          renderList();
-        };
-        row.appendChild(delBtn);
-        list.appendChild(row);
-      }
-    }
-    renderList();
   }
 
   // ---------- FA-MET-02: Laborwerte (Stoffwechselmodell, Kap. 7.9) ----------

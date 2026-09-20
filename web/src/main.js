@@ -10,7 +10,9 @@ import { renderDashboard } from './dashboardView.js';
 import { renderGroup } from './groupView.js';
 import { applyStoredTheme } from './theme.js';
 import { openSettings } from './settingsView.js';
+import { openProfile, PROFILE_PHOTO_FILE } from './profileView.js';
 import { openGlossary } from './glossaryView.js';
+import { readFile } from './storage.js';
 
 const app = document.getElementById('app');
 
@@ -227,6 +229,18 @@ function buildUserMenu() {
   `;
   wrap.appendChild(chip);
 
+  // Profilfoto statt Buchstaben-Avatar, falls in profileView.js eines hochgeladen wurde.
+  readFile(PROFILE_PHOTO_FILE)
+    .then((buf) => {
+      if (!buf) return;
+      const avatar = chip.querySelector('.user-avatar');
+      avatar.textContent = '';
+      avatar.style.backgroundImage = `url(${URL.createObjectURL(new Blob([buf], { type: 'image/jpeg' }))})`;
+      avatar.style.backgroundSize = 'cover';
+      avatar.style.backgroundPosition = 'center';
+    })
+    .catch(() => {});
+
   const toggleBtn = document.createElement('button');
   toggleBtn.className = 'menu-toggle';
   toggleBtn.type = 'button';
@@ -252,6 +266,7 @@ function buildUserMenu() {
     return btn;
   }
 
+  addItem('Profil', openProfile);
   addItem('Einstellungen', openSettings);
   addItem('Begriffe', openGlossary);
   addItem('Datenschutz', () => window.open('/privacy.html', '_blank', 'noopener')); // NFA-02: jederzeit einsehbar, nicht nur im Onboarding
