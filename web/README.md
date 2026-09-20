@@ -630,6 +630,42 @@ Per Preview verifiziert (Session-Antwort gemockt, Karte + Zwei-Schritt-
 Bestaetigung geprueft) - der eigentliche Trenn-Aufruf selbst braucht einen
 echten Worker und ist nur live pruefbar.
 
+### Bugfix (2026-09-20, Teil 3): Cache-Fix aus Teil 1 erkannte eine Kontamination "unter dem richtigen Namen" nicht
+
+Nach dem Neu-Verbinden von Strava (Teil 2 bestaetigt: korrekter
+Athleten-Name wird angezeigt, Server-Zuordnung war also die ganze Zeit
+korrekt) blieb ein Rest-Symptom: Leistungssignatur/Performance Metrics
+waren korrekt leer (kein echtes Drive-Ergebnis fuer das Testkonto), aber
+die Aktivitaetenliste zeigte weiterhin (und sogar zusaetzlich zur eigenen)
+Christians Aktivitaeten. Grund: `ensureCacheMatchesUser` (Teil 1) erkennt
+nur einen KONTOWECHSEL (E-Mail A -> E-Mail B). Waehrend des
+Drive-hint-Bugs (Teil 2) war die Kopfzeile/der lokale Marker aber die
+GANZE ZEIT korrekt auf das Testkonto gesetzt - nur die tatsaechlich
+GELESENEN Drive-Inhalte kamen (mangels `hint`) von Christians Drive. Der
+Cache wurde also unter dem RICHTIGEN Marker mit FALSCHEM Inhalt befuellt -
+eine reine Email-Gleichheitspruefung erkennt das nicht, weil sich beim
+naechsten Login gar nichts "geaendert" hat.
+
+**Fix:** `storage.js` bekommt eine `CACHE_SCHEMA_VERSION`-Konstante, die in
+den `localStorage`-Marker einfliesst (`"${VERSION}:${email}"` statt nur
+`email`). Ein Versionssprung erzwingt damit einmalig ein Leeren des Caches
+fuer JEDEN bestehenden Marker (da ein alter, unversionierter Marker nie mit
+dem neuen Format uebereinstimmt), unabhaengig davon, ob sich die E-Mail
+geaendert hat - repariert damit automatisch jedes Konto, das waehrend des
+Bugfensters kontaminiert wurde, ohne dass jeder Nutzer manuell den
+Browser-Cache leeren muss. Per Preview verifiziert (alter unversionierter
+Marker + gleiche E-Mail -> trotzdem einmalig geleert; danach normaler
+Kontowechsel-Vergleich wie gewohnt). `web`: weiterhin 52 Tests gruen.
+
+Falls nach diesem Deploy + einem erneuten Login IMMER NOCH fremde
+Aktivitaeten auftauchen, waere das ein Hinweis, dass nicht nur der lokale
+Cache, sondern das Testkonto-eigene Drive selbst kontaminiert wurde
+(waere dann nur ueber "Meine Daten loeschen" + Admin-Neueinladung sicher
+zu bereinigen) - basierend auf der Analyse aber unwahrscheinlich, da
+Christians eigenes Konto durchgehend denselben (fehlerhaften) Drive-Zugriff
+hatte und das Testkonto-Drive dadurch vermutlich nie tatsaechlich
+beschrieben wurde.
+
 ## Ablageformat der Streams (`streams/YYYY-MM.bin`)
 
 In M1 bewusst offengelassen ("wird erst in M2 festgelegt", `core/README.md`).

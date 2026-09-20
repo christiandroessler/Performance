@@ -14,6 +14,16 @@ import { idbGet, idbPut, idbDelete, idbClearAll } from './idb.js';
 
 const LAST_CACHE_USER_KEY = 'performance-app-last-cache-user';
 
+// Erhoehen, wenn ein Fehler dazu gefuehrt haben koennte, dass FALSCHE Daten unter dem RICHTIGEN
+// Konto-Marker gelandet sind (z. B. der Drive-OAuth-hint-Bug vom 2026-09-20: die Kopfzeile zeigte
+// waehrenddessen bereits korrekt Konto B, der lokale Cache wurde also unter "B" markiert - aber
+// die darunter gecachten INHALTE kamen wegen des fehlenden hint tatsaechlich von Konto As Drive).
+// Eine reine E-Mail-Gleichheitspruefung (siehe unten) erkennt genau DAS nicht, weil sich die
+// E-Mail beim naechsten Login gar nicht geaendert hat. Ein Versionssprung erzwingt einmalig ein
+// Leeren fuer JEDEN bestehenden Marker, unabhaengig vom Konto - danach greift die normale
+// Kontowechsel-Erkennung wieder wie gewohnt.
+const CACHE_SCHEMA_VERSION = 2;
+
 /**
  * Der lokale IndexedDB-Cache ist NICHT pro Google-Konto getrennt (ein Store fuer die gesamte
  * Origin, Dateinamen wie "index.json" als Schluessel) - meldet sich auf demselben Browser ein
@@ -26,17 +36,18 @@ const LAST_CACHE_USER_KEY = 'performance-app-last-cache-user';
  */
 export async function ensureCacheMatchesUser(email) {
   if (!email) return;
-  let lastUser;
+  let lastMarker;
   try {
-    lastUser = localStorage.getItem(LAST_CACHE_USER_KEY);
+    lastMarker = localStorage.getItem(LAST_CACHE_USER_KEY);
   } catch {
-    lastUser = null;
+    lastMarker = null;
   }
-  if (lastUser && lastUser !== email) {
+  const currentMarker = `${CACHE_SCHEMA_VERSION}:${email}`;
+  if (lastMarker && lastMarker !== currentMarker) {
     await idbClearAll().catch(() => {});
   }
   try {
-    localStorage.setItem(LAST_CACHE_USER_KEY, email);
+    localStorage.setItem(LAST_CACHE_USER_KEY, currentMarker);
   } catch {
     // Privater Modus o.ae. - dann bleibt der Cache im Zweifel einmal stehen, kein Absturz.
   }
