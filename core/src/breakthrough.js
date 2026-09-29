@@ -155,6 +155,16 @@ export function refitSignature({
 
   const dropped = [];
   const braked = applyDropBrake(activeSignature, proposed, settings.maxDropPerBreakthrough, enoughSupport, dropped);
+  // Absolute Plausibilitaetsgrenze `maxPlausibleWPrimeJ` (Defense-in-Depth, siehe
+  // core/README.md "HIE-Stabilitaet"): NACH der Absenkbremse angewendet, nicht davor - sonst
+  // wuerde die Absenkbremse selbst (die eine grosse Korrektur ohne "enoughSupport" auf
+  // `maxDropPerBreakthrough` je Breakthrough begrenzt) einen bereits "vergifteten", zu hohen
+  // Wert nur langsam statt sofort auf die Grenze zurueckfuehren. Wie bei
+  // `maxPlausibleCp`/`maxPlausiblePMax` (siehe `enforceMpaConstraint` unten) ist eine absolute
+  // Plausibilitaetsgrenze kein normaler "Abstieg", der Stuetzung braucht, sondern eine
+  // Korrektur eines bereits unplausiblen Zustands. Am real-daten-verifizierten Verlauf
+  // (Maximalwert 31368 J, weit unter der Grenze) ist das ein No-op.
+  braked.wPrimeJ = Math.min(braked.wPrimeJ, settings.maxPlausibleWPrimeJ);
   const { signature: corrected, constraintUnsatisfied } = enforceMpaConstraint(
     braked,
     breakthroughWatts,

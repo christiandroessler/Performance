@@ -382,7 +382,7 @@ PP 1060 W - "sieht jetzt besser aus ... passt erstmal". Das PP-Problem gilt
 damit als abgeschlossen. HIE (wPrimeJ) bleibt auf Wunsch des Auftraggebers
 bewusst zurueckgestellt ("machen wir spaeter") - siehe der Absatz unten.
 
-### HIE-Stabilitaet (2026-09-19, M1-Festlegung, `wprimeEvidenceMinSeconds`/`wprimeEvidenceMaxSeconds`/`minWprimeEvidenceCount`/`wprimeEvidenceMinCpMultiple`/`maxWprimeChangePerBreakthrough`)
+### HIE-Stabilitaet (2026-09-19, M1-Festlegung, `wprimeEvidenceMinSeconds`/`wprimeEvidenceMaxSeconds`/`minWprimeEvidenceCount`/`wprimeEvidenceMinCpMultiple`/`maxWprimeChangePerBreakthrough`/`maxPlausibleWPrimeJ`)
 
 Nach dem Pmax-Fix (oben) blieb `wPrimeJ` (HIE) im rohen Fit mehrfach exakt
 auf 45000 J stehen - dem internen LM-Optimierungs-Clamp in `cpFit.js`
@@ -457,6 +457,74 @@ pMax=1136 W. Auswirkung auf das Stoffwechselmodell (siehe unten,
 "Validierung gegen Sentiero"): VLamax faellt von 0,80 auf **0,52** -
 deutlich naeher an Sentieros 0,6 (13 % statt 33 % Abweichung), VO2max
 bleibt bei 76,2 (1,4 % Abweichung).
+
+#### Nachtrag: Startsignatur-Luecke (2026-09-29, `maxPlausibleWPrimeJ`)
+
+Der Auftraggeber meldete erneut "HIE ist schon wieder ungewoehnlich hoch",
+Monate nach der Live-Bestaetigung oben. Root Cause: **keiner der fuenf
+Bausteine oben laeuft fuer die Startsignatur.**
+`signature.js#computeInitialSignature` ruft `fitMortonRobust(points)` ganz
+ohne Optionen auf - kein `holdWPrime`, kein `wPrimeHint`. Enthaelt das erste
+`initialSignatureWindowDays`-Fenster eines Nutzers dasselbe sprintlastige
+Datenmuster, das den urspruenglichen Bug ausloeste (viele kurze
+Hochleistungs-Wiederholungen, keine echte nahe-erschoepfende
+Mehrminuten-Anstrengung), pinnt `wPrimeJ` unabhaengig wieder auf denselben
+45000-J-Clamp - z. B. wenn eine Signaturhistorie komplett neu aufgebaut wird.
+
+**Bewusst kein Evidenz-Gate fuer die Startsignatur** (anders als oben): dort
+gibt es einen sinnvollen Fallback ("bisherigen Wert halten"). Bei der
+Startsignatur gibt es keinen bisherigen Wert - ein Evidenz-Gate muesste
+entweder einen erfundenen Literaturwert einsetzen (widerspricht "Startsignatur
+ohne ausreichende Daten" unten: "keine erfundene Literatur-Startsignatur") oder
+die Signatur ganz verweigern (strenger, als der eigentliche Fehlerfall es
+verlangt). Stattdessen eine neue absolute Plausibilitaetsgrenze
+`maxPlausibleWPrimeJ` (Standard **40000 J**), als einfacher Post-Fit-Clamp in
+`computeInitialSignature` - analog zu `maxPlausibleCp`/`maxPlausiblePMax`,
+aber ohne die iterative Korrekturschleife dieser beiden (die gibt es fuer
+`wPrimeJ` nirgends und muss dafuer nicht neu gebaut werden). Ein
+Transparenz-Flag `wPrimeClampedAtInitial` macht die Korrektur sichtbar statt
+sie stillschweigend zu vollziehen (NFA-11-Konvention, analog `rawFit`/
+`pMaxHeld`).
+
+**Kalibrierung des Default-Werts** gegen Recherche (WebSearch) + eigenen
+Realwert: W' liegt bei Freizeitfahrern laut allgemeiner
+Trainings-/Physiologie-Literatur bei ~8-15 kJ, bei gut trainierten/
+kompetitiven Radfahrern bei ~15-25 kJ, bei Bahnsprintern bei ~25-35 kJ (Werte
+methodenabhaengig, nur Richtgroessen). Die eigene, oben bereits
+real-daten-verifizierte AKTUELLE Signatur des Auftraggebers liegt bei
+wPrimeJ=31368 J (31,4 kJ) - schon am oberen Rand "gut trainiert", grenzend an
+"Bahnsprinter", passend zu einem "sehr sehr guten Hobbyathleten" mit
+Sprintanlage. 40000 J liegt ca. 13 % unter dem 45000-Clamp (faengt den
+Fehlerfall zuverlaessig ab) und ca. 27 % ueber dem eigenen verifizierten
+Realwert (sollte einen echten Fit nicht einschraenken) - individuell in den
+Einstellungen anpassbar, falls ein Nutzer legitim naeher an dieser Grenze liegt.
+
+**Defense-in-Depth im Refit-Pfad:** dieselbe Grenze wird zusaetzlich in
+`refitSignature` angewendet, NACH der Absenkbremse (nicht davor - sonst wuerde
+die Absenkbremse selbst eine grosse Korrektur ohne "enoughSupport" auf
+`maxDropPerBreakthrough` je Breakthrough verlangsamen, siehe
+`applyDropBrake`). Grund: die bestehende Traegheitsbremse begrenzt nur die
+AENDERUNG relativ zum bisherigen Wert - ist der bisherige Wert selbst schon
+zu hoch (z. B. aus einer History, die vor diesem Fix mit einer ungebremsten
+`computeInitialSignature` aufgebaut wurde), haelt die Bremse ihn dort fest,
+statt ihn zu korrigieren. Am real-daten-verifizierten Verlauf (Maximalwert
+31368 J, weit unter der Grenze) ist das ein No-op - bestaetigt per erneutem
+Lauf von `scripts/run-legacy-db.js` nach der Aenderung: identische Zahlen wie
+vor der Aenderung (Startsignatur 25450 J/letztes Jahr 17428 J, aktuelle
+Signatur 29881,8 J/31368,4 J).
+
+**Verifiziert per Unit-Test** (`core/test/signature.test.js`): ein
+konstruiertes Startfenster aus fuenf kurzen Sprint-Aktivitaeten (5-20 s bei
+1400-1600 W, danach lange Ausfahrten bei ~150 W, keine Anstrengung im
+W'-informativen Bereich) treibt den rohen Fit exakt auf `wPrime=45000` -
+danach clamped `computeInitialSignature` auf `wPrimeJ=40000` mit
+`wPrimeClampedAtInitial=true`. Ein normales Startfenster (bestehende
+Baseline-Testdaten, rohes `wPrime=7083`) bleibt unveraendert. Ein
+`breakthrough.test.js`-Test simuliert eine bereits "vergiftete"
+`activeSignature.wPrimeJ=55000` (oberhalb des alten Clamps) im
+Halte-Modus (mangels Evidenz) - weder Halte-Modus noch Traegheitsbremse
+allein wuerden das auf <= 40000 J korrigieren, die neue Klammer tut es.
+`core` jetzt 104 Tests (101->104; `web` unveraendert bei den bestehenden Suiten).
 
 ### Stoffwechselmodell (FA-MET-01 bis 07, Kap. 7.9, M5-Festlegung)
 
@@ -626,6 +694,13 @@ TP/HIE/PP eingesetzt – anders als bei den Zeitkonstanten in Kap. 7.8 gibt das
 Lastenheft fuer TP/HIE/PP selbst keine Literaturwerte vor (F7: "keine
 XERT-Referenz", individueller Fit). Die App sollte in diesem Fall einen
 Hinweis anzeigen statt einer Kennzahl.
+
+Ist eine Startsignatur zustande gekommen, wird ihr `wPrimeJ` seit 2026-09-29
+zusaetzlich auf `maxPlausibleWPrimeJ` geklemmt (siehe "HIE-Stabilitaet" oben,
+Nachtrag "Startsignatur-Luecke") - der rohe 3-Parameter-Fit durchlaeuft hier
+keine der Evidenz-/Traegheitsbremsen-Mechanismen des Refit-Pfads und kann
+sonst unabhaengig auf demselben numerischen LM-Clamp landen wie das
+urspruengliche HIE-Instabilitaets-Problem.
 
 ### Aktivitaeten innerhalb des Startfensters
 

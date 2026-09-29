@@ -376,3 +376,39 @@ test('HIE-Stabilitaet: ein Breakthrough MIT Stuetzpunkten im W\'-informativen Da
   assert.equal(result.fit.wPrimeFixed, false, 'mit echten nahe-erschoepfenden Stuetzpunkten sollte W\' frei gefittet werden');
   assert.notEqual(result.fit.wPrime, 20000, 'W\' sollte sich an die neuen Daten anpassen, nicht beim alten Wert verharren');
 });
+
+test('HIE-Stabilitaet (Defense-in-Depth): eine bereits "vergiftete" activeSignature.wPrimeJ oberhalb maxPlausibleWPrimeJ wird trotz Halte-Modus/Traegheitsbremse auf die Plausibilitaetsgrenze geklemmt', () => {
+  // Szenario: eine Signaturhistorie, die (z. B. vor diesem Fix, ueber eine ungebremste
+  // computeInitialSignature) bereits mit einem zu hohen wPrimeJ aufgebaut wurde - hier absichtlich
+  // sogar oberhalb des alten 45000-Clamps, um zu zeigen, dass weder der Halte-Modus (haelt exakt
+  // beim - bereits zu hohen - bisherigen Wert) noch die Traegheitsbremse (begrenzt nur die
+  // AENDERUNG relativ zu diesem bereits zu hohen Wert: 55000 * (1-0.2) = 44000, immer noch > 40000)
+  // das allein korrigieren wuerden. Dieselben zu kurzen/zu nahen Stuetzpunkte wie im Test oben
+  // sorgen bewusst fuer holdWPrime=true (Halte-Modus), damit ausschliesslich die neue absolute
+  // Klammer diesen Fall aufloest, siehe core/README.md "HIE-Stabilitaet".
+  const settings = mergeSettings();
+  const n = 1200;
+  const watts = new Float64Array(n).fill(275);
+  const mask = new Uint8Array(n).fill(1);
+
+  const activeSignature = { cp: 250, wPrimeJ: 55000, pMax: 1000 };
+  const nearMpaPts = [
+    { t: 60, watts: 290 }, // zu kurz fuer W'-Evidenz
+    { t: 1200, watts: 275 }, // zu lang
+    { t: 1800, watts: 258 }, // zu lang UND zu nah an CP
+  ];
+
+  const result = refitSignature({
+    activeSignature,
+    nearMpaPts,
+    envelopePts: [],
+    breakthroughWatts: watts,
+    breakthroughMask: mask,
+    breakthroughWindows: [{ start: 0, end: n }],
+    settings,
+  });
+
+  assert.equal(result.fit.wPrimeFixed, true, 'mangels Evidenz sollte W\' weiterhin im Halte-Modus bleiben');
+  assert.equal(result.fit.wPrime, 55000, 'der rohe (gehaltene) Fit-Wert bleibt bei 55000 - das ist der zu korrigierende Fall');
+  assert.equal(result.signature.wPrimeJ, settings.maxPlausibleWPrimeJ, 'die absolute Plausibilitaetsgrenze muss auch einen gehaltenen, bereits zu hohen Wert korrigieren');
+});

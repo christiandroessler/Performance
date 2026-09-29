@@ -13,7 +13,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { prepareActivity } from '../src/activity.js';
-import { computeSignatureHistory } from '../src/signature.js';
+import { computeSignatureHistory, computeInitialSignature } from '../src/signature.js';
 import { mergeSettings } from '../src/settings.js';
 
 // Baseline-Aktivitaeten innerhalb der ersten 90 Tage (FA-SIG-03-Startfenster) -
@@ -142,6 +142,55 @@ test('avgHr: mittlere Herzfrequenz einer Aktivitaet landet im activityResult (Gr
   const noHrResult = result.activityResults.find((r) => r.id === 'noHr');
   assert.ok(noHrResult && noHrResult.hasSignature);
   assert.equal(noHrResult.avgHr, null);
+});
+
+// Sprintlastiges Startfenster ohne jede nahe-erschoepfende Mehrminuten-Anstrengung (nur kurze
+// Sprints + lange, deutlich unterhalb CP liegende Ausfahrten) - genau das Datenmuster, das laut
+// core/README.md ("HIE-Stabilitaet") den rohen Fit auf cpFit.js' numerischen LM-Clamp (45000 J)
+// pinnen kann. computeInitialSignature durchlaeuft (anders als refitSignature) keine der
+// Evidenz-/Traegheitsbremsen-Mechanismen des Refit-Pfads - die einzige Absicherung ist die neue
+// absolute Plausibilitaetsgrenze `maxPlausibleWPrimeJ`.
+function buildSprintHeavyPoints(sprintWatts, sprintSec, tailWatts, tailSec) {
+  const points = [];
+  for (let t = 0; t < sprintSec; t++) points.push({ t, watts: sprintWatts, deviceWatts: true });
+  for (let t = sprintSec; t < sprintSec + tailSec; t++) points.push({ t, watts: tailWatts + 10 * Math.sin(t / 13), deviceWatts: true });
+  return points;
+}
+
+test('HIE-Stabilitaet (Startsignatur): ein rohes wPrime am/ueber dem 45000-Clamp wird auf maxPlausibleWPrimeJ geklemmt', () => {
+  const settings = mergeSettings();
+  const raw = [
+    { id: 's1', date: '2026-01-01', startTime: '2026-01-01T08:00:00Z', points: buildSprintHeavyPoints(1500, 8, 150, 900) },
+    { id: 's2', date: '2026-01-05', startTime: '2026-01-05T08:00:00Z', points: buildSprintHeavyPoints(1450, 12, 155, 1200) },
+    { id: 's3', date: '2026-01-10', startTime: '2026-01-10T08:00:00Z', points: buildSprintHeavyPoints(1600, 5, 145, 800) },
+    { id: 's4', date: '2026-01-15', startTime: '2026-01-15T08:00:00Z', points: buildSprintHeavyPoints(1400, 20, 160, 1500) },
+    { id: 's5', date: '2026-01-20', startTime: '2026-01-20T08:00:00Z', points: buildSprintHeavyPoints(1550, 15, 150, 1000) },
+  ];
+  const prepared = raw.map((r) => prepareActivity(r, settings));
+  const result = computeInitialSignature(prepared, settings);
+
+  assert.equal(result.fit.model, '3p');
+  assert.ok(result.fit.wPrime >= 44000, `Testdaten sollten den rohen Fit an/ueber den Clamp treiben, wPrime=${result.fit.wPrime}`);
+  assert.equal(result.signature.wPrimeJ, settings.maxPlausibleWPrimeJ, 'wPrimeJ sollte auf die Plausibilitaetsgrenze geklemmt sein, nicht den rohen ~45000-Wert zeigen');
+  assert.equal(result.wPrimeClampedAtInitial, true);
+  // Nur wPrimeJ wird geklemmt - cp/pMax bleiben die rohen Fit-Werte.
+  assert.equal(result.signature.cp, result.fit.cp);
+  assert.equal(result.signature.pMax, result.fit.pMax);
+});
+
+test('HIE-Stabilitaet (Startsignatur): ein plausibles rohes wPrime bleibt vom Clamp unberuehrt', () => {
+  const settings = mergeSettings();
+  const raw = [
+    { id: 'base1', date: '2026-01-01', startTime: '2026-01-01T08:00:00Z', points: buildBaselinePoints() },
+    { id: 'base2', date: '2026-01-15', startTime: '2026-01-15T08:00:00Z', points: buildBaselinePoints() },
+    { id: 'base3', date: '2026-02-01', startTime: '2026-02-01T08:00:00Z', points: buildBaselinePoints() },
+  ];
+  const prepared = raw.map((r) => prepareActivity(r, settings));
+  const result = computeInitialSignature(prepared, settings);
+
+  assert.ok(result.fit.wPrime < settings.maxPlausibleWPrimeJ, `Testdaten sollten deutlich unter der Grenze liegen, wPrime=${result.fit.wPrime}`);
+  assert.equal(result.signature.wPrimeJ, result.fit.wPrime, 'ohne Clamp-Notwendigkeit sollte wPrimeJ exakt dem rohen Fit entsprechen');
+  assert.equal(result.wPrimeClampedAtInitial, false);
 });
 
 function serializable(x) {

@@ -17,6 +17,7 @@ import { signOut } from './auth.js';
 
 const pct = { toDisplay: (v) => Math.round(v * 1000) / 10, fromDisplay: (v) => v / 100 };
 const identity = { toDisplay: (v) => v, fromDisplay: (v) => v };
+const kJ = { toDisplay: (v) => v / 1000, fromDisplay: (v) => v * 1000 };
 
 // Gruppierung/Beschriftung/Quelle nach Lastenheft Kap. 12 ("Einstellbare Parameter (Startwerte)");
 // die vier thresholdX-Parameter sind eine M1-Festlegung fuer FA-TP-03/04 (core/README.md), im
@@ -66,6 +67,7 @@ const PARAM_GROUPS = [
       { key: 'minWprimeEvidenceCount', label: 'Mindestanzahl W\'-Stützpunkte', unit: '', min: 1, max: 10, step: 1, ...identity, hint: 'M1-Festlegung, core/README.md' },
       { key: 'wprimeEvidenceMinCpMultiple', label: 'Min. Vielfaches von TP für W\'-Stützpunkte', unit: '×', min: 1, max: 2, step: 0.01, ...identity, hint: 'M1-Festlegung, core/README.md' },
       { key: 'maxWprimeChangePerBreakthrough', label: 'Max. HIE-Änderung je Breakthrough (Trägheitsbremse)', unit: '%', min: 5, max: 100, step: 1, ...pct, hint: 'M1-Festlegung, core/README.md' },
+      { key: 'maxPlausibleWPrimeJ', label: 'Absolute Plausibilitätsgrenze HIE', unit: 'kJ', min: 15, max: 60, step: 0.5, ...kJ, hint: 'M1-Festlegung, core/README.md, individuell anpassen!' },
     ],
   },
   {

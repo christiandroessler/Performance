@@ -24,6 +24,7 @@ export const DEFAULT_SETTINGS = {
   minWprimeEvidenceCount: 2, // M1-Festlegung, siehe core/README.md (HIE-Stabilitaet)
   wprimeEvidenceMinCpMultiple: 1.05, // M1-Festlegung, siehe core/README.md (HIE-Stabilitaet)
   maxWprimeChangePerBreakthrough: 0.2, // M1-Festlegung, siehe core/README.md (HIE-Stabilitaet, Traegheitsbremse)
+  maxPlausibleWPrimeJ: 40000, // M1-Festlegung, siehe core/README.md (HIE-Stabilitaet, Startsignatur-Clamp)
   maxGapSecondsForWbalContinuity: 1800, // M1-Festlegung, siehe core/README.md
   ctlTau: 42,
   atlTau: 7,

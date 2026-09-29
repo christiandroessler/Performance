@@ -65,10 +65,24 @@ export function computeInitialSignature(preparedActivities, settings) {
     };
   }
 
+  // HIE-Stabilitaet (siehe core/README.md): anders als beim Refit (breakthrough.js#refitSignature)
+  // gibt es hier keinen vorherigen Wert, den man bei fehlender Evidenz halten koennte - die
+  // Startsignatur IST der erste Wert. Ein Evidenz-Gate wuerde entweder einen erfundenen
+  // Literaturwert einsetzen (widerspricht der Festlegung oben, "keine erfundene
+  // Literatur-Startsignatur") oder die Signatur ganz verweigern (strenger als der eigentliche
+  // Fehlerfall es verlangt). Stattdessen eine absolute Plausibilitaetsgrenze: `fitMortonRobust`
+  // durchlaeuft keine der fuenf HIE-Stabilitaets-Massnahmen des Refit-Pfads (kein `holdWPrime`,
+  // kein `wPrimeHint`) und kann daher, bei denselben sprintlastigen/schlecht identifizierbaren
+  // Daten, die urspruenglich den Bug ausloesten, unabhaengig auf demselben numerischen
+  // LM-Optimierungs-Clamp (`cpFit.js` CLAMP[1]=45000) pinnen - keiner physiologischer Wert.
+  const wPrimeJ = Math.min(fit.wPrime, settings.maxPlausibleWPrimeJ);
+  const wPrimeClampedAtInitial = wPrimeJ < fit.wPrime;
+
   return {
-    signature: { cp: fit.cp, wPrimeJ: fit.wPrime, pMax: fit.pMax },
+    signature: { cp: fit.cp, wPrimeJ, pMax: fit.pMax },
     effectiveDate: cutoff,
     fit,
+    wPrimeClampedAtInitial,
     windowActivityIds,
   };
 }
