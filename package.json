@@ -1,0 +1,22 @@
+{
+  "name": "performance-app",
+  "private": true,
+  "type": "module",
+  "description": "Root-Tooling (Lint/Format/Typecheck) fuer core/web/worker (Phase 2, docs/ARCHITEKTUR.md). Jedes Teilprojekt bleibt eigenstaendig deploybar - dieses package.json fuegt keine Laufzeit-Abhaengigkeit hinzu, nur Dev-Tooling.",
+  "scripts": {
+    "lint": "eslint .",
+    "format": "prettier --write \"{core,web,worker}/**/*.js\"",
+    "format:check": "prettier --check \"{core,web,worker}/**/*.js\"",
+    "typecheck": "tsc --noEmit -p core/tsconfig.json && tsc --noEmit -p web/tsconfig.json && tsc --noEmit -p worker/tsconfig.json",
+    "test:core": "cd core && npm test",
+    "test:web": "cd web && npm test",
+    "test:worker": "cd worker && npm test",
+    "test": "npm run test:core && npm run test:web && npm run test:worker"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.0",
+    "eslint": "^10.0.0",
+    "prettier": "^3.9.0",
+    "typescript": "^7.0.0"
+  }
+}
