@@ -76,6 +76,13 @@ export function mortonPower(t, cp, wPrime, pMax) {
  * ca. 2-20 min nahe-erschoepfende Anstrengungen) vorliegen. Gilt auch fuer
  * den <4-Punkte-2-Parameter-Fallback (`two`), der sonst W' ungebremst aus
  * der linearen Regression uebernehmen wuerde.
+ * @param {{t:number, watts:number}[]} points
+ * @param {object} [options]
+ * @param {number} [options.pMaxHint] - Startwert/Referenz fuer Pmax (ungenutzt bei fixedPMax)
+ * @param {number} [options.wPrimeHint] - Startwert/Referenz fuer W' (ungenutzt bei fixedWPrime)
+ * @param {number[]} [options.weights] - Punktgewichte (IRLS, siehe fitMortonRobust)
+ * @param {number} [options.fixedPMax] - haelt Pmax waehrend der Optimierung exakt fest
+ * @param {number} [options.fixedWPrime] - haelt W' waehrend der Optimierung exakt fest
  */
 export function fitMortonCP(points, { pMaxHint, wPrimeHint, weights, fixedPMax, fixedWPrime } = {}) {
   const pts = (points || []).filter((p) => p.watts > 0 && p.t > 0).sort((a, b) => a.t - b.t);
@@ -206,6 +213,14 @@ export function fitMortonCP(points, { pMaxHint, wPrimeHint, weights, fixedPMax, 
  * `fixedPMax`) - siehe core/README.md "Pmax-Stabilitaet" fuer die
  * Entscheidung, WANN das gilt (keine Stuetzpunkte im Sprint-Dauernbereich).
  * `holdWPrime`: analog fuer W' (HIE), siehe core/README.md "HIE-Stabilitaet".
+ * @param {{t:number, watts:number}[]} points
+ * @param {object} [options]
+ * @param {number} [options.pMaxHint] - Startwert/Referenz fuer Pmax, auch Festwert bei holdPMax
+ * @param {number} [options.wPrimeHint] - Startwert/Referenz fuer W', auch Festwert bei holdWPrime
+ * @param {number} [options.iterations] - Anzahl IRLS-Aussenschleifen
+ * @param {number} [options.tukeyC] - Tukey-Biweight-Tuning-Konstante
+ * @param {boolean} [options.holdPMax] - haelt Pmax fest auf pMaxHint
+ * @param {boolean} [options.holdWPrime] - haelt W' fest auf wPrimeHint
  */
 export function fitMortonRobust(points, { pMaxHint, wPrimeHint, iterations = 3, tukeyC = 4.685, holdPMax = false, holdWPrime = false } = {}) {
   const pts = (points || []).filter((p) => p.watts > 0 && p.t > 0);

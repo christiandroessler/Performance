@@ -103,6 +103,12 @@ export function aggregateMMP(curves, grid = DEFAULT_GRID) {
 /**
  * Envelope-Punkte mit Stuetzungs-Zaehler (in wie vielen Aktivitaeten wird der
  * Envelope-Wert zu >= nearPct erreicht). Grundlage fuer die Start- und Refit-Regression.
+ * @param {{date:string, activityId:string, mmp: {t:number, watts:number}[]}[]} perActivityMMP
+ * @param {object} [options]
+ * @param {number[]} [options.grid] - Dauerraster in Sekunden
+ * @param {number} [options.nearPct] - Anteil des Bestwerts, ab dem eine Aktivitaet als "stuetzend" zaehlt
+ * @param {number} [options.sinceDays] - nur Aktivitaeten der letzten N Tage bis `untilDate` beruecksichtigen
+ * @param {string} [options.untilDate] - Stichtag (YYYY-MM-DD) fuer `sinceDays`
  */
 export function detectMaximalEfforts(perActivityMMP, { grid = DEFAULT_GRID, nearPct = 0.9, sinceDays, untilDate } = {}) {
   let curves = perActivityMMP || [];

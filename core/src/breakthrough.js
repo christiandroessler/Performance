@@ -85,7 +85,7 @@ export function nearMpaPoints(watts, mpa, mask, settings) {
  * @param {ArrayLike<number>} args.breakthroughMask
  * @param {{start:number, end:number}[]} args.breakthroughWindows - erkannte Ueberschreitungs-Fenster (siehe detectBreakthroughWindows); die Nebenbedingung wird NUR darauf geprueft, siehe core/README.md
  * @param {import('./types.js').ModelSettings} args.settings
- * @returns {{ signature: {cp:number, wPrimeJ:number, pMax:number}, dropped: string[], fit: object }}
+ * @returns {{ signature: {cp:number, wPrimeJ:number, pMax:number}, dropped: string[], fit: object|null, constraintUnsatisfied?: boolean }}
  */
 export function refitSignature({
   activeSignature,
@@ -97,26 +97,7 @@ export function refitSignature({
   settings,
 }) {
   const points = [...nearMpaPts, ...envelopePts.map((e) => ({ t: e.t, watts: e.watts }))];
-  // Sprint-Evidenz braucht mehr als "irgendein Punkt bei kurzer Dauer" - die 90-Tage-
-  // Envelope (detectMaximalEfforts) liefert IMMER einen 1-20s-Bestwert, sobald ueberhaupt
-  // 1-Hz-Daten vorliegen, auch ohne jede Sprintabsicht (natuerliches Leistungsrauschen reicht).
-  // Erst deutlich ueber der aktuellen Schwelle (>= pmaxEvidenceMinCpMultiple * cp, siehe
-  // core/README.md "Pmax-Stabilitaet") ist ein kurzer Punkt tatsaechlich sprint-artig.
-  const sprintEvidenceCount = points.filter(
-    (p) => p.t <= settings.pmaxEvidenceMaxSeconds && p.watts >= settings.pmaxEvidenceMinCpMultiple * activeSignature.cp
-  ).length;
-  const holdPMax = sprintEvidenceCount < settings.minPmaxEvidenceCount;
-  // HIE-Stabilitaet (siehe core/README.md): W' braucht - anders als Pmax, das kurze Sprints
-  // braucht - Stuetzpunkte im klassischen CP-Testprotokoll-Dauerbereich (ca. 2-20 min,
-  // nahe-erschoepfende Anstrengung), sonst ist es aus den vorhandenen Punkten strukturell
-  // schlecht bestimmt (Literatur, siehe core/README.md) und wird gehalten statt frisch geschaetzt.
-  const wPrimeEvidenceCount = points.filter(
-    (p) =>
-      p.t >= settings.wprimeEvidenceMinSeconds &&
-      p.t <= settings.wprimeEvidenceMaxSeconds &&
-      p.watts >= settings.wprimeEvidenceMinCpMultiple * activeSignature.cp
-  ).length;
-  const holdWPrime = wPrimeEvidenceCount < settings.minWprimeEvidenceCount;
+  const { holdPMax, holdWPrime } = determineHoldFlags(points, activeSignature.cp, settings);
   const fit = fitMortonRobust(points, {
     pMaxHint: activeSignature.pMax,
     wPrimeHint: activeSignature.wPrimeJ,
@@ -127,31 +108,8 @@ export function refitSignature({
     return { signature: activeSignature, dropped: [], fit: null };
   }
 
-  const distinctActivities = new Set();
-  for (const e of envelopePts) {
-    if (e.supportingActivityIds) for (const id of e.supportingActivityIds) distinctActivities.add(id);
-  }
-  const enoughSupport = distinctActivities.size >= settings.minSupportingActivitiesForDrop;
-
-  const proposed = {
-    cp: fit.cp,
-    // HIE-Traegheitsbremse (siehe core/README.md "HIE-Stabilitaet"): derselbe Grund wie bei
-    // Pmax unten - W' ist strukturell schlecht bestimmt ohne echte nahe-erschoepfende
-    // Anstrengungen im informativen Dauerbereich und in der Literatur als das instabilste
-    // CP-Modell-Parameter beschrieben (Test-Retest-Variabilitaet). Deshalb - als dieselbe
-    // bewusste Ausnahme von Kap. 7.5s "Anstiege sind nie gebremst" wie bei Pmax - symmetrisch
-    // auf `maxWprimeChangePerBreakthrough` begrenzt, unabhaengig von "enoughSupport".
-    wPrimeJ: applyInertiaBrake(activeSignature.wPrimeJ, fit.wPrime, settings.maxWprimeChangePerBreakthrough),
-    // Pmax-Traegheitsbremse (siehe core/README.md "Pmax-Stabilitaet"): anders als cp, wo
-    // ein Anstieg IMMER voll durchgereicht wird (Kap. 7.5: "Anstiege sind nie gebremst" - ein
-    // Breakthrough ist eine belegte neue Bestleistung), schwankt der rohe Pmax-Fit selbst BEI
-    // vorhandener Sprint-Evidenz noch stark von Fenster zu Fenster (am echten Datensatz
-    // bestaetigt: 450-1092W innerhalb eines Jahres, ohne erkennbaren Trend). Ein Anstieg UND ein
-    // Abstieg werden deshalb symmetrisch auf `maxPmaxChangePerBreakthrough` je Breakthrough
-    // begrenzt, unabhaengig von "enoughSupport" (das gilt nur fuer die separate Absenkbremse
-    // unten). `fit.pMax` selbst bleibt unveraendert (Transparenz, `rawFit` in der UI).
-    pMax: fit.pMax != null ? applyInertiaBrake(activeSignature.pMax, fit.pMax, settings.maxPmaxChangePerBreakthrough) : activeSignature.pMax,
-  };
+  const enoughSupport = hasEnoughSupportingActivities(envelopePts, settings.minSupportingActivitiesForDrop);
+  const proposed = buildProposedSignature(fit, activeSignature, settings);
 
   const dropped = [];
   const braked = applyDropBrake(activeSignature, proposed, settings.maxDropPerBreakthrough, enoughSupport, dropped);
@@ -174,6 +132,85 @@ export function refitSignature({
   );
 
   return { signature: corrected, dropped, fit, constraintUnsatisfied };
+}
+
+/**
+ * Zaehlt Stuetzpunkte, die als "Evidenz" fuer einen Parameter zaehlen: Dauer
+ * im Bereich [minSeconds, maxSeconds] UND Leistung >= minCpMultiple * cp.
+ * Gemeinsame Pruefung fuer Pmax-Sprint-Evidenz UND W'-Evidenz (core/README.md
+ * "Pmax-Stabilitaet"/"HIE-Stabilitaet") - nur die konkreten Schwellen
+ * unterscheiden sich je Parameter, nicht die Pruefung selbst.
+ * @param {{t:number, watts:number}[]} points
+ * @param {number} cp - aktuelle TP (Referenz fuer "Vielfaches von TP")
+ * @param {{minSeconds:number, maxSeconds:number, minCpMultiple:number}} thresholds
+ */
+function countEvidencePoints(points, cp, { minSeconds, maxSeconds, minCpMultiple }) {
+  return points.filter((p) => p.t >= minSeconds && p.t <= maxSeconds && p.watts >= minCpMultiple * cp).length;
+}
+
+/**
+ * Ob Pmax bzw. W' beim anstehenden Fit gehalten werden muessen, weil zu
+ * wenig Evidenz im jeweils informativen Dauerbereich vorliegt (siehe
+ * `countEvidencePoints`). Pmax-Schwelle startet bei 0s (Sprint-Evidenz
+ * braucht mehr als "irgendein Punkt bei kurzer Dauer" - die 90-Tage-Envelope
+ * liefert IMMER einen 1-20s-Bestwert, auch ohne jede Sprintabsicht; erst
+ * deutlich ueber der aktuellen TP, siehe `pmaxEvidenceMinCpMultiple`, ist ein
+ * kurzer Punkt tatsaechlich sprint-artig).
+ */
+function determineHoldFlags(points, cp, settings) {
+  const sprintEvidenceCount = countEvidencePoints(points, cp, {
+    minSeconds: 0,
+    maxSeconds: settings.pmaxEvidenceMaxSeconds,
+    minCpMultiple: settings.pmaxEvidenceMinCpMultiple,
+  });
+  const holdPMax = sprintEvidenceCount < settings.minPmaxEvidenceCount;
+
+  const wPrimeEvidenceCount = countEvidencePoints(points, cp, {
+    minSeconds: settings.wprimeEvidenceMinSeconds,
+    maxSeconds: settings.wprimeEvidenceMaxSeconds,
+    minCpMultiple: settings.wprimeEvidenceMinCpMultiple,
+  });
+  const holdWPrime = wPrimeEvidenceCount < settings.minWprimeEvidenceCount;
+
+  return { holdPMax, holdWPrime, sprintEvidenceCount, wPrimeEvidenceCount };
+}
+
+/** Mindestanzahl GETRENNTER Aktivitaeten, die die Envelope-Stuetzpunkte stuetzen (Absenkbremse). */
+function hasEnoughSupportingActivities(envelopePts, minSupportingActivitiesForDrop) {
+  const distinctActivities = new Set();
+  for (const e of envelopePts) {
+    if (e.supportingActivityIds) for (const id of e.supportingActivityIds) distinctActivities.add(id);
+  }
+  return distinctActivities.size >= minSupportingActivitiesForDrop;
+}
+
+/**
+ * Wendet beide Traegheitsbremsen (Pmax/W', siehe `applyInertiaBrake` unten)
+ * auf den rohen Fit an, um die "vorgeschlagene" Signatur VOR Absenkbremse/
+ * Nebenbedingungs-Korrektur zu bilden. cp durchlaeuft bewusst KEINE Bremse
+ * hier (Kap. 7.5: "Anstiege sind nie gebremst" - nur die separate
+ * Absenkbremse unten begrenzt cp, und nur bei Abstieg).
+ */
+function buildProposedSignature(fit, activeSignature, settings) {
+  return {
+    cp: fit.cp,
+    // HIE-Traegheitsbremse (siehe core/README.md "HIE-Stabilitaet"): derselbe Grund wie bei
+    // Pmax unten - W' ist strukturell schlecht bestimmt ohne echte nahe-erschoepfende
+    // Anstrengungen im informativen Dauerbereich und in der Literatur als das instabilste
+    // CP-Modell-Parameter beschrieben (Test-Retest-Variabilitaet). Deshalb - als dieselbe
+    // bewusste Ausnahme von Kap. 7.5s "Anstiege sind nie gebremst" wie bei Pmax - symmetrisch
+    // auf `maxWprimeChangePerBreakthrough` begrenzt, unabhaengig von "enoughSupport".
+    wPrimeJ: applyInertiaBrake(activeSignature.wPrimeJ, fit.wPrime, settings.maxWprimeChangePerBreakthrough),
+    // Pmax-Traegheitsbremse (siehe core/README.md "Pmax-Stabilitaet"): anders als cp, wo
+    // ein Anstieg IMMER voll durchgereicht wird (Kap. 7.5: "Anstiege sind nie gebremst" - ein
+    // Breakthrough ist eine belegte neue Bestleistung), schwankt der rohe Pmax-Fit selbst BEI
+    // vorhandener Sprint-Evidenz noch stark von Fenster zu Fenster (am echten Datensatz
+    // bestaetigt: 450-1092W innerhalb eines Jahres, ohne erkennbaren Trend). Ein Anstieg UND ein
+    // Abstieg werden deshalb symmetrisch auf `maxPmaxChangePerBreakthrough` je Breakthrough
+    // begrenzt, unabhaengig von "enoughSupport" (das gilt nur fuer die separate Absenkbremse
+    // unten). `fit.pMax` selbst bleibt unveraendert (Transparenz, `rawFit` in der UI).
+    pMax: fit.pMax != null ? applyInertiaBrake(activeSignature.pMax, fit.pMax, settings.maxPmaxChangePerBreakthrough) : activeSignature.pMax,
+  };
 }
 
 /**

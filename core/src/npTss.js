@@ -75,6 +75,11 @@ export function trainingStressScore(movingTimeSec, normPower, threshold) {
 /**
  * hrTSS: TSS-Naeherung aus der Herzfrequenz fuer Aktivitaeten ohne Power (FA-TP-02).
  * IF_hr ueber Herzfrequenzreserve (HRR), falls Ruhepuls bekannt, sonst avgHF/Schwellen-HF.
+ * @param {number} durationSec
+ * @param {number} avgHr
+ * @param {object} [options]
+ * @param {number} [options.restingHr] - Ruhepuls, falls bekannt (schaltet auf HRR-Methode um)
+ * @param {number} [options.thresholdHr] - Schwellen-Herzfrequenz (Pflicht, sonst null)
  */
 export function hrTSS(durationSec, avgHr, { restingHr, thresholdHr } = {}) {
   if (!durationSec || !avgHr || !thresholdHr) return null;
