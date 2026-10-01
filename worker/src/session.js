@@ -7,7 +7,7 @@ import { getAllowlistEntry, putAllowlistEntry } from './kvStore.js';
 import { HttpError } from './http.js';
 
 /**
- * @returns {Promise<{ email: string, role: 'admin'|'member', status: string }>}
+ * @returns {Promise<{ email: string, role: 'admin'|'member', status: string, name: string|null, stravaAthleteName: string|null }>}
  * @throws {HttpError} 401 bei fehlendem/ungueltigem Token, 403 wenn nicht auf der Allowlist (FA-AUTH-01: neutrale Ablehnung)
  */
 export async function requireSession(request, env) {
