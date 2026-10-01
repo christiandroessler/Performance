@@ -1,0 +1,81 @@
+name: CI
+
+# Phase 2 (docs/ARCHITEKTUR.md): fuehrt die bereits vorhandenen, lokal
+# laufenden Testsuiten (core/web/worker) automatisiert bei jedem Push/PR aus,
+# zusaetzlich Lint ueberall und Format/Typecheck als Qualitaetssignal.
+# Deploy bleibt unangetastet - laeuft weiterhin ueber Cloudflare Workers
+# Builds (GitHub-Anbindung), siehe README.md "M2-Status im Detail".
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+        working-directory: core
+
+  test-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+        working-directory: web
+
+  test-worker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+        working-directory: worker
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run lint
+
+  # Format/Typecheck sind bewusst NICHT blockierend: der Codestand vor Phase 2
+  # war weder formatiert noch typgeprueft (core/README.md "JavaScript statt
+  # TypeScript" - reine Dokumentation per JSDoc, nie automatisiert verifiziert).
+  # Beides wird modulweise nachgezogen (siehe docs/MODULE.md/OFFENE-FRAGEN.md),
+  # nicht in einem einzigen Grossumbau. Diese Jobs zeigen den Fortschritt
+  # sichtbar in der CI-Oberflaeche, ohne bestehende PRs zu blockieren.
+  format-check:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run format:check
+
+  typecheck:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run typecheck
