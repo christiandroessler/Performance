@@ -222,12 +222,15 @@ Verantwortungsvermischung.
   endliche, aber stillschweigend falsche Zahl statt eines Fehlers.
 
 ### K-04 Breakthrough/Refit — `breakthrough.js`
-**Priorität mittel, Aufwand M**
-- **[Struktur, mittel]** `refitSignature` (`breakthrough.js:90-177`, 87
-  Zeilen) mischt ≥5 Konzerne (Evidenz-Zählung, Fit, zwei Trägheitsbremsen,
-  Absenkbremse+Plausibilitätsklammer, MPA-Konvergenz). Jeder Schritt ist gut
-  begründet dokumentiert, aber keiner ist eine separat testbare Einheit — die
-  schärfste Spannung zum NFA-07-Ziel "ein Konzern isoliert ändern".
+**Priorität mittel, Aufwand M — Strukturteil erledigt (Phase 2, Commit `3afefd5`)**
+- **[Struktur, mittel, ERLEDIGT]** `refitSignature` mischte ≥5 Konzerne
+  (Evidenz-Zählung, Fit, zwei Trägheitsbremsen, Absenkbremse+
+  Plausibilitätsklammer, MPA-Konvergenz) in einer Funktion. Jetzt in benannte
+  Helfer extrahiert (`countEvidencePoints`, `determineHoldFlags`,
+  `hasEnoughSupportingActivities`, `buildProposedSignature`) - reine
+  Extract-Function-Änderung, keine Verhaltensänderung, abgesichert durch die
+  volle Testsuite inkl. Charakterisierungstest. `applyDropBrake`/
+  `enforceMpaConstraint` waren schon vorher eigene Funktionen.
 - `applyDropBrake` (`breakthrough.js:196-217`): zwei Zweige mit identischem
   Code, könnten zusammengefasst werden (kosmetisch).
 - `enforceMpaConstraint` (`breakthrough.js:249-291`) rechnet bei jedem
