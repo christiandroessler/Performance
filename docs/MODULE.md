@@ -124,6 +124,18 @@ Verantwortungsvermischung.
 
 ### P-10 Einstellungen — `settingsView.js`
 **Priorität hoch, Aufwand L** – größte Datei im Projekt (27.009 B).
+
+> **Phase 2 (2026-10-02) erledigt:** Struktur-, Typmismatch- und Testlücken-Befund.
+> `openSettings()` setzt nur noch das Modal zusammen; die sechs Karten sind eigene
+> Funktionen mit expliziten Parametern. Parameterkatalog (`PARAM_GROUPS`, mit
+> `@typedef ParamDef`) und die reine Diff-/Protokoll-Logik liegen in
+> `web/src/settingsParams.js` und sind durch `web/test/settingsParams.test.js`
+> abgesichert (u. a.: jeder `key` existiert in `DEFAULT_SETTINGS`, Konverter
+> invers, Startwerte innerhalb der Eingabegrenzen). Verhalten unverändert.
+> Offen bleiben Laborwerte-Plausibilität und `window.location.reload()` (beides
+> Verhaltensänderungen, nicht Phase 2).
+
+Ursprünglicher Befund:
 - **[Struktur, hoch]** `openSettings()` (`settingsView.js:129-609`) ist eine
   **480 Zeilen lange Funktion** mit 6 verschachtelten Unterkarten
   (`renderAppearanceCard`, `renderLabValuesCard`, `renderParamsCard`,
