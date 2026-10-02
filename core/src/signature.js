@@ -27,6 +27,39 @@ function addDaysISO(dateStr, days) {
   return d.toISOString().slice(0, 10);
 }
 
+function daysBetweenISO(fromDate, toDate) {
+  return Math.round((new Date(toDate + 'T00:00:00Z') - new Date(fromDate + 'T00:00:00Z')) / 86400000);
+}
+
+/**
+ * Signatur-Verfall (siehe core/README.md "Signatur-Verfall"): nach einer Karenzzeit ohne neue
+ * Bestaetigung faellt ein Wert exponentiell auf einen Boden ab (nie auf 0, ein trainierter Zustand
+ * geht laut Detraining-Literatur - Mujika & Padilla 2000/2001 - nie vollstaendig verloren). Die
+ * Zahlenwerte sind eine eigene Festlegung, keine Quelle liefert exakte Tage-Werte fuer TP/HIE/PP.
+ */
+export function staleDecayFactor(daysSinceConfirmation, graceDays, tauDays, maxPct) {
+  const effectiveDays = daysSinceConfirmation - graceDays;
+  if (effectiveDays <= 0) return 1;
+  const floor = 1 - maxPct;
+  return floor + maxPct * Math.exp(-effectiveDays / tauDays);
+}
+
+/**
+ * Verfallene Signatur `daysSinceConfirmation` Tage nach der letzten Bestaetigung (Startsignatur
+ * oder Breakthrough). Je System eine eigene Zeitkonstante (TP schnell, HIE mittel, PP langsam).
+ * @param {{cp:number, wPrimeJ:number, pMax:number}} confirmed
+ * @param {number} daysSinceConfirmation
+ * @param {import('./types.js').ModelSettings} settings
+ */
+export function decaySignature(confirmed, daysSinceConfirmation, settings) {
+  const f = (tau) => staleDecayFactor(daysSinceConfirmation, settings.signatureDecayGraceDays, tau, settings.signatureDecayMaxPct);
+  return {
+    cp: confirmed.cp * f(settings.signatureDecayTauCpDays),
+    wPrimeJ: confirmed.wPrimeJ * f(settings.signatureDecayTauWPrimeDays),
+    pMax: confirmed.pMax * f(settings.signatureDecayTauPMaxDays),
+  };
+}
+
 /**
  * Startsignatur per robuster Regression ueber die Maximalbelastungen der
  * ersten `initialSignatureWindowDays` Tage (FA-SIG-03). Liefert `signature: null`
@@ -121,7 +154,13 @@ export function computeSignatureHistory(preparedActivities, options = {}) {
 
   const allCurves = sorted.map((a) => ({ date: a.date, activityId: a.id, mmp: a.mmp }));
 
-  let active = initial.signature;
+  // `confirmed` = zuletzt bestaetigte Signatur (Startsignatur/Breakthrough, steht so in `history`),
+  // `active` = dieselbe Signatur nach dem Signatur-Verfall bis zum Aktivitaetsdatum. Erkennung,
+  // Refit, TSS/IF und Strain laufen gegen `active` - so sinkt die Signatur ohne neue Bestaetigung
+  // taeglich, und ein Breakthrough ist jederzeit wieder erreichbar (siehe core/README.md
+  // "Signatur-Verfall im Rechenkern").
+  let confirmed = initial.signature;
+  let confirmedDate = initial.effectiveDate;
   let lastEndTime = null;
   let lastEndBalanceJ = null;
 
@@ -131,6 +170,8 @@ export function computeSignatureHistory(preparedActivities, options = {}) {
       result.activityResults.push({ id: act.id, date: act.date, hasSignature: false, usedForInitialFit: true });
       continue;
     }
+
+    const active = decaySignature(confirmed, daysBetweenISO(confirmedDate, act.date), settings);
 
     const gapSec = lastEndTime ? (new Date(act.startTime) - new Date(lastEndTime)) / 1000 : Infinity;
     const startBalanceJ =
@@ -192,6 +233,8 @@ export function computeSignatureHistory(preparedActivities, options = {}) {
 
       if (!isDiscarded) {
         signatureAfter = refit.signature;
+        confirmed = refit.signature;
+        confirmedDate = act.date;
         result.history.push({ date: act.date, ...refit.signature, source: 'refit', breakthroughId: act.id });
       }
     }
@@ -219,7 +262,6 @@ export function computeSignatureHistory(preparedActivities, options = {}) {
 
     lastEndTime = act.endTime;
     lastEndBalanceJ = Math.min(balance[balance.length - 1] ?? signatureAfter.wPrimeJ, signatureAfter.wPrimeJ);
-    active = signatureAfter;
   }
 
   return result;
@@ -243,4 +285,26 @@ export function signatureAtDate(history, date) {
     else break;
   }
   return current;
+}
+
+/**
+ * Tatsaechlich gueltige Signatur an einem Datum: letzte Bestaetigung (signatureAtDate) plus
+ * Signatur-Verfall bis zu diesem Datum - derselbe Wert, gegen den computeSignatureHistory an
+ * diesem Tag Breakthroughs erkennt. `confirmed` ist der unverfallene history-Eintrag.
+ * @param {ReturnType<typeof computeSignatureHistory>['history']} history
+ * @param {string} date
+ * @param {import('./types.js').ModelSettings} settings
+ * @returns {{cp:number, wPrimeJ:number, pMax:number, date:string, daysSinceConfirmation:number, decayApplied:boolean, confirmed:object}|null}
+ */
+export function currentSignatureAtDate(history, date, settings) {
+  const confirmed = signatureAtDate(history, date);
+  if (!confirmed) return null;
+  const daysSinceConfirmation = daysBetweenISO(confirmed.date, date);
+  return {
+    ...decaySignature(confirmed, daysSinceConfirmation, settings),
+    date,
+    daysSinceConfirmation,
+    decayApplied: daysSinceConfirmation > settings.signatureDecayGraceDays,
+    confirmed,
+  };
 }

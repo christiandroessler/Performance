@@ -5,7 +5,7 @@
 // das Aggregieren ueber wenige Dutzend Stuetzpunkte je Aktivitaet ist auch bei
 // mehreren tausend Aktivitaeten schnell genug, um die UI nicht zu blockieren.
 
-import { aggregateMMP, DEFAULT_GRID, powerDurationCurve } from '../vendor/core/src/index.js';
+import { aggregateMMP, DEFAULT_GRID, powerDurationCurve, currentSignatureAtDate, mergeSettings } from '../vendor/core/src/index.js';
 import { loadMmpCurves, loadThresholds, loadModelState } from './compute.js';
 import { readJson } from './storage.js';
 import { renderSportThresholds } from './dashboardExtras.js';
@@ -200,7 +200,11 @@ function renderPredictionCard(container, modelState) {
   header.innerHTML = '<h2>Leistungsvorhersage</h2>';
   box.appendChild(header);
 
-  const latest = modelState && modelState.history && modelState.history.length ? modelState.history[modelState.history.length - 1] : null;
+  // Heute gueltige Signatur inkl. Signatur-Verfall (siehe dashboardView.js#renderSignatureTiles).
+  const latest =
+    modelState && modelState.history && modelState.history.length
+      ? currentSignatureAtDate(modelState.history, new Date().toISOString().slice(0, 10), mergeSettings(modelState.settings || {}))
+      : null;
   if (!latest) {
     const p = document.createElement('p');
     p.className = 'hint';

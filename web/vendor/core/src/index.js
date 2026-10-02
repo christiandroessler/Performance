@@ -26,7 +26,7 @@ export {
   medalFor,
 } from './breakthrough.js';
 export { checkTwoParamConsistency, wPrimeBalance2ParamUnclamped } from './twoParamCheck.js';
-export { computeInitialSignature, computeSignatureHistory, signatureAtDate } from './signature.js';
+export { computeInitialSignature, computeSignatureHistory, signatureAtDate, currentSignatureAtDate, decaySignature, staleDecayFactor } from './signature.js';
 export {
   validVelocitySegments,
   validHeartRateSegments,

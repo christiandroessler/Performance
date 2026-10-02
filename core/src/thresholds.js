@@ -26,7 +26,7 @@
 
 import { averageHeartRate, averageSpeed, recordedSeconds, bestSustainedSpeed, bestSustainedHeartRate, meanHeartRateNearPower } from './pace.js';
 import { hrTSS, paceTSS } from './npTss.js';
-import { signatureAtDate } from './signature.js';
+import { currentSignatureAtDate } from './signature.js';
 
 const RUN_TYPES = new Set(['Run', 'TrailRun', 'VirtualRun']);
 const SWIM_TYPES = new Set(['Swim']);
@@ -103,7 +103,7 @@ export function estimateThresholds(preparedActivities, signatureHistory, setting
 
   const cyclingActivities = byGroup.get('cycling') || [];
   hr.cycling = buildRollingThresholdHistory(cyclingActivities, settings, (act) => {
-    const sig = signatureAtDate(signatureHistory, act.date);
+    const sig = currentSignatureAtDate(signatureHistory, act.date, settings);
     if (!sig || !sig.cp) return null;
     const r = meanHeartRateNearPower(act.stream, act.mask, sig.cp, settings.thresholdCyclingPowerTolerance);
     return r ? r.avgHr : null;

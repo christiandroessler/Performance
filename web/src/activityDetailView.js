@@ -4,7 +4,7 @@
 // Hauptfenster (kein Worker noetig - eine einzelne Aktivitaet ist klein genug,
 // NFA-04 gilt fuer den Gesamtverlauf ueber alle Aktivitaeten, nicht hierfuer).
 
-import { prepareActivity, mergeSettings, wPrimeBalanceSkiba2015, mpaTrace, signatureAtDate, deriveMetabolicProfile, activityMetabolicTimeCourse } from '../vendor/core/src/index.js';
+import { prepareActivity, mergeSettings, wPrimeBalanceSkiba2015, mpaTrace, currentSignatureAtDate, deriveMetabolicProfile, activityMetabolicTimeCourse } from '../vendor/core/src/index.js';
 import { loadIndex } from './sync.js';
 import { loadModelState } from './compute.js';
 import { readFile, readJson } from './storage.js';
@@ -215,6 +215,9 @@ export async function openActivityDetail(activityId) {
 
     const points = pointsFromActivityBundle(activityBundle);
     const settings = mergeSettings({});
+    // Signatur zum Aktivitaetsdatum inkl. Signatur-Verfall - mit denselben Einstellungen, mit denen
+    // der Rechenkern sie berechnet hat (modelState.settings), nicht den Standardwerten.
+    const modelSettings = mergeSettings(modelState.settings || {});
     const prepared = prepareActivity({ id: activityId, date: meta.date, startTime: meta.startTime, type: meta.type, points }, settings);
     const stream = prepared.stream;
 
@@ -269,7 +272,7 @@ export async function openActivityDetail(activityId) {
     // Stoffwechsel (FA-MET-05, Kap. 7.9 V1 Steady-State-Lookup): Signatur + Gewicht ZUM
     // AKTIVITAETSDATUM (wie ueberall sonst im Modell, F10/FA-TP-08), nicht die aktuellen Werte.
     if (stream.n > 0) {
-      const sigAtDate = signatureAtDate(modelState.history || [], meta.date);
+      const sigAtDate = currentSignatureAtDate(modelState.history || [], meta.date, modelSettings);
       const massKg = weightAtDate(settingsJson, meta.date);
       if (sigAtDate && massKg) {
         const profile = deriveMetabolicProfile(
@@ -344,7 +347,7 @@ export async function openActivityDetail(activityId) {
         tooltip.hidden = true;
       }
 
-      const sig = validWatts.length > 0 && modelState.history && modelState.history.length ? signatureAtDate(modelState.history, meta.date) : null;
+      const sig = validWatts.length > 0 && modelState.history && modelState.history.length ? currentSignatureAtDate(modelState.history, meta.date, modelSettings) : null;
       const hasFullSignature = !!(sig && sig.cp && sig.wPrimeJ && sig.pMax);
       const hasCadence = [...stream.cadence].some((c) => c > 0);
 

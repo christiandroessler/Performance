@@ -13,7 +13,7 @@
 // das dortige "Today"-Workout-Widget.
 
 import { loadIndex } from './sync.js';
-import { loadModelState, loadMmpCurves, loadLoadResponse, recomputeAll } from './compute.js';
+import { loadModelState, loadMmpCurves, loadLoadResponse, recomputeAll, MODEL_VERSION } from './compute.js';
 import { ppPlausibility } from './ppCheck.js';
 import { renderActivityList } from './activityListView.js';
 import { computePmcSeries, renderMetricsSidebar, renderPmcChart } from './pmcView.js';
@@ -25,7 +25,7 @@ import { renderLoadResponse } from './loadResponseView.js';
 import { computeCurrentMetabolicProfile, renderMetabolicTiles, renderMetabolicView } from './metabolicView.js';
 import { loadOrInitSettings, SETTINGS_FILE } from './onboarding.js';
 import { writeJson } from './storage.js';
-import { mergeSettings, displaySignatureAtDate } from '../vendor/core/src/index.js';
+import { mergeSettings, displaySignatureAtDate, currentSignatureAtDate } from '../vendor/core/src/index.js';
 
 export async function renderDashboard({ overviewContainer, activitiesContainer, weeksContainer, powerCurveContainer, loadResponseContainer, metabolicContainer, breakthroughsContainer }) {
   overviewContainer.innerHTML = '';
@@ -131,16 +131,18 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
     // displaySignatureAtDate() gab es schon vorher im Rechenkern, war aber bisher nirgends
     // in der UI verdrahtet (nur der abstrakte g/h/p-Verlauf im "Belastung"-Tab) - genau das,
     // was der Nutzer als "warum sinkt TP zwischen Breakthroughs nie" gemeldet hat.
+    // Stichtag ist HEUTE, nicht die letzte Aktivitaet - sonst bliebe die Anzeige bei fehlendem
+    // Training auf dem Stand der letzten Fahrt stehen, obwohl die Signatur taeglich verfaellt.
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const modelSettings = mergeSettings(modelState.settings || settingsJson.modelSettings || {});
     let displaySig = null;
     await safeRenderAsync(null, 'Belastungsgekoppelte Anzeige laden', async () => {
       const { series, calibration } = await loadLoadResponse();
       if (series && series.length > 0 && calibration) {
-        const settings = mergeSettings(settingsJson.modelSettings || {});
-        const latestSeriesDate = series[series.length - 1].date;
-        displaySig = displaySignatureAtDate(latestSeriesDate, modelState.history, series, calibration, settings);
+        displaySig = displaySignatureAtDate(todayIso, modelState.history, series, calibration, modelSettings);
       }
     });
-    safeRender(topSignatureContainer, 'Leistungssignatur', () => renderSignatureTiles(topSignatureContainer, modelState, mmpCurves, displaySig));
+    safeRender(topSignatureContainer, 'Leistungssignatur', () => renderSignatureTiles(topSignatureContainer, modelState, mmpCurves, displaySig, todayIso, modelSettings));
 
     await safeRenderAsync(metabolicTilesContainer, 'Stoffwechselprofil', async () => {
       const computed = await computeCurrentMetabolicProfile();
@@ -172,9 +174,10 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
   }
 
   const { index, modelState } = await refresh();
-  if (index.activities.length > 0 && !modelState.computedAt) {
+  if (index.activities.length > 0 && (!modelState.computedAt || modelState.modelVersion !== MODEL_VERSION)) {
     // Erstberechnung nach dem allerersten Sync - kein Button noetig, das sichtbare
-    // "Kennzahlen neu berechnen" lebt jetzt im "Daten"-Tab (syncView.js).
+    // "Kennzahlen neu berechnen" lebt jetzt im "Daten"-Tab (syncView.js). Ebenso einmalig, wenn
+    // das gespeicherte Ergebnis von einer aelteren Rechenkern-Logik stammt (MODEL_VERSION).
     await recomputeAll();
     await refresh();
   }
@@ -191,7 +194,7 @@ export async function renderDashboard({ overviewContainer, activitiesContainer, 
 const PP_DEVIATION_WARN_PCT = 0.1;
 
 /** XERT-Vorbild: aktuelle Leistungssignatur (CP/W'/Pmax) prominent als Kacheln. */
-function renderSignatureTiles(container, modelState, mmpCurves, displaySig) {
+function renderSignatureTiles(container, modelState, mmpCurves, displaySig, todayIso, settings) {
   container.innerHTML = '';
   if (modelState.needsMoreData || !modelState.history || modelState.history.length === 0) return;
 
@@ -204,28 +207,34 @@ function renderSignatureTiles(container, modelState, mmpCurves, displaySig) {
   header.innerHTML = '<h2>Leistungssignatur</h2>';
   box.appendChild(header);
 
+  // Kacheln zeigen die HEUTE gueltige Signatur (letzte Bestaetigung + Signatur-Verfall) - genau
+  // der Wert, gegen den der Rechenkern den naechsten Breakthrough erkennt.
   const latest = modelState.history[modelState.history.length - 1];
+  const current = currentSignatureAtDate(modelState.history, todayIso, settings) || { ...latest, decayApplied: false };
   const grid = document.createElement('div');
   grid.className = 'stat-grid';
   grid.innerHTML = `
     <div class="stat-tile accent">
       <span class="stat-tile-label">Critical Power</span>
-      <span class="stat-tile-value">${Math.round(latest.cp)}<span class="unit">W</span></span>
+      <span class="stat-tile-value">${Math.round(current.cp)}<span class="unit">W</span></span>
     </div>
     <div class="stat-tile accent">
       <span class="stat-tile-label">W' (HIE)</span>
-      <span class="stat-tile-value">${(latest.wPrimeJ / 1000).toFixed(1)}<span class="unit">kJ</span></span>
+      <span class="stat-tile-value">${(current.wPrimeJ / 1000).toFixed(1)}<span class="unit">kJ</span></span>
     </div>
     <div class="stat-tile accent">
       <span class="stat-tile-label">Pmax</span>
-      <span class="stat-tile-value">${Math.round(latest.pMax)}<span class="unit">W</span></span>
+      <span class="stat-tile-value">${Math.round(current.pMax)}<span class="unit">W</span></span>
     </div>
   `;
   box.appendChild(grid);
 
   const caption = document.createElement('p');
   caption.className = 'stat-tile-caption';
-  caption.textContent = `Stand: ${latest.date}${latest.source === 'initial' ? ' (Startsignatur)' : ' (nach Breakthrough)'}`;
+  const confirmedLabel = `${latest.date}${latest.source === 'initial' ? ' (Startsignatur)' : ' (Breakthrough)'}`;
+  caption.textContent = current.decayApplied
+    ? `Stand: ${todayIso}, mit Signatur-Verfall seit letzter Bestätigung ${confirmedLabel}: ${Math.round(latest.cp)} W · ${(latest.wPrimeJ / 1000).toFixed(1)} kJ · ${Math.round(latest.pMax)} W`
+    : `Stand: ${confirmedLabel}`;
   box.appendChild(caption);
 
   renderLoadAdjustedCaption(box, displaySig);
@@ -242,13 +251,14 @@ function renderSignatureTiles(container, modelState, mmpCurves, displaySig) {
  * noch keine Strain-Scores), statt einer falschen/nichtssagenden Zahl.
  */
 function renderLoadAdjustedCaption(box, displaySig) {
-  if (!displaySig || (!displaySig.hasLoadAdjustment && !displaySig.decayApplied)) return;
+  // Der Signatur-Verfall steckt seit 2026-10-01 schon in den Kacheln selbst - diese Zeile zeigt
+  // nur noch den zusaetzlichen Belastungstrend (g-h) obendrauf.
+  if (!displaySig || !displaySig.hasLoadAdjustment) return;
   const p = document.createElement('p');
   p.className = 'stat-tile-caption';
   p.style.marginTop = '0.2rem';
-  const label = displaySig.decayApplied ? 'belastungsgekoppelt + Signatur-Verfall' : 'belastungsgekoppelt';
   p.innerHTML =
-    `Aktuell geschätzt (${label}, Kap. 7.7): ${Math.round(displaySig.cp)} W · ${(displaySig.wPrimeJ / 1000).toFixed(1)} kJ · ${Math.round(displaySig.pMax)} W ` +
+    `Mit Belastungstrend (Kap. 7.7): ${Math.round(displaySig.cp)} W · ${(displaySig.wPrimeJ / 1000).toFixed(1)} kJ · ${Math.round(displaySig.pMax)} W ` +
     '<span class="badge badge-muted">Trend, ersetzt nicht den Breakthrough-Stand</span>';
   box.appendChild(p);
 }

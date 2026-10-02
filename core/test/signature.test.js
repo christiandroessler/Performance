@@ -13,8 +13,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { prepareActivity } from '../src/activity.js';
-import { computeSignatureHistory, computeInitialSignature } from '../src/signature.js';
+import { computeSignatureHistory, computeInitialSignature, decaySignature, currentSignatureAtDate } from '../src/signature.js';
 import { mergeSettings } from '../src/settings.js';
+
+function daysBetween(from, to) {
+  return Math.round((new Date(to + 'T00:00:00Z') - new Date(from + 'T00:00:00Z')) / 86400000);
+}
 
 // Baseline-Aktivitaeten innerhalb der ersten 90 Tage (FA-SIG-03-Startfenster) -
 // identisch zu determinism.test.js#buildActivityPoints, ergibt eine Startsignatur
@@ -67,12 +71,16 @@ test('Schwelle zum Aktivitaetsdatum: ein Breakthrough mitten im Zeitraum aendert
   const byId = new Map(result.activityResults.map((r) => [r.id, r]));
 
   // Die Breakthrough-Aktivitaet SELBST wird noch mit der ALTEN Signatur bewertet (Kap. 7.5:
-  // der Refit gilt erst AB diesem Datum fuer die naechsten Aktivitaeten, siehe signature.js).
+  // der Refit gilt erst AB diesem Datum fuer die naechsten Aktivitaeten, siehe signature.js) -
+  // inklusive des Signatur-Verfalls seit der Startsignatur (2026-04-01 -> 2026-06-01).
   const btResult = byId.get('bt');
-  assert.equal(btResult.signature.cp, result.initial.signature.cp);
-  assert.equal(btResult.signature.pMax, result.initial.signature.pMax);
+  const decayedInitial = decaySignature(result.initial.signature, daysBetween(result.initial.effectiveDate, '2026-06-01'), settings);
+  assert.equal(btResult.signature.cp, decayedInitial.cp);
+  assert.equal(btResult.signature.pMax, decayedInitial.pMax);
+  assert.equal(result.breakthroughs[0].previousSignature.cp, decayedInitial.cp);
 
-  // Eine Aktivitaet NACH dem Breakthrough nutzt die NEUE (refittete) Schwelle.
+  // Eine Aktivitaet NACH dem Breakthrough nutzt die NEUE (refittete) Schwelle - 9 Tage spaeter,
+  // also noch innerhalb der Karenzzeit, unverfallen.
   const afterResult = byId.get('after1');
   assert.notEqual(afterResult.signature.cp, result.initial.signature.cp);
   assert.notEqual(afterResult.signature.pMax, result.initial.signature.pMax);
@@ -100,10 +108,77 @@ test('FA-SIG-07: Verwerfen eines Breakthroughs haelt die Signatur fuer alle nach
   assert.equal(discardedResult.history.length, 1);
   assert.equal(discardedResult.history[0].source, 'initial');
 
+  // Ohne den verworfenen Breakthrough gilt weiter die Startsignatur - verfallen bis zum Datum.
   const byId = new Map(discardedResult.activityResults.map((r) => [r.id, r]));
   const afterResult = byId.get('after1');
-  assert.equal(afterResult.signature.cp, discardedResult.initial.signature.cp);
-  assert.equal(afterResult.signature.pMax, discardedResult.initial.signature.pMax);
+  const decayedInitial = decaySignature(discardedResult.initial.signature, daysBetween(discardedResult.initial.effectiveDate, '2026-06-10'), settings);
+  assert.equal(afterResult.signature.cp, decayedInitial.cp);
+  assert.equal(afterResult.signature.pMax, decayedInitial.pMax);
+});
+
+test('Signatur-Verfall im Rechenkern: ohne neue Bestaetigung sinkt die Signatur von Aktivitaet zu Aktivitaet', () => {
+  const settings = mergeSettings();
+  const raw = [
+    { id: 'base1', date: '2026-01-01', startTime: '2026-01-01T08:00:00Z', points: buildBaselinePoints() },
+    { id: 'base2', date: '2026-01-15', startTime: '2026-01-15T08:00:00Z', points: buildBaselinePoints() },
+    { id: 'base3', date: '2026-02-01', startTime: '2026-02-01T08:00:00Z', points: buildBaselinePoints() },
+    { id: 'a1', date: '2026-04-10', startTime: '2026-04-10T08:00:00Z', points: buildAfterPoints() }, // 9 Tage nach Startsignatur
+    { id: 'a2', date: '2026-05-15', startTime: '2026-05-15T08:00:00Z', points: buildAfterPoints() },
+    { id: 'a3', date: '2026-08-01', startTime: '2026-08-01T08:00:00Z', points: buildAfterPoints() },
+  ];
+  const result = computeSignatureHistory(raw.map((r) => prepareActivity(r, settings)), { settings });
+  assert.equal(result.breakthroughs.length, 0);
+  const byId = new Map(result.activityResults.map((r) => [r.id, r]));
+  const init = result.initial.signature;
+
+  assert.equal(byId.get('a1').signature.cp, init.cp, 'innerhalb der Karenzzeit kein Verfall');
+  assert.ok(byId.get('a2').signature.cp < init.cp);
+  assert.ok(byId.get('a3').signature.cp < byId.get('a2').signature.cp);
+  assert.ok(byId.get('a3').signature.cp >= init.cp * (1 - settings.signatureDecayMaxPct), 'nie unter den Boden');
+  // TP verfaellt schneller als PP (eigene Zeitkonstanten je System).
+  assert.ok(byId.get('a3').signature.cp / init.cp < byId.get('a3').signature.pMax / init.pMax);
+});
+
+test('Signatur-Verfall im Rechenkern: eine Anstrengung unter der alten, aber ueber der verfallenen Signatur loest einen Breakthrough aus', () => {
+  // 30 min konstant 240 W (unter der Start-TP von 257 W): gegen die frische Startsignatur kein
+  // Breakthrough, nach monatelangem Verfall (TP ~ -22 %, ~199 W) aber schon.
+  const settings = mergeSettings();
+  const steady = () => {
+    const points = [];
+    for (let t = 0; t < 600; t++) points.push({ t, watts: 150, deviceWatts: true });
+    for (let t = 600; t < 2400; t++) points.push({ t, watts: 240, deviceWatts: true });
+    for (let t = 2400; t < 3000; t++) points.push({ t, watts: 150, deviceWatts: true });
+    return points;
+  };
+  const raw = [
+    { id: 'base1', date: '2026-01-01', startTime: '2026-01-01T08:00:00Z', points: buildBaselinePoints() },
+    { id: 'base2', date: '2026-01-15', startTime: '2026-01-15T08:00:00Z', points: buildBaselinePoints() },
+    { id: 'base3', date: '2026-02-01', startTime: '2026-02-01T08:00:00Z', points: buildBaselinePoints() },
+    { id: 'fresh', date: '2026-04-05', startTime: '2026-04-05T08:00:00Z', points: steady() },
+    { id: 'late', date: '2026-08-01', startTime: '2026-08-01T08:00:00Z', points: steady() },
+  ];
+  const result = computeSignatureHistory(raw.map((r) => prepareActivity(r, settings)), { settings });
+  const ids = result.breakthroughs.map((b) => b.id);
+  assert.ok(!ids.includes('fresh'), 'gegen die unverfallene Signatur kein Breakthrough');
+  assert.ok(ids.includes('late'), 'gegen die verfallene Signatur ein Breakthrough');
+  const bt = result.breakthroughs.find((b) => b.id === 'late');
+  assert.ok(bt.previousSignature.cp < result.initial.signature.cp);
+  // Die Signatur wird wieder bestaetigt und liegt danach ueber dem verfallenen Stand.
+  assert.ok(bt.proposedSignature.cp > bt.previousSignature.cp);
+});
+
+test('currentSignatureAtDate: letzte Bestaetigung plus Verfall bis zum Datum', () => {
+  const settings = mergeSettings();
+  const history = [{ date: '2026-01-01', cp: 300, wPrimeJ: 20000, pMax: 1000, source: 'initial' }];
+  assert.equal(currentSignatureAtDate(history, '2025-12-31', settings), null);
+  const fresh = currentSignatureAtDate(history, '2026-01-10', settings);
+  assert.equal(fresh.cp, 300);
+  assert.equal(fresh.decayApplied, false);
+  const later = currentSignatureAtDate(history, '2026-04-01', settings);
+  assert.equal(later.decayApplied, true);
+  assert.equal(later.daysSinceConfirmation, 90);
+  assert.equal(later.cp, decaySignature(history[0], 90, settings).cp);
+  assert.equal(later.confirmed, history[0]);
 });
 
 test('FA-SIG-07: Reaktivieren (leere discardedBreakthroughIds) stellt exakt den Zustand vor dem Verwerfen wieder her', () => {

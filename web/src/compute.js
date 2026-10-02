@@ -22,6 +22,11 @@ const LOAD_RESPONSE_FILE = 'model/load-response.json';
 const INDEX_FILE = 'index.json';
 const SETTINGS_FILE = 'settings.json';
 
+// Hochzaehlen, wenn sich die Rechenkern-Logik so aendert, dass gespeicherte Ergebnisse nicht mehr
+// zur aktuellen Anzeige passen - die Uebersicht rechnet dann einmalig automatisch neu.
+// 2 (2026-10-01): Signatur-Verfall im Rechenkern (Breakthroughs gegen die verfallene Signatur).
+export const MODEL_VERSION = 2;
+
 let worker = null;
 let nextRequestId = 1;
 const pending = new Map();
@@ -128,6 +133,7 @@ export async function recomputeAll({ settingsOverrides, discardedBreakthroughIds
 
   await writeJson(MODEL_FILE, {
     schemaVersion: 1,
+    modelVersion: MODEL_VERSION,
     computedAt: new Date().toISOString(),
     discardedBreakthroughIds: discardedIds,
     settings: result.settings,

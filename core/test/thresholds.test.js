@@ -54,7 +54,8 @@ test('estimateThresholds: Rad-Schwellen-HF (FA-TP-04) aus Herzfrequenz waehrend 
   const settings = mergeSettings({ thresholdCyclingPowerTolerance: 0.05 });
   const raw = [{ id: 'c1', date: '2026-03-01', startTime: '2026-03-01T08:00:00Z', type: 'Ride', points: ridePointsNearTp(120, 280, 155) }];
   const prepared = raw.map((r) => prepareActivity(r, settings));
-  const signatureHistory = [{ date: '2026-01-01', cp: 282, wPrimeJ: 20000, pMax: 900, source: 'initial' }];
+  // Bestaetigung 9 Tage vor der Fahrt - innerhalb der Karenzzeit, also noch unverfallen (282 W).
+  const signatureHistory = [{ date: '2026-02-20', cp: 282, wPrimeJ: 20000, pMax: 900, source: 'initial' }];
 
   const { hr } = estimateThresholds(prepared, signatureHistory, settings);
   assert.equal(hr.cycling.length, 1);

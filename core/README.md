@@ -888,7 +888,8 @@ geschaetzt (belastungsgekoppelt)" mit dem Ergebnis von
 `series` (NICHT den heutigen Kalendertag - `loadResponseSeriesForSystem`
 erstreckt sich nur bis zum Datum der letzten Aktivitaet mit Strain-Werten,
 siehe core-Kommentar oben; eine Ausweitung bis zum echten "heute" ohne neue
-Aktivitaet ist bewusst nicht Teil dieser Aenderung). Klar als "Trend,
+Aktivitaet ist bewusst nicht Teil dieser Aenderung - inzwischen nachgeholt, siehe
+"Signatur-Verfall im Rechenkern" unten). Klar als "Trend,
 ersetzt nicht den Breakthrough-Stand" gekennzeichnet, da p=g-h eine
 langsam-minus-schnell-Differenz wie TSB ist (kann je nach juengster
 Belastung ueber ODER unter dem rohen Wert liegen), kein reiner
@@ -951,7 +952,9 @@ klingt schneller ab als Fitness), sinkt danach zurueck - aber strukturell
 Richtung Baseline, nicht darunter.
 
 **Umsetzung** (`loadResponse.js#staleDecayFactor`, in `displaySignatureAtDate`
-VOR der g/h-Anpassung auf den Basiswert angewendet): eine eigene,
+VOR der g/h-Anpassung auf den Basiswert angewendet - seit 2026-10-01 nach
+`signature.js` verschoben und im Rechenkern selbst wirksam, siehe naechster
+Abschnitt): eine eigene,
 zusaetzliche, explizit unbelegte Komponente - exponentieller Verfall des
 Basiswerts nach einer Karenzzeit (`signatureDecayGraceDays`, Standard 14
 Tage, begruendet durch Rundes-1-Literatur: erster messbarer Verlust erst
@@ -966,6 +969,46 @@ auf 0). Live im Browser-Pane-Preview mit den Nutzer-Realwerten (letzter
 Breakthrough 29.03., ~173 Tage seither) verifiziert: TP faellt von 304 W auf
 230 W, HIE von 21,8 auf 17,0 kJ, PP von 1092 auf 866 W - rechnerisch exakt
 nachvollzogen.
+
+### Signatur-Verfall im Rechenkern (2026-10-01, Nutzer-Festlegung)
+
+Bis hierher war der Verfall eine reine ANZEIGE-Komponente
+(`displaySignatureAtDate`): `computeSignatureHistory` erkannte Breakthroughs
+weiter gegen den unverfallenen Stand des letzten Breakthroughs, und die
+Kachel zeigte diesen rohen Stand (beim Nutzer: 323 W seit Maerz). Folge: wer
+die alte Bestleistung nicht wieder uebertrifft, bekommt NIE einen neuen
+Breakthrough, also auch nie einen Refit - die Signatur konnte strukturell
+nicht sinken. Nutzer-Festlegung: "Der CP sollte sinken und die Signatur muss
+sich dann jeden Tag anpassen. Nur so macht es Sinn und neue Breakthroughs
+koennen immer wieder erreicht werden." (XERT-Verhalten.)
+
+**Umsetzung:** `signature.js#decaySignature`/`staleDecayFactor` (gleiche
+Formel und Parameter wie oben, nur aus `loadResponse.js` hierher verschoben).
+`computeSignatureHistory` fuehrt `confirmed` (letzte Bestaetigung, steht so in
+`history`) und berechnet je Aktivitaet `active = decaySignature(confirmed,
+Tage seit Bestaetigung)`. Gegen `active` laufen MPA-Trace,
+Breakthrough-Erkennung, Refit inkl. Absenk-/Traegheitsbremsen, TSS/IF und
+Strain; `activityResults[].signature` und `breakthroughs[].previousSignature`
+sind damit der verfallene Stand. `history` bleibt die Liste der
+Bestaetigungen; `signature.js#currentSignatureAtDate(history, date, settings)`
+liefert den an einem Datum tatsaechlich gueltigen (verfallenen) Wert und wird
+in der UI ueberall statt `history[last]`/`signatureAtDate` genutzt
+(Uebersicht-Kacheln, Stoffwechsel, Leistungsvorhersage, Aktivitaetsdetail,
+Rad-Schwellen-HF in `thresholds.js`). Die Uebersicht rechnet mit Stichtag
+HEUTE; `displaySignatureAtDate` laesst g/h fuer Tage nach der letzten
+Aktivitaet ohne Belastung weiter abklingen (`seriesEntryAtDate`), statt beim
+Stand der letzten Fahrt einzufrieren. Aenderungen an den Verfall-Parametern
+wirken damit erst nach "Kennzahlen neu berechnen" auf die Breakthroughs.
+
+**Real-Daten-Vergleich** (`scripts/run-legacy-db.js`-Datenbestand, Nutzer 1,
+1977 Aktivitaeten bis 2026-09-11): ohne Verfall im Kern 12 Breakthroughs
+(letzte Bestaetigung 2019), mit Verfall 181 - TP bewegt sich 2025/2026 im
+Bereich ~260-323 W, letzte Bestaetigung 2026-09-06 (278 W), am 2026-10-01
+verfallen auf 263 W. **Bekannter Nebeneffekt:** durch die viel haeufigeren
+Refits kann HIE ueber die Traegheitsbremse (+20 % je Breakthrough) schneller
+nach oben wandern - im Datensatz erreicht HIE 2026-07/09 die
+Plausibilitaetsgrenze `maxPlausibleWPrimeJ` (40 kJ), vorher nie ueber
+31,4 kJ. Noch nicht adressiert.
 
 ## Bekannte offene Punkte / Risiken
 

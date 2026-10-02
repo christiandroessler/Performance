@@ -12,7 +12,7 @@
 // Breakthroughs danach - liefert eine begruendete Empfehlung fuer den Anzeige-Abschlag statt
 // eines willkuerlichen Werts.
 
-import { signatureAtDate } from './signature.js';
+import { currentSignatureAtDate } from './signature.js';
 
 const SYSTEMS = ['cp', 'wPrime', 'pMax'];
 const STRAIN_FIELD = { cp: 'low', wPrime: 'high', pMax: 'peak' };
@@ -298,32 +298,33 @@ export function holdOutBacktest(sums, breakthroughs, settings) {
 }
 
 /**
- * Signatur-Verfall (M1-Festlegung, siehe core/README.md "Signatur-Verfall"): weder das
- * Lastenheft noch die Kontro et al. 2025-Quelle hinter dem g/h-Modell oben modellieren einen
- * echten Verfall UNTER den zuletzt bestaetigten Wert - das g/h-Modell ist strukturell eine
- * "Fitness minus Fatigue"-Differenz (wie TSB), die bei fehlendem Training gegen 0 (neutral)
- * pendelt, niemals darunter (siehe core/README.md fuer die Herleitung samt Quellen). Diese
- * Funktion ergaenzt das um eine eigene, explizit unbelegte Komponente: nach einer Karenzzeit
- * ohne neue Bestaetigung faellt der Basiswert exponentiell auf einen Boden ab (nie auf 0,
- * ein trainierter Zustand geht laut Detraining-Literatur - Mujika & Padilla 2000/2001 - nie
- * vollstaendig verloren). Je System eine eigene Zeitkonstante, QUALITATIV begruendet durch
- * dieselbe Literatur (aerobe Kapazitaet baut messbar schneller ab als anaerobe/neuromuskulaere
- * Qualitaeten) - KEINE Quelle liefert exakte Tage-Werte fuer TP/HIE/PP speziell, die
- * Zahlenwerte selbst sind daher eine eigene Festlegung wie k1s Grenzen.
+ * g/h-Stand an einem Datum. Liegt `date` NACH dem letzten Serientag (keine Aktivitaet seither),
+ * wird ohne Belastung (w=0) weitergerechnet - g und h klingen dann rein exponentiell ab, exakt
+ * wie loadResponseSeriesForSystem es fuer belastungsfreie Tage innerhalb der Serie tut.
  */
-function staleDecayFactor(daysSinceConfirmation, graceDays, tauDays, maxPct) {
-  const effectiveDays = daysSinceConfirmation - graceDays;
-  if (effectiveDays <= 0) return 1;
-  const floor = 1 - maxPct;
-  return floor + maxPct * Math.exp(-effectiveDays / tauDays);
+function seriesEntryAtDate(series, date, calibration, settings) {
+  const exact = series.find((e) => e.date === date);
+  if (exact || series.length === 0) return exact || null;
+  const last = series[series.length - 1];
+  if (date < last.date) return null;
+  const days = daysBetweenISO(last.date, date);
+  const entry = { date };
+  for (const s of SYSTEMS) {
+    const tau1 = (calibration[s] && calibration[s].tau1) || settings.loadResponseTau1Days;
+    const g = last[s].g * Math.exp(-days / tau1);
+    const h = last[s].h * Math.exp(-days / settings.loadResponseTau2Days);
+    entry[s] = { g, h, p: g - h };
+  }
+  return entry;
 }
 
 /**
- * Geglaettete "Anzeige-Signatur" an einem Datum: die zu diesem Datum gueltige
- * Breakthrough-Signatur (signatureAtDate), abzueglich des Signatur-Verfalls seit der letzten
- * Bestaetigung (staleDecayFactor), PLUS der belastungsgekoppelte Trend seitdem, abzueglich des
- * Anzeige-Abschlags (Startwert 0, siehe core/README.md und holdOutBacktest fuer eine
- * begruendete Empfehlung).
+ * Geglaettete "Anzeige-Signatur" an einem Datum: die zu diesem Datum gueltige, bereits
+ * verfallene Signatur (signature.js#currentSignatureAtDate - derselbe Wert, gegen den der
+ * Rechenkern Breakthroughs erkennt), PLUS der belastungsgekoppelte Trend seit der letzten
+ * Bestaetigung, abzueglich des Anzeige-Abschlags (Startwert 0, siehe core/README.md und
+ * holdOutBacktest fuer eine begruendete Empfehlung). `date` darf nach der letzten Aktivitaet
+ * liegen (z. B. "heute"), siehe seriesEntryAtDate.
  * @param {string} date
  * @param {Array} history - result.history aus computeSignatureHistory
  * @param {ReturnType<typeof loadResponseSeries>} series
@@ -331,18 +332,11 @@ function staleDecayFactor(daysSinceConfirmation, graceDays, tauDays, maxPct) {
  * @param {import('./types.js').ModelSettings} settings
  */
 export function displaySignatureAtDate(date, history, series, calibration, settings) {
-  const base = signatureAtDate(history, date);
-  if (!base) return null;
+  const decayed = currentSignatureAtDate(history, date, settings);
+  if (!decayed) return null;
+  const { decayApplied } = decayed;
 
-  const daysSinceConfirmation = daysBetweenISO(base.date, date);
-  const decayApplied = daysSinceConfirmation > settings.signatureDecayGraceDays;
-  const decayed = {
-    cp: base.cp * staleDecayFactor(daysSinceConfirmation, settings.signatureDecayGraceDays, settings.signatureDecayTauCpDays, settings.signatureDecayMaxPct),
-    wPrimeJ: base.wPrimeJ * staleDecayFactor(daysSinceConfirmation, settings.signatureDecayGraceDays, settings.signatureDecayTauWPrimeDays, settings.signatureDecayMaxPct),
-    pMax: base.pMax * staleDecayFactor(daysSinceConfirmation, settings.signatureDecayGraceDays, settings.signatureDecayTauPMaxDays, settings.signatureDecayMaxPct),
-  };
-
-  const entry = series.find((e) => e.date === date);
+  const entry = seriesEntryAtDate(series, date, calibration, settings);
   if (!entry) return { cp: decayed.cp, wPrimeJ: decayed.wPrimeJ, pMax: decayed.pMax, hasLoadAdjustment: false, decayApplied, calibration };
 
   const discount = (settings.loadResponseDisplayDiscountPct || 0) / 100;

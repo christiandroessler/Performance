@@ -4,7 +4,7 @@
 // M5-Festlegungen. Reine Anzeige/Modellschaetzung (FA-MET-06/NFA-11), keine
 // experimentelle Validierung.
 
-import { mergeSettings, signatureAtDate, deriveMetabolicProfile, metabolicZones, substrateSplitForZoneLookup } from '../vendor/core/src/index.js';
+import { mergeSettings, currentSignatureAtDate, deriveMetabolicProfile, metabolicZones, substrateSplitForZoneLookup } from '../vendor/core/src/index.js';
 import { loadModelState } from './compute.js';
 import { loadOrInitSettings } from './onboarding.js';
 
@@ -29,11 +29,13 @@ export async function computeCurrentMetabolicProfile() {
   const [modelState, settingsJson] = await Promise.all([loadModelState(), loadOrInitSettings()]);
   if (modelState.needsMoreData || !modelState.history || modelState.history.length === 0) return null;
 
-  const latest = modelState.history[modelState.history.length - 1];
-  const massKg = weightAtDate(settingsJson, latest.date);
+  // Heute gueltige Signatur inkl. Signatur-Verfall (siehe dashboardView.js#renderSignatureTiles).
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const settings = mergeSettings(modelState.settings || settingsJson.modelSettings || {});
+  const latest = currentSignatureAtDate(modelState.history, todayIso, settings);
+  const massKg = weightAtDate(settingsJson, todayIso);
   if (!massKg) return null;
 
-  const settings = mergeSettings(settingsJson.modelSettings || {});
   const profile = deriveMetabolicProfile(
     { cp: latest.cp, wPrimeJ: latest.wPrimeJ, pMax: latest.pMax, bodyMassKg: massKg, activeMusclePct: settings.activeMusclePctDefault, labValues: settingsJson.labValues || [] },
     settings

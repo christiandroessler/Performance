@@ -306,3 +306,18 @@ test('displaySignatureAtDate: nach der Karenzzeit faellt der Basiswert je System
   assert.ok(farFuture.cp >= 300 * floor - 1e-6, `cp=${farFuture.cp} sollte den Boden (${300 * floor}) nie unterschreiten`);
   assert.ok(Math.abs(farFuture.cp - 300 * floor) < 1, 'cp sollte sich nach sehr langer Zeit dem Boden annaehern');
 });
+
+test('displaySignatureAtDate: Datum nach der letzten Aktivitaet - g/h klingen ohne Belastung weiter ab statt einzufrieren', () => {
+  const settings = mergeSettings({ loadResponseDisplayDiscountPct: 0, signatureDecayMaxPct: 0 });
+  const history = [{ date: '2026-01-01', cp: 250, wPrimeJ: 20000, pMax: 1000, source: 'initial' }];
+  const series = [{ date: '2026-02-01', cp: { g: 10, h: 8, p: 2 }, wPrime: { g: 0, h: 0, p: 0 }, pMax: { g: 0, h: 0, p: 0 } }];
+  const calibration = { cp: { tau1: 42, k1: 1 }, wPrime: { tau1: 42, k1: 1 }, pMax: { tau1: 42, k1: 1 } };
+
+  const days = 10;
+  const result = displaySignatureAtDate(addDaysLocal('2026-02-01', days), history, series, calibration, settings);
+  assert.equal(result.hasLoadAdjustment, true);
+  const expectedP = 10 * Math.exp(-days / 42) - 8 * Math.exp(-days / settings.loadResponseTau2Days);
+  assert.ok(Math.abs(result.cp - (250 + expectedP)) < 1e-9);
+  // Vor der Serie bleibt es bei "kein Eintrag".
+  assert.equal(displaySignatureAtDate('2026-01-15', history, series, calibration, settings).hasLoadAdjustment, false);
+});
