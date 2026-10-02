@@ -59,20 +59,34 @@ function renderMemberListCard(container, members) {
   }
 }
 
-function renderMemberRow(container, m) {
+/** Ein <span> mit Text (textContent - die Werte stammen vom Server und gelten als nicht vertrauenswuerdig, P-12). */
+function textSpan(className, text) {
+  const span = document.createElement('span');
+  if (className) span.className = className;
+  span.textContent = text;
+  return span;
+}
+
+export function renderMemberRow(container, m) {
   const row = document.createElement('div');
   row.className = 'threshold-row';
 
   const statusLabel = STATUS_LABELS[m.status] || m.status;
-  const adminBadge = m.role === 'admin' ? ' <span class="badge badge-muted">Admin</span>' : '';
   const lastSync = m.lastSyncAt ? new Date(m.lastSyncAt).toLocaleString('de-DE') : 'noch nie';
-  const progressNote = m.importing ? ` · <span class="badge badge-muted">Import läuft${m.queueRemaining != null ? ` (${m.queueRemaining} verbleibend)` : ''}</span>` : '';
 
-  row.innerHTML = `
-    <span>${m.email}${adminBadge}</span>
-    <span class="threshold-value">${statusLabel}</span>
-    <span class="hint">Letzter Sync: ${lastSync}${progressNote}</span>
-  `;
+  const emailCell = textSpan('', m.email);
+  if (m.role === 'admin') {
+    emailCell.appendChild(document.createTextNode(' '));
+    emailCell.appendChild(textSpan('badge badge-muted', 'Admin'));
+  }
+
+  const syncCell = textSpan('hint', `Letzter Sync: ${lastSync}`);
+  if (m.importing) {
+    syncCell.appendChild(document.createTextNode(' · '));
+    syncCell.appendChild(textSpan('badge badge-muted', `Import läuft${m.queueRemaining != null ? ` (${m.queueRemaining} verbleibend)` : ''}`));
+  }
+
+  row.append(emailCell, textSpan('threshold-value', statusLabel), syncCell);
 
   if (m.role !== 'admin') {
     const removeBtn = document.createElement('button');
@@ -142,7 +156,9 @@ function renderInviteCard(container, members) {
 
   inviteBtn.onclick = async () => {
     const email = input.value.trim();
-    if (!email || !email.includes('@')) {
+    // Die eigentliche (strenge) Pruefung macht der Worker (worker/src/emailValidation.js); hier nur
+    // die Browser-Pruefung des type=email-Felds fuer schnelles Feedback.
+    if (!email || !input.checkValidity()) {
       statusP.className = 'error';
       statusP.textContent = 'Bitte eine gültige E-Mail-Adresse eingeben.';
       return;

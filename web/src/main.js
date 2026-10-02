@@ -249,12 +249,15 @@ function buildUserMenu() {
   const chip = document.createElement('div');
   chip.className = 'user-chip';
   chip.innerHTML = `
-    <div class="user-avatar">${(email[0] || '?').toUpperCase()}</div>
+    <div class="user-avatar"></div>
     <div class="user-meta">
-      <span class="user-email">${email}</span>
+      <span class="user-email"></span>
       <span class="user-status"><span class="status-dot"></span>Angemeldet</span>
     </div>
   `;
+  // E-Mail per textContent statt im Template (P-12: keine fremden Strings in innerHTML).
+  chip.querySelector('.user-avatar').textContent = (email[0] || '?').toUpperCase();
+  chip.querySelector('.user-email').textContent = email;
   wrap.appendChild(chip);
 
   // Profilfoto statt Buchstaben-Avatar, falls in profileView.js eines hochgeladen wurde.

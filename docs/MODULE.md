@@ -172,6 +172,17 @@ Ursprünglicher Befund:
 
 ### P-12 Gruppe/Admin — `groupView.js`
 **Priorität mittel, bestätigter Befund (nicht nur theoretisch)**
+
+> **Phase 2 (2026-10-02) behoben:** Der Worker validiert Einladungen jetzt strikt
+> (`worker/src/emailValidation.js#isValidEmail`, getestet; Markup-Zeichen und
+> Leerzeichen werden abgelehnt). Die Anzeige baut Mitgliederzeilen
+> (`groupView.js#renderMemberRow`), den Strava-Kontonamen (`settingsView.js`) und den
+> Benutzer-Chip (`main.js`) per `textContent`. Im Browser mit dem Payload
+> `<img src=x onerror=…>@x.de` geprüft: kein `<img>` im DOM, `onerror` feuert nicht.
+> Bewusst nicht enthalten: Content-Security-Policy (eigener Befund Q-xx). Der Worker
+> braucht ein eigenes `wrangler deploy`.
+
+Ursprünglicher Befund:
 - `row.innerHTML = ...${m.email}${adminBadge}...` (`groupView.js:72`) bettet
   die E-Mail-Adresse ungefiltert per `innerHTML` statt `textContent` ein.
   **Bestätigt per Code-Prüfung des Worker-seitigen Invite-Handlers**

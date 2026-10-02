@@ -386,7 +386,9 @@ function renderStravaConnectionCard(panel, session) {
 
   const p = document.createElement('p');
   if (session.status === 'strava_connected') {
-    p.innerHTML = `Verbunden mit Strava-Konto: <strong>${session.stravaAthleteName || 'unbekannt'}</strong>`;
+    const name = document.createElement('strong');
+    name.textContent = session.stravaAthleteName || 'unbekannt';
+    p.append('Verbunden mit Strava-Konto: ', name);
   } else {
     p.className = 'hint';
     p.textContent = 'Keine Strava-Verbindung aktiv.';
