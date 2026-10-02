@@ -9,6 +9,7 @@ import { aggregateMMP, DEFAULT_GRID, powerDurationCurve, currentSignatureAtDate,
 import { loadMmpCurves, loadThresholds, loadModelState } from './compute.js';
 import { readJson } from './storage.js';
 import { renderSportThresholds } from './dashboardExtras.js';
+import { weightAtDate } from './weight.js';
 
 const WINDOWS = [
   { days: 42, label: '42 Tage' },
@@ -35,17 +36,6 @@ function formatDuration(sec) {
   if (sec < 60) return `${sec}s`;
   if (sec < 3600) return `${Math.round(sec / 60)}min`;
   return `${(sec / 3600).toFixed(1)}h`;
-}
-
-function weightAtDate(settings, date) {
-  const history = (settings && settings.weightHistory) || [];
-  const sorted = [...history].sort((a, b) => a.date.localeCompare(b.date));
-  let w = settings ? settings.weightKg : null;
-  for (const entry of sorted) {
-    if (entry.date <= date) w = entry.kg;
-    else break;
-  }
-  return w;
 }
 
 export async function renderPowerCurve(container) {

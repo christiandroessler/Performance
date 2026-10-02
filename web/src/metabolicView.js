@@ -7,17 +7,7 @@
 import { mergeSettings, currentSignatureAtDate, deriveMetabolicProfile, metabolicZones, substrateSplitForZoneLookup } from '../vendor/core/src/index.js';
 import { loadModelState } from './compute.js';
 import { loadOrInitSettings } from './onboarding.js';
-
-/** Gewicht zum Datum (FA-MET-01), analog powerCurveView.js#weightAtDate/activityDetailView.js. */
-function weightAtDate(settingsJson, date) {
-  const history = (settingsJson && settingsJson.weightHistory) || [];
-  const sorted = [...history].sort((a, b) => a.date.localeCompare(b.date));
-  let w = settingsJson ? settingsJson.weightKg : null;
-  for (const entry of sorted) {
-    if (entry.date <= date) w = entry.kg;
-  }
-  return w;
-}
+import { weightAtDate } from './weight.js';
 
 /**
  * Leitet das aktuelle Stoffwechselprofil aus der zuletzt gueltigen Signatur + dem

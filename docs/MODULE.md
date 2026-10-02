@@ -83,6 +83,16 @@ Google Drive. `A-xx` enthält deshalb nur diese zwei.
 ### P-03 Aktivitätsdetail — `activityDetailView.js`, `chartUtils.js`
 **Priorität hoch, Aufwand L** – größte Datei im Projekt (21.213 B), stärkste
 Verantwortungsvermischung.
+
+> **Phase 2 (2026-10-02) erledigt:** `weightAtDate` ist als `web/src/weight.js` (mit
+> `web/test/weight.test.js`) herausgelöst; die drei Kopien in `activityDetailView.js`,
+> `powerCurveView.js` und `metabolicView.js` (P-03/P-04/P-09) importieren sie.
+> `render()` besteht nur noch aus Laden + Aufruf der Karten-Funktionen `renderStatsCard`,
+> `renderStrainCard`, `renderMetabolicCard`, `renderChartsCard`, `renderBreakthroughCard`,
+> `renderCloseButton` (gleiche DOM-Reihenfolge). `createTimeChart` hat jetzt JSDoc für alle
+> Optionen. Verhalten unverändert; die SVG-Chart-Logik selbst bleibt ungetestet (DOM-lastig).
+
+Ursprünglicher Befund:
 - **[Struktur, hoch]** `render()` (`activityDetailView.js:184-453`) ist eine
   **270 Zeilen lange Funktion**, die Datenladen, Geschäftslogik, SVG-Rendering
   und Event-Handling mischt. Für das Ziel "isoliert verbessern" die Datei mit

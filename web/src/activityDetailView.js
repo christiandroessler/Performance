@@ -11,6 +11,7 @@ import { readFile, readJson } from './storage.js';
 import { decodeBundle, streamFileName, pointsFromActivityBundle } from './streamCodec.js';
 import { downsample, downsampledBucketSize } from './chartUtils.js';
 import { formatDuration, formatDistance } from './format.js';
+import { weightAtDate } from './weight.js';
 
 const MEDAL_LABEL = { bronze: '🥉 Bronze', silver: '🥈 Silber', gold: '🥇 Gold' };
 
@@ -28,6 +29,16 @@ function formatElapsed(sec) {
  * Achsbeschriftete Verlaufsgrafik mit Hover-Crosshair; die eigentliche Tooltip-Anzeige (mit allen
  * Kennzahlen ueber alle Verlaufs-Charts hinweg synchronisiert) steuert der Aufrufer per onHoverIndex/onLeave,
  * damit z. B. Leistung, Herzfrequenz und Kadenz in EINEM Tooltip erscheinen, egal welche Grafik gehovert wird.
+ * @param {{ data: number[], color: string, width?: number, dashed?: boolean, yMin?: number, yMax?: number }[]} series
+ * @param {object} [options]
+ * @param {number} [options.height]
+ * @param {number} [options.width]
+ * @param {number} [options.bucketSize] - Sekunden je Datenpunkt der (downgesampelten) Serie
+ * @param {boolean} [options.showXAxis]
+ * @param {string} [options.unitLabel]
+ * @param {(v: number) => string} [options.formatY]
+ * @param {(index: number, evt: PointerEvent) => void} [options.onHoverIndex]
+ * @param {(evt: PointerEvent) => void} [options.onLeave]
  */
 function createTimeChart(series, { height = 140, width = 820, bucketSize = 1, showXAxis = false, unitLabel = '', formatY = (v) => String(Math.round(v)), onHoverIndex, onLeave } = {}) {
   const padL = 38;
@@ -138,15 +149,253 @@ function statTile(label, value, unit, accent) {
   </div>`;
 }
 
-/** Gewicht zum Datum (FA-MET-01): letzter Verlaufseintrag <= date, sonst der Startwert. Analog powerCurveView.js#weightAtDate. */
-function weightAtDate(settingsJson, date) {
-  const history = (settingsJson && settingsJson.weightHistory) || [];
-  const sorted = [...history].sort((a, b) => a.date.localeCompare(b.date));
-  let w = settingsJson ? settingsJson.weightKg : null;
-  for (const entry of sorted) {
-    if (entry.date <= date) w = entry.kg;
+/** Kennzahlen-Kachelkarte (Dauer, Distanz, NP/IF/TSS, Leistung, Puls). */
+function renderStatsCard(panel, { meta, validWatts, validHr }) {
+  const avgWatts = validWatts.length ? Math.round(validWatts.reduce((a, b) => a + b, 0) / validWatts.length) : null;
+  const maxWatts = validWatts.length ? Math.round(Math.max(...validWatts)) : null;
+  const avgHr = validHr.length ? Math.round(validHr.reduce((a, b) => a + b, 0) / validHr.length) : null;
+  const maxHr = validHr.length ? Math.round(Math.max(...validHr)) : null;
+
+  const statsCard = document.createElement('div');
+  statsCard.className = 'card';
+  statsCard.innerHTML = `
+    <h3>Kennzahlen</h3>
+    <div class="stat-grid">
+      ${statTile('Dauer', formatDuration(meta.movingTimeSec))}
+      ${statTile('Distanz', formatDistance(meta.distanceM))}
+      ${meta.np != null ? statTile('NP', meta.np, 'W', true) : ''}
+      ${meta.if != null ? statTile('IF', meta.if.toFixed(2)) : ''}
+      ${meta.tss != null ? statTile('TSS', meta.tss, '', true) : ''}
+      ${avgWatts != null ? statTile('Ø Leistung', avgWatts, 'W') : ''}
+      ${maxWatts != null ? statTile('Max Leistung', maxWatts, 'W') : ''}
+      ${avgHr != null ? statTile('Ø Puls', avgHr, 'bpm') : ''}
+      ${maxHr != null ? statTile('Max Puls', maxHr, 'bpm') : ''}
+    </div>
+  `;
+  panel.appendChild(statsCard);
+}
+
+/** Belastungsanteile (Strain Low/High/Peak). */
+function renderStrainCard(panel, { meta }) {
+  if (meta.strain && meta.strain.total > 0) {
+    const s = meta.strain;
+    const total = s.total || s.low + s.high + s.peak || 1;
+    const strainCard = document.createElement('div');
+    strainCard.className = 'card';
+    strainCard.innerHTML = `
+      <h3>Belastungsanteile (Strain ${s.total})</h3>
+      <div class="strain-bar">
+        <div class="strain-bar-seg low" style="width:${(s.low / total) * 100}%"></div>
+        <div class="strain-bar-seg high" style="width:${(s.high / total) * 100}%"></div>
+        <div class="strain-bar-seg peak" style="width:${(s.peak / total) * 100}%"></div>
+      </div>
+      <div class="strain-legend">
+        <span class="low">Low ${s.low}</span>
+        <span class="high">High ${s.high}</span>
+        <span class="peak">Peak ${s.peak}</span>
+      </div>
+    `;
+    panel.appendChild(strainCard);
   }
-  return w;
+}
+
+/**
+ * Stoffwechsel (FA-MET-05, Kap. 7.9 V1 Steady-State-Lookup): Signatur + Gewicht ZUM
+ * AKTIVITAETSDATUM (wie ueberall sonst im Modell, F10/FA-TP-08), nicht die aktuellen Werte.
+ */
+function renderMetabolicCard(panel, { meta, stream, prepared, modelState, modelSettings, settings, settingsJson }) {
+  if (stream.n > 0) {
+    const sigAtDate = currentSignatureAtDate(modelState.history || [], meta.date, modelSettings);
+    const massKg = weightAtDate(settingsJson, meta.date);
+    if (sigAtDate && massKg) {
+      const profile = deriveMetabolicProfile(
+        { cp: sigAtDate.cp, wPrimeJ: sigAtDate.wPrimeJ, pMax: sigAtDate.pMax, bodyMassKg: massKg, activeMusclePct: settings.activeMusclePctDefault, labValues: (settingsJson && settingsJson.labValues) || [] },
+        settings
+      );
+      if (profile.converged) {
+        const muscleMassKg = massKg * settings.activeMusclePctDefault;
+        const course = activityMetabolicTimeCourse(prepared.recoveryWatts, { bodyMassKg: massKg, muscleMassKg, vo2max: profile.vo2max, vlamax: profile.vlamax }, settings);
+        const metCard = document.createElement('div');
+        metCard.className = 'card';
+        metCard.innerHTML = `
+          <h3>Stoffwechsel <span class="badge badge-muted">Modellschätzung</span></h3>
+          <div class="stat-grid">
+            ${statTile('Energie', Math.round(course.totalKcal), 'kcal', true)}
+            ${statTile('Kohlenhydrate', Math.round(course.totalChoG), 'g')}
+            ${statTile('Fett', Math.round(course.totalFatG), 'g')}
+            ${statTile('Energie/h', Math.round(course.kcalPerHour), 'kcal')}
+          </div>
+          <p class="hint">Aus dem Stoffwechselmodell (Kap. 7.9, keine experimentelle Validierung) - Signatur/Gewicht zum Aktivitätsdatum.</p>
+        `;
+        panel.appendChild(metCard);
+      }
+    }
+  }
+}
+
+/**
+ * Leistung (+ MPA, falls Signatur zum Datum bekannt), W'bal, Herzfrequenz, Kadenz - EIN gemeinsamer Hover:
+ * egal welche Grafik gehovert wird, markieren alle synchron denselben Zeitpunkt und EIN Tooltip zeigt Zeit
+ * im Training + alle an diesem Zeitpunkt verfuegbaren Kennzahlen (Leistung/MPA/W'bal/Herzfrequenz/Kadenz).
+ */
+function renderChartsCard(panel, { meta, stream, prepared, modelState, modelSettings, settings, validWatts, validHr }) {
+  if (stream.n > 0) {
+    const chartsCard = document.createElement('div');
+    chartsCard.className = 'card chart-tooltip-anchor';
+    chartsCard.innerHTML = '<h3>Verläufe</h3>';
+    panel.appendChild(chartsCard);
+
+    const tooltip = document.createElement('div');
+    tooltip.className = 'chart-tooltip';
+    tooltip.hidden = true;
+    chartsCard.appendChild(tooltip);
+
+    const bucketSize = downsampledBucketSize(stream.n);
+    const chartInstances = [];
+    const combined = [];
+
+    function collect(idx, key, value) {
+      if (!combined[idx]) combined[idx] = { timeSec: idx * bucketSize };
+      combined[idx][key] = value;
+    }
+
+    function onHoverIndex(idx, evt) {
+      chartInstances.forEach((c) => c.setCrosshair(idx));
+      const d = combined[idx];
+      if (!d) return;
+      const rows = [`<strong>Zeit: ${formatElapsed(d.timeSec)}</strong>`];
+      if (d.watts != null) rows.push(`<div><span class="chart-tooltip-dot" style="background:#45b8b4"></span>Leistung: ${Math.round(d.watts)} W</div>`);
+      if (d.mpa != null) rows.push(`<div><span class="chart-tooltip-dot" style="background:#e5495b"></span>MPA: ${Math.round(d.mpa)} W</div>`);
+      if (d.balanceKJ != null) rows.push(`<div><span class="chart-tooltip-dot" style="background:#d8b34a"></span>W'bal: ${d.balanceKJ.toFixed(1)} kJ</div>`);
+      if (d.hr != null) rows.push(`<div><span class="chart-tooltip-dot" style="background:#f0a7b0"></span>Herzfrequenz: ${Math.round(d.hr)} bpm</div>`);
+      if (d.cadence != null) rows.push(`<div><span class="chart-tooltip-dot" style="background:#9397ab"></span>Kadenz: ${Math.round(d.cadence)} rpm</div>`);
+      tooltip.innerHTML = rows.join('');
+      tooltip.hidden = false;
+
+      const anchorRect = chartsCard.getBoundingClientRect();
+      const left = evt.clientX - anchorRect.left + 14;
+      const nearRight = left > anchorRect.width - 170;
+      tooltip.style.left = nearRight ? `${evt.clientX - anchorRect.left - 170}px` : `${left}px`;
+      tooltip.style.top = `${Math.max(0, evt.clientY - anchorRect.top - 24)}px`;
+    }
+
+    function onLeave() {
+      chartInstances.forEach((c) => c.setCrosshair(null));
+      tooltip.hidden = true;
+    }
+
+    const sig = validWatts.length > 0 && modelState.history && modelState.history.length ? currentSignatureAtDate(modelState.history, meta.date, modelSettings) : null;
+    const hasFullSignature = !!(sig && sig.cp && sig.wPrimeJ && sig.pMax);
+    const hasCadence = [...stream.cadence].some((c) => c > 0);
+
+    const willRenderPower = validWatts.length > 0;
+    const willRenderHr = validHr.length > 0;
+    const willRenderCadence = hasCadence;
+    const lastChart = willRenderCadence ? 'cadence' : willRenderHr ? 'hr' : willRenderPower ? (hasFullSignature ? 'wbal' : 'power') : null;
+
+    if (willRenderPower) {
+      const powerTitle = document.createElement('p');
+      powerTitle.className = 'chart-title';
+      powerTitle.textContent = sig ? 'Leistung (teal) · MPA (rot gestrichelt)' : 'Leistung';
+      chartsCard.appendChild(powerTitle);
+
+      const wattsDown = downsample(stream.watts);
+      const powerSeries = [{ data: wattsDown, color: '#45b8b4', width: 1.5, yMin: 0 }];
+      wattsDown.forEach((v, i) => collect(i, 'watts', v));
+
+      if (hasFullSignature) {
+        const balance = wPrimeBalanceSkiba2015(prepared.recoveryWatts, sig.cp, sig.wPrimeJ);
+        const { mpa } = mpaTrace(prepared.recoveryWatts, { cp: sig.cp, wPrimeJ: sig.wPrimeJ, pMax: sig.pMax, n: settings.mpaExponent }, { balance });
+        const mpaDown = downsample(mpa);
+        powerSeries.push({ data: mpaDown, color: '#e5495b', width: 1.25, dashed: true, yMin: 0 });
+        mpaDown.forEach((v, i) => collect(i, 'mpa', v));
+
+        const powerChart = createTimeChart(powerSeries, { bucketSize, showXAxis: lastChart === 'power', unitLabel: 'W', onHoverIndex, onLeave });
+        chartInstances.push(powerChart);
+        chartsCard.appendChild(powerChart.element);
+
+        const wbalTitle = document.createElement('p');
+        wbalTitle.className = 'chart-title';
+        wbalTitle.style.marginTop = '0.75rem';
+        wbalTitle.textContent = "W'bal";
+        chartsCard.appendChild(wbalTitle);
+
+        const balanceKJDown = downsample(balance).map((v) => v / 1000);
+        balanceKJDown.forEach((v, i) => collect(i, 'balanceKJ', v));
+        const wbalChart = createTimeChart([{ data: balanceKJDown, color: '#d8b34a', width: 1.5, yMin: 0, yMax: sig.wPrimeJ / 1000 }], {
+          height: 90,
+          bucketSize,
+          showXAxis: lastChart === 'wbal',
+          unitLabel: 'kJ',
+          formatY: (v) => v.toFixed(1),
+          onHoverIndex,
+          onLeave,
+        });
+        chartInstances.push(wbalChart);
+        chartsCard.appendChild(wbalChart.element);
+      } else {
+        const powerChart = createTimeChart(powerSeries, { bucketSize, showXAxis: lastChart === 'power', unitLabel: 'W', onHoverIndex, onLeave });
+        chartInstances.push(powerChart);
+        chartsCard.appendChild(powerChart.element);
+        if (!sig) {
+          const hint = document.createElement('p');
+          hint.className = 'hint';
+          hint.textContent = 'MPA/W\'bal nicht verfügbar - noch keine Leistungssignatur zu diesem Datum bekannt.';
+          chartsCard.appendChild(hint);
+        }
+      }
+    }
+
+    if (willRenderHr) {
+      const hrTitle = document.createElement('p');
+      hrTitle.className = 'chart-title';
+      hrTitle.style.marginTop = '0.75rem';
+      hrTitle.textContent = 'Herzfrequenz';
+      chartsCard.appendChild(hrTitle);
+
+      const hrDown = downsample(stream.heartrate);
+      hrDown.forEach((v, i) => collect(i, 'hr', v));
+      const hrChart = createTimeChart([{ data: hrDown, color: '#f0a7b0', width: 1.5 }], { height: 90, bucketSize, showXAxis: lastChart === 'hr', unitLabel: 'bpm', onHoverIndex, onLeave });
+      chartInstances.push(hrChart);
+      chartsCard.appendChild(hrChart.element);
+    }
+
+    if (willRenderCadence) {
+      const cadTitle = document.createElement('p');
+      cadTitle.className = 'chart-title';
+      cadTitle.style.marginTop = '0.75rem';
+      cadTitle.textContent = 'Kadenz';
+      chartsCard.appendChild(cadTitle);
+
+      const cadDown = downsample(stream.cadence);
+      cadDown.forEach((v, i) => collect(i, 'cadence', v));
+      const cadChart = createTimeChart([{ data: cadDown, color: '#9397ab', width: 1.5, yMin: 0 }], { height: 90, bucketSize, showXAxis: lastChart === 'cadence', unitLabel: 'rpm', onHoverIndex, onLeave });
+      chartInstances.push(cadChart);
+      chartsCard.appendChild(cadChart.element);
+    }
+  }
+}
+
+/** Breakthrough-Hinweis, falls diese Aktivitaet einer ist. */
+function renderBreakthroughCard(panel, { meta }) {
+  if (meta.breakthrough) {
+    const btCard = document.createElement('div');
+    btCard.className = 'card';
+    btCard.innerHTML = `<h3>Breakthrough</h3><p>${meta.breakthrough.medal ? MEDAL_LABEL[meta.breakthrough.medal] : ''}${meta.breakthrough.discarded ? ' · verworfen' : ''}</p>`;
+    panel.appendChild(btCard);
+  }
+}
+
+/**
+ * Schliessen-Button steht bewusst am Ende (unten im Fenster), nicht oben - damit er nach dem
+ * Durchlesen erreichbar ist, statt beim Scrollen aus dem Blick zu geraten.
+ */
+function renderCloseButton(panel, close) {
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'btn-ghost modal-close-btn-bottom';
+  closeBtn.textContent = 'Schließen ✕';
+  closeBtn.onclick = close;
+  panel.appendChild(closeBtn);
 }
 
 export async function openActivityDetail(activityId) {
@@ -221,237 +470,15 @@ export async function openActivityDetail(activityId) {
     const prepared = prepareActivity({ id: activityId, date: meta.date, startTime: meta.startTime, type: meta.type, points }, settings);
     const stream = prepared.stream;
 
-    // Kennzahlen
     const validWatts = [...stream.watts].filter((_, i) => stream.hasWatts[i]);
-    const avgWatts = validWatts.length ? Math.round(validWatts.reduce((a, b) => a + b, 0) / validWatts.length) : null;
-    const maxWatts = validWatts.length ? Math.round(Math.max(...validWatts)) : null;
     const validHr = [...stream.heartrate].filter((_, i) => stream.hasHeartrate[i]);
-    const avgHr = validHr.length ? Math.round(validHr.reduce((a, b) => a + b, 0) / validHr.length) : null;
-    const maxHr = validHr.length ? Math.round(Math.max(...validHr)) : null;
+    const ctx = { meta, stream, prepared, modelState, modelSettings, settings, settingsJson, validWatts, validHr };
 
-    const statsCard = document.createElement('div');
-    statsCard.className = 'card';
-    statsCard.innerHTML = `
-      <h3>Kennzahlen</h3>
-      <div class="stat-grid">
-        ${statTile('Dauer', formatDuration(meta.movingTimeSec))}
-        ${statTile('Distanz', formatDistance(meta.distanceM))}
-        ${meta.np != null ? statTile('NP', meta.np, 'W', true) : ''}
-        ${meta.if != null ? statTile('IF', meta.if.toFixed(2)) : ''}
-        ${meta.tss != null ? statTile('TSS', meta.tss, '', true) : ''}
-        ${avgWatts != null ? statTile('Ø Leistung', avgWatts, 'W') : ''}
-        ${maxWatts != null ? statTile('Max Leistung', maxWatts, 'W') : ''}
-        ${avgHr != null ? statTile('Ø Puls', avgHr, 'bpm') : ''}
-        ${maxHr != null ? statTile('Max Puls', maxHr, 'bpm') : ''}
-      </div>
-    `;
-    panel.appendChild(statsCard);
-
-    // Belastungsanteile (Strain Low/High/Peak)
-    if (meta.strain && meta.strain.total > 0) {
-      const s = meta.strain;
-      const total = s.total || s.low + s.high + s.peak || 1;
-      const strainCard = document.createElement('div');
-      strainCard.className = 'card';
-      strainCard.innerHTML = `
-        <h3>Belastungsanteile (Strain ${s.total})</h3>
-        <div class="strain-bar">
-          <div class="strain-bar-seg low" style="width:${(s.low / total) * 100}%"></div>
-          <div class="strain-bar-seg high" style="width:${(s.high / total) * 100}%"></div>
-          <div class="strain-bar-seg peak" style="width:${(s.peak / total) * 100}%"></div>
-        </div>
-        <div class="strain-legend">
-          <span class="low">Low ${s.low}</span>
-          <span class="high">High ${s.high}</span>
-          <span class="peak">Peak ${s.peak}</span>
-        </div>
-      `;
-      panel.appendChild(strainCard);
-    }
-
-    // Stoffwechsel (FA-MET-05, Kap. 7.9 V1 Steady-State-Lookup): Signatur + Gewicht ZUM
-    // AKTIVITAETSDATUM (wie ueberall sonst im Modell, F10/FA-TP-08), nicht die aktuellen Werte.
-    if (stream.n > 0) {
-      const sigAtDate = currentSignatureAtDate(modelState.history || [], meta.date, modelSettings);
-      const massKg = weightAtDate(settingsJson, meta.date);
-      if (sigAtDate && massKg) {
-        const profile = deriveMetabolicProfile(
-          { cp: sigAtDate.cp, wPrimeJ: sigAtDate.wPrimeJ, pMax: sigAtDate.pMax, bodyMassKg: massKg, activeMusclePct: settings.activeMusclePctDefault, labValues: (settingsJson && settingsJson.labValues) || [] },
-          settings
-        );
-        if (profile.converged) {
-          const muscleMassKg = massKg * settings.activeMusclePctDefault;
-          const course = activityMetabolicTimeCourse(prepared.recoveryWatts, { bodyMassKg: massKg, muscleMassKg, vo2max: profile.vo2max, vlamax: profile.vlamax }, settings);
-          const metCard = document.createElement('div');
-          metCard.className = 'card';
-          metCard.innerHTML = `
-            <h3>Stoffwechsel <span class="badge badge-muted">Modellschätzung</span></h3>
-            <div class="stat-grid">
-              ${statTile('Energie', Math.round(course.totalKcal), 'kcal', true)}
-              ${statTile('Kohlenhydrate', Math.round(course.totalChoG), 'g')}
-              ${statTile('Fett', Math.round(course.totalFatG), 'g')}
-              ${statTile('Energie/h', Math.round(course.kcalPerHour), 'kcal')}
-            </div>
-            <p class="hint">Aus dem Stoffwechselmodell (Kap. 7.9, keine experimentelle Validierung) - Signatur/Gewicht zum Aktivitätsdatum.</p>
-          `;
-          panel.appendChild(metCard);
-        }
-      }
-    }
-
-    // Leistung (+ MPA, falls Signatur zum Datum bekannt), W'bal, Herzfrequenz, Kadenz - EIN gemeinsamer Hover:
-    // egal welche Grafik gehovert wird, markieren alle synchron denselben Zeitpunkt und EIN Tooltip zeigt Zeit
-    // im Training + alle an diesem Zeitpunkt verfuegbaren Kennzahlen (Leistung/MPA/W'bal/Herzfrequenz/Kadenz).
-    if (stream.n > 0) {
-      const chartsCard = document.createElement('div');
-      chartsCard.className = 'card chart-tooltip-anchor';
-      chartsCard.innerHTML = '<h3>Verläufe</h3>';
-      panel.appendChild(chartsCard);
-
-      const tooltip = document.createElement('div');
-      tooltip.className = 'chart-tooltip';
-      tooltip.hidden = true;
-      chartsCard.appendChild(tooltip);
-
-      const bucketSize = downsampledBucketSize(stream.n);
-      const chartInstances = [];
-      const combined = [];
-
-      function collect(idx, key, value) {
-        if (!combined[idx]) combined[idx] = { timeSec: idx * bucketSize };
-        combined[idx][key] = value;
-      }
-
-      function onHoverIndex(idx, evt) {
-        chartInstances.forEach((c) => c.setCrosshair(idx));
-        const d = combined[idx];
-        if (!d) return;
-        const rows = [`<strong>Zeit: ${formatElapsed(d.timeSec)}</strong>`];
-        if (d.watts != null) rows.push(`<div><span class="chart-tooltip-dot" style="background:#45b8b4"></span>Leistung: ${Math.round(d.watts)} W</div>`);
-        if (d.mpa != null) rows.push(`<div><span class="chart-tooltip-dot" style="background:#e5495b"></span>MPA: ${Math.round(d.mpa)} W</div>`);
-        if (d.balanceKJ != null) rows.push(`<div><span class="chart-tooltip-dot" style="background:#d8b34a"></span>W'bal: ${d.balanceKJ.toFixed(1)} kJ</div>`);
-        if (d.hr != null) rows.push(`<div><span class="chart-tooltip-dot" style="background:#f0a7b0"></span>Herzfrequenz: ${Math.round(d.hr)} bpm</div>`);
-        if (d.cadence != null) rows.push(`<div><span class="chart-tooltip-dot" style="background:#9397ab"></span>Kadenz: ${Math.round(d.cadence)} rpm</div>`);
-        tooltip.innerHTML = rows.join('');
-        tooltip.hidden = false;
-
-        const anchorRect = chartsCard.getBoundingClientRect();
-        const left = evt.clientX - anchorRect.left + 14;
-        const nearRight = left > anchorRect.width - 170;
-        tooltip.style.left = nearRight ? `${evt.clientX - anchorRect.left - 170}px` : `${left}px`;
-        tooltip.style.top = `${Math.max(0, evt.clientY - anchorRect.top - 24)}px`;
-      }
-
-      function onLeave() {
-        chartInstances.forEach((c) => c.setCrosshair(null));
-        tooltip.hidden = true;
-      }
-
-      const sig = validWatts.length > 0 && modelState.history && modelState.history.length ? currentSignatureAtDate(modelState.history, meta.date, modelSettings) : null;
-      const hasFullSignature = !!(sig && sig.cp && sig.wPrimeJ && sig.pMax);
-      const hasCadence = [...stream.cadence].some((c) => c > 0);
-
-      const willRenderPower = validWatts.length > 0;
-      const willRenderHr = validHr.length > 0;
-      const willRenderCadence = hasCadence;
-      const lastChart = willRenderCadence ? 'cadence' : willRenderHr ? 'hr' : willRenderPower ? (hasFullSignature ? 'wbal' : 'power') : null;
-
-      if (willRenderPower) {
-        const powerTitle = document.createElement('p');
-        powerTitle.className = 'chart-title';
-        powerTitle.textContent = sig ? 'Leistung (teal) · MPA (rot gestrichelt)' : 'Leistung';
-        chartsCard.appendChild(powerTitle);
-
-        const wattsDown = downsample(stream.watts);
-        const powerSeries = [{ data: wattsDown, color: '#45b8b4', width: 1.5, yMin: 0 }];
-        wattsDown.forEach((v, i) => collect(i, 'watts', v));
-
-        if (hasFullSignature) {
-          const balance = wPrimeBalanceSkiba2015(prepared.recoveryWatts, sig.cp, sig.wPrimeJ);
-          const { mpa } = mpaTrace(prepared.recoveryWatts, { cp: sig.cp, wPrimeJ: sig.wPrimeJ, pMax: sig.pMax, n: settings.mpaExponent }, { balance });
-          const mpaDown = downsample(mpa);
-          powerSeries.push({ data: mpaDown, color: '#e5495b', width: 1.25, dashed: true, yMin: 0 });
-          mpaDown.forEach((v, i) => collect(i, 'mpa', v));
-
-          const powerChart = createTimeChart(powerSeries, { bucketSize, showXAxis: lastChart === 'power', unitLabel: 'W', onHoverIndex, onLeave });
-          chartInstances.push(powerChart);
-          chartsCard.appendChild(powerChart.element);
-
-          const wbalTitle = document.createElement('p');
-          wbalTitle.className = 'chart-title';
-          wbalTitle.style.marginTop = '0.75rem';
-          wbalTitle.textContent = "W'bal";
-          chartsCard.appendChild(wbalTitle);
-
-          const balanceKJDown = downsample(balance).map((v) => v / 1000);
-          balanceKJDown.forEach((v, i) => collect(i, 'balanceKJ', v));
-          const wbalChart = createTimeChart([{ data: balanceKJDown, color: '#d8b34a', width: 1.5, yMin: 0, yMax: sig.wPrimeJ / 1000 }], {
-            height: 90,
-            bucketSize,
-            showXAxis: lastChart === 'wbal',
-            unitLabel: 'kJ',
-            formatY: (v) => v.toFixed(1),
-            onHoverIndex,
-            onLeave,
-          });
-          chartInstances.push(wbalChart);
-          chartsCard.appendChild(wbalChart.element);
-        } else {
-          const powerChart = createTimeChart(powerSeries, { bucketSize, showXAxis: lastChart === 'power', unitLabel: 'W', onHoverIndex, onLeave });
-          chartInstances.push(powerChart);
-          chartsCard.appendChild(powerChart.element);
-          if (!sig) {
-            const hint = document.createElement('p');
-            hint.className = 'hint';
-            hint.textContent = 'MPA/W\'bal nicht verfügbar - noch keine Leistungssignatur zu diesem Datum bekannt.';
-            chartsCard.appendChild(hint);
-          }
-        }
-      }
-
-      if (willRenderHr) {
-        const hrTitle = document.createElement('p');
-        hrTitle.className = 'chart-title';
-        hrTitle.style.marginTop = '0.75rem';
-        hrTitle.textContent = 'Herzfrequenz';
-        chartsCard.appendChild(hrTitle);
-
-        const hrDown = downsample(stream.heartrate);
-        hrDown.forEach((v, i) => collect(i, 'hr', v));
-        const hrChart = createTimeChart([{ data: hrDown, color: '#f0a7b0', width: 1.5 }], { height: 90, bucketSize, showXAxis: lastChart === 'hr', unitLabel: 'bpm', onHoverIndex, onLeave });
-        chartInstances.push(hrChart);
-        chartsCard.appendChild(hrChart.element);
-      }
-
-      if (willRenderCadence) {
-        const cadTitle = document.createElement('p');
-        cadTitle.className = 'chart-title';
-        cadTitle.style.marginTop = '0.75rem';
-        cadTitle.textContent = 'Kadenz';
-        chartsCard.appendChild(cadTitle);
-
-        const cadDown = downsample(stream.cadence);
-        cadDown.forEach((v, i) => collect(i, 'cadence', v));
-        const cadChart = createTimeChart([{ data: cadDown, color: '#9397ab', width: 1.5, yMin: 0 }], { height: 90, bucketSize, showXAxis: lastChart === 'cadence', unitLabel: 'rpm', onHoverIndex, onLeave });
-        chartInstances.push(cadChart);
-        chartsCard.appendChild(cadChart.element);
-      }
-    }
-
-    // Breakthrough-Hinweis, falls diese Aktivitaet einer ist
-    if (meta.breakthrough) {
-      const btCard = document.createElement('div');
-      btCard.className = 'card';
-      btCard.innerHTML = `<h3>Breakthrough</h3><p>${meta.breakthrough.medal ? MEDAL_LABEL[meta.breakthrough.medal] : ''}${meta.breakthrough.discarded ? ' · verworfen' : ''}</p>`;
-      panel.appendChild(btCard);
-    }
-
-    // Schliessen-Button steht bewusst am Ende (unten im Fenster), nicht oben - damit er nach dem
-    // Durchlesen erreichbar ist, statt beim Scrollen aus dem Blick zu geraten.
-    const closeBtn = document.createElement('button');
-    closeBtn.className = 'btn-ghost modal-close-btn-bottom';
-    closeBtn.textContent = 'Schließen ✕';
-    closeBtn.onclick = close;
-    panel.appendChild(closeBtn);
+    renderStatsCard(panel, ctx);
+    renderStrainCard(panel, ctx);
+    renderMetabolicCard(panel, ctx);
+    renderChartsCard(panel, ctx);
+    renderBreakthroughCard(panel, ctx);
+    renderCloseButton(panel, close);
   }
 }
