@@ -252,6 +252,13 @@ Ursprünglicher Befund:
 
 ### K-05 Signatur-Orchestrierung — `signature.js`
 **Priorität hoch (Struktur), Aufwand L**
+
+> **Phase 2 (2026-10-02) erledigt (Struktur-Befund):** Die Pro-Aktivität-Schleife ist in
+> `processActivity(act, state, ctx)` extrahiert; `computeSignatureHistory` besteht nur noch aus
+> Vorbereitung, Schleife und Rückgabe. Reine Extract-Function-Änderung, abgesichert durch
+> `characterization.test.js` und die bestehende Suite (113/113). Der Fehlerpfad-Befund
+> (kein Flag „Refit nicht konvergiert“) bleibt offen – das wäre eine Ergebnisänderung.
+
 - **[Struktur, mittel-hoch]** `computeSignatureHistory`
   (`signature.js:96-226`, 130 Zeilen) ist die größte, am wenigsten zerlegte
   Funktion im Rechenkern und die Stelle, durch die der gesamte Datenfluss

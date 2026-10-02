@@ -154,117 +154,126 @@ export function computeSignatureHistory(preparedActivities, options = {}) {
 
   const allCurves = sorted.map((a) => ({ date: a.date, activityId: a.id, mmp: a.mmp }));
 
-  // `confirmed` = zuletzt bestaetigte Signatur (Startsignatur/Breakthrough, steht so in `history`),
-  // `active` = dieselbe Signatur nach dem Signatur-Verfall bis zum Aktivitaetsdatum. Erkennung,
-  // Refit, TSS/IF und Strain laufen gegen `active` - so sinkt die Signatur ohne neue Bestaetigung
-  // taeglich, und ein Breakthrough ist jederzeit wieder erreichbar (siehe core/README.md
+  // `state.confirmed` = zuletzt bestaetigte Signatur (Startsignatur/Breakthrough, steht so in `history`),
+  // `active` (in processActivity) = dieselbe Signatur nach dem Signatur-Verfall bis zum Aktivitaetsdatum.
+  // Erkennung, Refit, TSS/IF und Strain laufen gegen `active` - so sinkt die Signatur ohne neue
+  // Bestaetigung taeglich, und ein Breakthrough ist jederzeit wieder erreichbar (siehe core/README.md
   // "Signatur-Verfall im Rechenkern").
-  let confirmed = initial.signature;
-  let confirmedDate = initial.effectiveDate;
-  let lastEndTime = null;
-  let lastEndBalanceJ = null;
-
-  for (const act of sorted) {
-    if (act.date < initial.effectiveDate) {
-      // Teil der Startfenster-Regression, keine eigene Breakthrough-Auswertung (siehe core/README.md).
-      result.activityResults.push({ id: act.id, date: act.date, hasSignature: false, usedForInitialFit: true });
-      continue;
-    }
-
-    const active = decaySignature(confirmed, daysBetweenISO(confirmedDate, act.date), settings);
-
-    const gapSec = lastEndTime ? (new Date(act.startTime) - new Date(lastEndTime)) / 1000 : Infinity;
-    const startBalanceJ =
-      gapSec <= settings.maxGapSecondsForWbalContinuity && lastEndBalanceJ != null ? lastEndBalanceJ : active.wPrimeJ;
-
-    const sigForTrace = { cp: active.cp, wPrimeJ: active.wPrimeJ, pMax: active.pMax, n: settings.mpaExponent };
-    const { mpa, balance } = mpaTrace(act.recoveryWatts, sigForTrace, { startBalanceJ });
-
-    const windows = detectBreakthroughWindows(act.recoveryWatts, mpa, act.mask, settings);
-    const nearPts = nearMpaPoints(act.recoveryWatts, mpa, act.mask, settings);
-
-    // 2-Parameter-Konsistenzpruefung (FA-SIG-14) - protokollnah, keine eigene Ansicht.
-    const twoParam = checkTwoParamConsistency(nearPts, act.recoveryWatts, windows);
-
-    let breakthroughRecord = null;
-    let signatureAfter = active;
-
-    if (windows.length > 0) {
-      const envelope = refitWindowEnvelope(allCurves, act.date, settings);
-      const refit = refitSignature({
-        activeSignature: active,
-        nearMpaPts: nearPts,
-        envelopePts: envelope,
-        breakthroughWatts: act.recoveryWatts,
-        breakthroughMask: act.mask,
-        breakthroughWindows: windows,
-        settings,
-      });
-      const { medal, risen, fallen } = medalFor(active, refit.signature, settings.medalThreshold);
-      const isDiscarded = discarded.has(act.id);
-
-      breakthroughRecord = {
-        id: act.id,
-        activityId: act.id,
-        date: act.date,
-        windows,
-        previousSignature: active,
-        proposedSignature: refit.signature,
-        // Rohes Regressionsergebnis VOR Absenkbremse/Nebenbedingungs-Korrektur (Kap. 7.5) -
-        // Transparenz-Ergaenzung (NFA-11): die Korrektur kann cp/pMax spuerbar anheben, ohne
-        // dass `constraintUnsatisfied` das anzeigt (das Flag greift nur, wenn selbst die
-        // Plausibilitaetsgrenzen die Bedingung nicht erfuellen) - siehe core/README.md.
-        rawFit: refit.fit ? { cp: refit.fit.cp, wPrimeJ: refit.fit.wPrime, pMax: refit.fit.pMax, model: refit.fit.model, r2: refit.fit.r2, confidence: refit.fit.confidence } : null,
-        // Pmax-Stabilitaet (siehe breakthrough.js#refitSignature, core/README.md): true, wenn dieser
-        // Refit mangels kurzer Stuetzpunkte (Sprint-Evidenz) Pmax NICHT neu geschaetzt, sondern auf
-        // dem bisherigen Wert gehalten hat.
-        pMaxHeld: !!(refit.fit && refit.fit.pMaxFixed),
-        // HIE-Stabilitaet (siehe breakthrough.js#refitSignature, core/README.md): analog zu
-        // pMaxHeld, aber fuer W' - mangels Stuetzpunkten im W'-informativen Dauerbereich.
-        wPrimeHeld: !!(refit.fit && refit.fit.wPrimeFixed),
-        droppedByBrake: refit.dropped,
-        medal,
-        risen,
-        fallen,
-        discarded: isDiscarded,
-        constraintUnsatisfied: refit.constraintUnsatisfied, // Datenqualitaet pruefen, siehe core/README.md
-      };
-      result.breakthroughs.push(breakthroughRecord);
-
-      if (!isDiscarded) {
-        signatureAfter = refit.signature;
-        confirmed = refit.signature;
-        confirmedDate = act.date;
-        result.history.push({ date: act.date, ...refit.signature, source: 'refit', breakthroughId: act.id });
-      }
-    }
-
-    const np = normalizedPowerForActivity(act.stream, act.mask);
-    const movingSeconds = sumUint8(act.mask);
-    const tss = trainingStressScore(movingSeconds, np, active.cp);
-    const ifValue = intensityFactor(np, active.cp);
-    const strain = computeStrainScore(act.recoveryWatts, mpa, active.cp, active.pMax);
-    const avgHr = averageHeartRate(act.stream);
-
-    result.activityResults.push({
-      id: act.id,
-      date: act.date,
-      hasSignature: true,
-      signature: active, // zum Aktivitaetsdatum gueltige Schwelle, siehe core/README.md
-      np: Math.round(np),
-      avgHr: avgHr != null ? Math.round(avgHr) : null,
-      if: ifValue != null ? Math.round(ifValue * 1000) / 1000 : null,
-      tss: Math.round(tss * 10) / 10,
-      strain,
-      breakthrough: breakthroughRecord,
-      twoParamContradictions: twoParam.contradictions,
-    });
-
-    lastEndTime = act.endTime;
-    lastEndBalanceJ = Math.min(balance[balance.length - 1] ?? signatureAfter.wPrimeJ, signatureAfter.wPrimeJ);
-  }
+  const state = { confirmed: initial.signature, confirmedDate: initial.effectiveDate, lastEndTime: null, lastEndBalanceJ: null };
+  const ctx = { settings, discarded, allCurves, initial, result };
+  for (const act of sorted) processActivity(act, state, ctx);
 
   return result;
+}
+
+/**
+ * Verarbeitet EINE Aktivitaet der chronologischen Schleife aus computeSignatureHistory:
+ * Verfall -> W'bal/MPA -> Breakthrough-Erkennung -> Refit/Medaille -> NP/TSS/IF/Strain.
+ * Schreibt in `ctx.result` und fortschreibt `state` (zuletzt bestaetigte Signatur,
+ * W'bal-Kontinuitaet) - bewusst mutierend, damit die Schleife selbst schlank bleibt.
+ * @param {ReturnType<typeof import('./activity.js').prepareActivity>} act
+ * @param {{confirmed: {cp:number, wPrimeJ:number, pMax:number}, confirmedDate: string, lastEndTime: string|null, lastEndBalanceJ: number|null}} state
+ * @param {{settings: import('./types.js').ModelSettings, discarded: Set<string>, allCurves: any[], initial: any, result: any}} ctx
+ */
+function processActivity(act, state, ctx) {
+  const { settings, discarded, allCurves, initial, result } = ctx;
+  if (act.date < initial.effectiveDate) {
+    // Teil der Startfenster-Regression, keine eigene Breakthrough-Auswertung (siehe core/README.md).
+    result.activityResults.push({ id: act.id, date: act.date, hasSignature: false, usedForInitialFit: true });
+    return;
+  }
+
+  const active = decaySignature(state.confirmed, daysBetweenISO(state.confirmedDate, act.date), settings);
+
+  const gapSec = state.lastEndTime ? (new Date(act.startTime) - new Date(state.lastEndTime)) / 1000 : Infinity;
+  const startBalanceJ =
+    gapSec <= settings.maxGapSecondsForWbalContinuity && state.lastEndBalanceJ != null ? state.lastEndBalanceJ : active.wPrimeJ;
+
+  const sigForTrace = { cp: active.cp, wPrimeJ: active.wPrimeJ, pMax: active.pMax, n: settings.mpaExponent };
+  const { mpa, balance } = mpaTrace(act.recoveryWatts, sigForTrace, { startBalanceJ });
+
+  const windows = detectBreakthroughWindows(act.recoveryWatts, mpa, act.mask, settings);
+  const nearPts = nearMpaPoints(act.recoveryWatts, mpa, act.mask, settings);
+
+  // 2-Parameter-Konsistenzpruefung (FA-SIG-14) - protokollnah, keine eigene Ansicht.
+  const twoParam = checkTwoParamConsistency(nearPts, act.recoveryWatts, windows);
+
+  let breakthroughRecord = null;
+  let signatureAfter = active;
+
+  if (windows.length > 0) {
+    const envelope = refitWindowEnvelope(allCurves, act.date, settings);
+    const refit = refitSignature({
+      activeSignature: active,
+      nearMpaPts: nearPts,
+      envelopePts: envelope,
+      breakthroughWatts: act.recoveryWatts,
+      breakthroughMask: act.mask,
+      breakthroughWindows: windows,
+      settings,
+    });
+    const { medal, risen, fallen } = medalFor(active, refit.signature, settings.medalThreshold);
+    const isDiscarded = discarded.has(act.id);
+
+    breakthroughRecord = {
+      id: act.id,
+      activityId: act.id,
+      date: act.date,
+      windows,
+      previousSignature: active,
+      proposedSignature: refit.signature,
+      // Rohes Regressionsergebnis VOR Absenkbremse/Nebenbedingungs-Korrektur (Kap. 7.5) -
+      // Transparenz-Ergaenzung (NFA-11): die Korrektur kann cp/pMax spuerbar anheben, ohne
+      // dass `constraintUnsatisfied` das anzeigt (das Flag greift nur, wenn selbst die
+      // Plausibilitaetsgrenzen die Bedingung nicht erfuellen) - siehe core/README.md.
+      rawFit: refit.fit ? { cp: refit.fit.cp, wPrimeJ: refit.fit.wPrime, pMax: refit.fit.pMax, model: refit.fit.model, r2: refit.fit.r2, confidence: refit.fit.confidence } : null,
+      // Pmax-Stabilitaet (siehe breakthrough.js#refitSignature, core/README.md): true, wenn dieser
+      // Refit mangels kurzer Stuetzpunkte (Sprint-Evidenz) Pmax NICHT neu geschaetzt, sondern auf
+      // dem bisherigen Wert gehalten hat.
+      pMaxHeld: !!(refit.fit && refit.fit.pMaxFixed),
+      // HIE-Stabilitaet (siehe breakthrough.js#refitSignature, core/README.md): analog zu
+      // pMaxHeld, aber fuer W' - mangels Stuetzpunkten im W'-informativen Dauerbereich.
+      wPrimeHeld: !!(refit.fit && refit.fit.wPrimeFixed),
+      droppedByBrake: refit.dropped,
+      medal,
+      risen,
+      fallen,
+      discarded: isDiscarded,
+      constraintUnsatisfied: refit.constraintUnsatisfied, // Datenqualitaet pruefen, siehe core/README.md
+    };
+    result.breakthroughs.push(breakthroughRecord);
+
+    if (!isDiscarded) {
+      signatureAfter = refit.signature;
+      state.confirmed = refit.signature;
+      state.confirmedDate = act.date;
+      result.history.push({ date: act.date, ...refit.signature, source: 'refit', breakthroughId: act.id });
+    }
+  }
+
+  const np = normalizedPowerForActivity(act.stream, act.mask);
+  const movingSeconds = sumUint8(act.mask);
+  const tss = trainingStressScore(movingSeconds, np, active.cp);
+  const ifValue = intensityFactor(np, active.cp);
+  const strain = computeStrainScore(act.recoveryWatts, mpa, active.cp, active.pMax);
+  const avgHr = averageHeartRate(act.stream);
+
+  result.activityResults.push({
+    id: act.id,
+    date: act.date,
+    hasSignature: true,
+    signature: active, // zum Aktivitaetsdatum gueltige Schwelle, siehe core/README.md
+    np: Math.round(np),
+    avgHr: avgHr != null ? Math.round(avgHr) : null,
+    if: ifValue != null ? Math.round(ifValue * 1000) / 1000 : null,
+    tss: Math.round(tss * 10) / 10,
+    strain,
+    breakthrough: breakthroughRecord,
+    twoParamContradictions: twoParam.contradictions,
+  });
+
+  state.lastEndTime = act.endTime;
+  state.lastEndBalanceJ = Math.min(balance[balance.length - 1] ?? signatureAfter.wPrimeJ, signatureAfter.wPrimeJ);
 }
 
 function sumUint8(arr) {
