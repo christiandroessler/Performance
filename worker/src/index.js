@@ -5,6 +5,7 @@
 
 import { json, corsHeaders, HttpError } from './http.js';
 import { requireSession, requireAdmin } from './session.js';
+import { isValidEmail } from './emailValidation.js';
 import {
   putOAuthState,
   consumeOAuthState,
@@ -300,8 +301,8 @@ async function handleInvite(request, env) {
   const session = await requireSession(request, env);
   requireAdmin(session);
   const body = await request.json().catch(() => ({}));
-  const email = (body.email || '').trim().toLowerCase();
-  if (!email || !email.includes('@')) throw new HttpError(400, 'invalid_email');
+  const email = (typeof body.email === 'string' ? body.email : '').trim().toLowerCase();
+  if (!isValidEmail(email)) throw new HttpError(400, 'invalid_email');
 
   const existing = await getAllowlistEntry(env.ALLOWLIST_KV, email);
   if (existing) return json({ member: existing }, {}, env); // idempotent
